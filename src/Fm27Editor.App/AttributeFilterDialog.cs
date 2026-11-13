@@ -161,6 +161,9 @@ public sealed class AttributeFilterDialog : Window
     readonly TextBox maxCaBox = new() { Watermark = Loc.S("Max"), Width = 58, HorizontalContentAlignment = HorizontalAlignment.Right };
     readonly TextBox minPaBox = new() { Watermark = Loc.S("Min"), Width = 58, HorizontalContentAlignment = HorizontalAlignment.Right };
     readonly TextBox maxPaBox = new() { Watermark = Loc.S("Max"), Width = 58, HorizontalContentAlignment = HorizontalAlignment.Right };
+    sealed record RoleChoice(string? Code, string Label) { public override string ToString() => Label; }
+    readonly ComboBox roleFilterCombo = new() { Width = 230 };
+    readonly TextBox minRoleScoreBox = new() { Watermark = Loc.S("Min %"), Width = 64, HorizontalContentAlignment = HorizontalAlignment.Right };
 
     readonly NumericUpDown posMinRatingInput = new()
     {
@@ -224,6 +227,10 @@ public sealed class AttributeFilterDialog : Window
     public int? ResultMaxCa => ParseOptInt(maxCaBox.Text);
     public int? ResultMinPa => ParseOptInt(minPaBox.Text);
     public int? ResultMaxPa => ParseOptInt(maxPaBox.Text);
+    public string? ResultRoleCode => (roleFilterCombo.SelectedItem as RoleChoice)?.Code;
+    public double? ResultMinRoleScore => double.TryParse(minRoleScoreBox.Text?.Trim(), NumberStyles.Float, Inv, out double score)
+        ? Math.Clamp(score, 0, 100)
+        : null;
     public string? ResultNameQuery => string.IsNullOrWhiteSpace(nameQueryBox.Text) ? null : nameQueryBox.Text.Trim();
     public Fm27Editor.Core.Offsets.Gender? ResultGender => genderCombo.SelectedIndex switch { 0 => Fm27Editor.Core.Offsets.Gender.Men, 1 => Fm27Editor.Core.Offsets.Gender.Women, _ => null };
     public bool ResultExcludeWomenClubs => ResultGender == Fm27Editor.Core.Offsets.Gender.Men;
@@ -495,6 +502,17 @@ public sealed class AttributeFilterDialog : Window
         maxCaBox.Text = initialFilter.MaxCa?.ToString() ?? "";
         minPaBox.Text = initialFilter.MinPa?.ToString() ?? "";
         maxPaBox.Text = initialFilter.MaxPa?.ToString() ?? "";
+        var roleChoices = new List<RoleChoice> { new(null, "Best Role (Any)") };
+        roleChoices.AddRange(RoleScores.All
+            .OrderBy(r => r.Name, StringComparer.InvariantCultureIgnoreCase)
+            .Select(r => new RoleChoice(r.Code, $"{r.Name} ({r.Code})")));
+        roleFilterCombo.ItemsSource = roleChoices;
+        roleFilterCombo.SelectedItem = initialFilter.RoleCode is { } rc
+            ? roleChoices.FirstOrDefault(r => string.Equals(r.Code, rc, StringComparison.OrdinalIgnoreCase)) ?? roleChoices[0]
+            : roleChoices[0];
+        minRoleScoreBox.Text = initialFilter.MinRoleScore?.ToString("0.#", Inv) ?? "";
+        roleFilterCombo.SelectionChanged += (_, _) => { if (!updatingControls) UpdateSummary(); };
+        minRoleScoreBox.TextChanged += (_, _) => { if (!updatingControls) UpdateSummary(); };
         posMinRatingInput.Value = Math.Clamp(initialFilter.PositionMinRating, 1, 20);
 
         var root = new DockPanel();
@@ -972,6 +990,13 @@ public sealed class AttributeFilterDialog : Window
         rangesRow.Children.Add(MutedLabel("to"));
         rangesRow.Children.Add(maxPaBox);
         stack.Children.Add(rangesRow);
+
+        var roleRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, VerticalAlignment = VerticalAlignment.Center };
+        roleRow.Children.Add(SectionLabel("ROLE"));
+        roleRow.Children.Add(roleFilterCombo);
+        roleRow.Children.Add(MutedLabel("Min %"));
+        roleRow.Children.Add(minRoleScoreBox);
+        stack.Children.Add(roleRow);
 
         // Row 2: Positions
         var posRow = new WrapPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
@@ -1527,7 +1552,7 @@ public sealed class AttributeFilterDialog : Window
     Control BuildAdditionalRanges()
     {
         var panel = new WrapPanel { Orientation = Orientation.Horizontal };
-        var keys = new[] { "Height", "Caps", "Goals", "Home Reputation", "Current Reputation", "World Reputation", "CA/PA Difference" };
+        var keys = new[] { "Height", "Caps", "Goals", "Home Reputation", "Current Reputation", "World Reputation", "CA/PA Difference", "RCA" };
         foreach (string key in keys)
         {
             initialRanges.TryGetValue(key, out var range);
@@ -1536,7 +1561,7 @@ public sealed class AttributeFilterDialog : Window
             var (lo, hi) = key switch
             {
                 "Height" => (0L, 300L),
-                "Caps" or "Goals" => (0L, 200L),
+                "Caps" or "Goals" or "RCA" => (0L, 200L),
                 "CA/PA Difference" => (-200L, 200L),
                 _ => (0L, 10000L),
             };
@@ -1557,6 +1582,17 @@ public sealed class AttributeFilterDialog : Window
         AddChoice("Ethnicity", new[] { new FilterChoice(null, "Unset") }.Concat(InformationLabels.Ethnicities.Select(value => new FilterChoice(value.Code, value.Name))));
         AddChoice("Treated As Non-EU In Italy", [new(null, "Any"), new(1, "Yes"), new(0, "No")]);
         AddChoice("Regen", [new(null, "Any"), new(1, "Yes"), new(0, "No")]);
+        var personalityChoices = new List<FilterChoice>
+        {
+            new(null, "Any"),
+            new(-2, "Exclude Negative (5)"),
+            new(-3, "Negative Only (5)"),
+        };
+        personalityChoices.AddRange(Enumerable.Range(0, 39)
+            .Select(PersonalityClassifier.Describe)
+            .OrderBy(p => p.Name, StringComparer.InvariantCultureIgnoreCase)
+            .Select(p => new FilterChoice(p.Id, p.IsNegative ? $"{p.Name} [Negative]" : p.Name)));
+        AddChoice("Personality", personalityChoices);
         return panel;
     }
 
@@ -1727,6 +1763,8 @@ public sealed class AttributeFilterDialog : Window
             maxCaBox.Text = "";
             minPaBox.Text = "";
             maxPaBox.Text = "";
+            roleFilterCombo.SelectedIndex = 0;
+            minRoleScoreBox.Text = "";
             posMinRatingInput.Value = 15;
             updatingControls = false;
 
@@ -2073,6 +2111,15 @@ public sealed class AttributeFilterDialog : Window
         if (ResultMinPa is not null || ResultMaxPa is not null) parts.Add(Loc.S("PA"));
         if (stagedPositions.Count > 0) parts.Add(Loc.F("{0} position(s)", stagedPositions.Count));
         if (staged.Count > 0) parts.Add(Loc.F("{0} attribute(s)", staged.Count));
+        if (ResultContractStatus is { } contractStatus) parts.Add(ContractStatusOptions.First(o => o.Value == contractStatus).Name);
+        if (ResultClauses.Count > 0) parts.Add($"{ResultClauses.Count} clause(s)");
+        if (ResultMinAge is not null || ResultMaxAge is not null) parts.Add("Age");
+        if (ResultMinCa is not null || ResultMaxCa is not null) parts.Add("CA");
+        if (ResultMinPa is not null || ResultMaxPa is not null) parts.Add("PA");
+        if (ResultRoleCode is { } roleCode) parts.Add(ResultMinRoleScore is { } minScore ? $"{roleCode} >= {minScore:0.#}%" : roleCode);
+        else if (ResultMinRoleScore is { } bestScore) parts.Add($"Best Role >= {bestScore:0.#}%");
+        if (stagedPositions.Count > 0) parts.Add($"{stagedPositions.Count} position(s)");
+        if (staged.Count > 0) parts.Add($"{staged.Count} attribute(s)");
 
         int visibleByGender = allPlayers.Count == 0 ? 0 : PlayersMatchingDialogGender().Count();
         string hiddenSuffix = allPlayers.Count > 0 && visibleByGender < allPlayers.Count

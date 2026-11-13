@@ -4,6 +4,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Controls.Shapes;
+using Avalonia.Controls.Templates;
 using Avalonia.Data;
 using Avalonia.Input;
 using Avalonia.Layout;
@@ -94,6 +95,9 @@ public sealed partial class MainWindow : Window
     int activePosMinRating = 15;
     int? activeMinAge, activeMaxAge, activeMinCa, activeMaxCa, activeMinPa, activeMaxPa;
     string? activeDivision, activeClub, activeNationality;
+    string? activeRoleCode;
+    double? activeMinRoleScore;
+    TalentedRegensTab? talentedRegensTab;
     ulong? activeTeamClubAddress;
     string? activeTeamClubName;
     ContractStatusFilter? activeContractStatus;
@@ -247,7 +251,9 @@ public sealed partial class MainWindow : Window
         shell.Children.Add(root);
         shell.Children.Add(BuildSearchOverlay());
         Content = shell;
+        talentedRegensTab = new TalentedRegensTab(ShowDetailTab);
         AddModuleTab("Players", playersHost, null);
+        AddModuleTab("Regens", talentedRegensTab.Root, null);
 
         modules.ItemsSource = Modules.Registered;
         modules.DisplayMemberBinding = new Binding("Title");
@@ -337,6 +343,9 @@ public sealed partial class MainWindow : Window
         {
             new(PlayerSortKey.CurrentAbility, "Sort: CA", null, true),
             new(PlayerSortKey.PotentialAbility, "Sort: PA", null, true),
+            new(PlayerSortKey.Rca, "Sort: RCA", null, true),
+            new(PlayerSortKey.BestRoleScore, "Sort: Best Role %", null, true),
+            new(PlayerSortKey.Personality, "Sort: Personality", null, false),
             new(PlayerSortKey.Age, "Sort: Age", null, false),
             new(PlayerSortKey.Name, "Sort: Name", null, false),
             new(PlayerSortKey.Club, "Sort: Club", null, false),
@@ -462,6 +471,8 @@ public sealed partial class MainWindow : Window
         activeClub = null;
         activeNationality = null;
         activeMinAge = activeMaxAge = activeMinCa = activeMaxCa = activeMinPa = activeMaxPa = null;
+        activeRoleCode = null;
+        activeMinRoleScore = null;
         activePositions.Clear();
         activePositionThresholds.Clear();
         activePositionRanges.Clear();
@@ -555,6 +566,8 @@ public sealed partial class MainWindow : Window
             activeMaxCa = dialog.ResultMaxCa;
             activeMinPa = dialog.ResultMinPa;
             activeMaxPa = dialog.ResultMaxPa;
+            activeRoleCode = dialog.ResultRoleCode;
+            activeMinRoleScore = dialog.ResultMinRoleScore;
             activePositions.Clear();
             activePositions.AddRange(dialog.ResultPositions);
             activePositionThresholds.Clear();
@@ -750,6 +763,17 @@ public sealed partial class MainWindow : Window
 
         foreach (var (key, range) in activeNumericRanges.ToArray())
             AddChip($"{Loc.S(key)} {range.Min?.ToString() ?? "…"}–{range.Max?.ToString() ?? "…"}", () => activeNumericRanges.Remove(key));
+        if (activeRoleCode is not null || activeMinRoleScore is not null)
+        {
+            string roleLabel = (activeRoleCode, activeMinRoleScore) switch
+            {
+                ({ } code, { } min) => $"Role: {code} >= {min:0.#}%",
+                ({ } code, null) => $"Role: {code}",
+                (null, { } min) => $"Best Role >= {min:0.#}%",
+                _ => "Role"
+            };
+            AddChip(roleLabel, () => { activeRoleCode = null; activeMinRoleScore = null; });
+        }
         if (activePreferredMoves != 0) AddChip(Loc.S("Preferred Moves"), () => activePreferredMoves = 0);
 
         foreach (var pos in activePositions.ToArray())
@@ -937,6 +961,7 @@ public sealed partial class MainWindow : Window
             if (data is null && retiringGrid?.IsVisible == true) RefreshRetiringPlayers();
             InvalidateFutureTransfers();
             if (data is null && futureGrid?.IsVisible == true) RefreshFutureTransfers();
+            talentedRegensTab?.SetPlayers(loaded.OfType<PlayerRecord>());
             selected = null;
             drafts.Clear();
             contractDrafts.Clear();
@@ -991,6 +1016,61 @@ public sealed partial class MainWindow : Window
             if (c.Title is "Age" or "CA" or "PA" or "Asking Price") col.CellStyleClasses.Add("numeric");
             grid.Columns.Add(col);
         }
+        if (module is PlayersModule)
+        {
+            grid.Columns.Add(new DataGridTemplateColumn
+            {
+                Header = "RCA",
+                Width = new DataGridLength(68),
+                MinWidth = 54,
+                CellTemplate = new FuncDataTemplate<PlayerRecord>((p, _) => new TextBlock
+                {
+                    Text = p is null ? "" : RcaCalculator.Calculate(p).ToString(Inv),
+                    HorizontalAlignment = HorizontalAlignment.Right,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(8, 0),
+                    Foreground = Brush("#38BDF8"),
+                })
+            });
+            grid.Columns.Add(new DataGridTemplateColumn
+            {
+                Header = "Best Role",
+                Width = new DataGridLength(130),
+                MinWidth = 100,
+                CellTemplate = new FuncDataTemplate<PlayerRecord>((p, _) =>
+                {
+                    var text = "";
+                    if (p is not null)
+                    {
+                        var best = RoleScores.BestFitRole(p);
+                        text = $"{best.Role.Code} {best.Score:0.0}%";
+                    }
+                    return new TextBlock
+                    {
+                        Text = text,
+                        VerticalAlignment = VerticalAlignment.Center,
+                        Margin = new Thickness(8, 0),
+                    };
+                })
+            });
+            grid.Columns.Add(new DataGridTemplateColumn
+            {
+                Header = "Personality",
+                Width = new DataGridLength(145),
+                MinWidth = 110,
+                CellTemplate = new FuncDataTemplate<PlayerRecord>((p, _) =>
+                {
+                    var classified = p is null ? null : PersonalityClassifier.Classify(p);
+                    return new TextBlock
+                    {
+                        Text = classified?.Name ?? "",
+                        VerticalAlignment = VerticalAlignment.Center,
+                        Margin = new Thickness(8, 0),
+                        Foreground = classified?.IsNegative == true ? Brush("#F87171") : UiKit.TextPrimary,
+                    };
+                })
+            });
+        }
     }
 
     PlayerFilter BuildCurrentFilter() => new()
@@ -1018,6 +1098,8 @@ public sealed partial class MainWindow : Window
             RequiredPreferredMoves = activePreferredMoves,
             PositionMinRating = activePosMinRating,
             AttributeThresholds = activeAttrThresholds.ToArray(),
+            RoleCode = activeRoleCode,
+            MinRoleScore = activeMinRoleScore,
             Gender = SelectedPlayerGender(),
             ExcludeWomenClubs = SelectedPlayerGender() == Fm27Editor.Core.Offsets.Gender.Men,
     };
@@ -1037,6 +1119,7 @@ public sealed partial class MainWindow : Window
         activeClauses.Count > 0 ||
         activeMinAge is not null || activeMaxAge is not null || activeMinCa is not null || activeMaxCa is not null ||
         activeMinPa is not null || activeMaxPa is not null || activePositions.Count > 0 || activePositionRanges.Count > 0 ||
+        activeRoleCode is not null || activeMinRoleScore is not null ||
         activeNumericRanges.Count > 0 || activePreferredMoves != 0 || activeAttrThresholds.Count > 0 || activeRelationships.Count > 0;
 
     async Task FilterInternal(bool reportStatus, bool immediate = false)
@@ -1207,6 +1290,28 @@ public sealed partial class MainWindow : Window
             };
             commands.Children.Add(UiKit.StatBox(Loc.S(field.Label), ability));
         }
+        var rcaValue = new TextBlock
+        {
+            Text = RcaCalculator.Calculate(player).ToString(Inv),
+            FontSize = 16,
+            FontWeight = FontWeight.Black,
+            Foreground = Brush("#4ADE80"),
+            VerticalAlignment = VerticalAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            MinWidth = 34,
+        };
+        commands.Children.Add(UiKit.StatBox("RCA", rcaValue));
+
+        var bestRole = RoleScores.BestFitRole(player);
+        var roleValue = new TextBlock
+        {
+            Text = $"{bestRole.Role.Code} {bestRole.Score:0.0}%",
+            FontSize = 13,
+            FontWeight = FontWeight.Bold,
+            Foreground = Brush("#E2E8F0"),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        commands.Children.Add(UiKit.StatBox("Best Role", roleValue));
 
         saveButton = new Button { IsVisible = false, Content = Loc.S("Save changes"), IsEnabled = draft.Count > 0, Classes = { "accent" }, Margin = new Thickness(4, 0, 0, 0) };
         saveButton.Click += (_, _) => SavePlayerChanges(player);
@@ -1292,6 +1397,7 @@ public sealed partial class MainWindow : Window
         var sections = new List<SectionHost.Section>
         {
             new("Information", "Information", () => InformationSection(player)),
+            new("Role Scores", "Role Scores", () => RoleScoresPanel(player)),
             new("Positions", "Positions", () => CreatePitch(player, draft)),
             new("Career Plans", "Career Plans", () => CareerPlansPanel(player)),
             new("Move to club", "Move to club", () => MovePanel(player)),
@@ -1871,7 +1977,7 @@ public sealed partial class MainWindow : Window
     {
         p.GameDate ??= backend.GameDate;
         var arr = rows.ToArray(); int index = Array.FindIndex(arr, x => x is PlayerRecord old && old.Address == p.Address);
-        if (index >= 0) { arr[index] = p; rows = arr; }
+        if (index >= 0) { arr[index] = p; rows = arr; talentedRegensTab?.SetPlayers(arr.OfType<PlayerRecord>()); }
         _ = FilterInternal(reportStatus: false); updating = true; grid.SelectedItem = p; updating = false;
         InvalidateRetiringPlayers();
         if (retiringGrid?.IsVisible == true) RefreshRetiringPlayers();

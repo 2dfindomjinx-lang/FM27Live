@@ -579,9 +579,7 @@ public sealed partial class MainWindow
             "Add a player with Set speed in his Actions panel. Works until you close the game.")));
         stack.Children.Add(accelPanel);
         stack.Children.Add(accelHits);
-        // Force Accept Transfer is shelved until the code patch is finished; the mechanism is hidden (see ForceAcceptTransferView.cs).
-        // stack.Children.Add(BuildForceAcceptTransferSection(session));
-        stack.Children.Add(UiKit.Card("Force Accept Transfer", new TextBlock { Text = Loc.S("Coming Soon"), FontSize = 13, Foreground = UiKit.TextMuted }));
+        stack.Children.Add(BuildForceAcceptTransferSection(session));
         window = new Window
         {
             Title = Loc.S("Hook Manager"),

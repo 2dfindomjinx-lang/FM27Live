@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-Checked on Steam `27.0.1+2503222`; not yet checked on Game Pass.
+Checked on Steam `27.0.1+2503222` and Game Pass `27.0.1+2494687`.
 
 ### Transfers
 - **Transfer a player on loan:** Move now removes the player from both old squads. A future transfer ends the loan immediately and returns the player to the parent club while the deal waits, as observed in IGE. Both paths support the measured three-club case without purchase, buy-back or other contract clauses; other cases remain unavailable pending verification.

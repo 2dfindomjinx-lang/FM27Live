@@ -28,10 +28,11 @@ public sealed partial class MainWindow
         {
             // The icon shows where a click goes: the sun while dark, the moon while light.
             icon.Data = Geometry.Parse(AppTheme.Mode == ThemeMode.Dark ? SunIcon : MoonIcon);
-            ToolTip.SetTip(button, AppTheme.Mode == ThemeMode.Dark ? "Light theme" : "Dark theme");
+            ToolTip.SetTip(button, Loc.S(AppTheme.Mode == ThemeMode.Dark ? "Light theme" : "Dark theme"));
         }
         Refresh();
         AppTheme.Changed += Refresh;
+        Fm27Editor.Core.Settings.LanguageSetting.Changed += Refresh;
         button.Click += (_, _) => AppTheme.Toggle();
         return button;
     }

@@ -60,7 +60,7 @@ sealed class FavoriteStar : ToggleButton
         Content = icon;
         IsEnabled = playerId is not null;
         IsChecked = FavoriteStore.Contains(playerId);
-        ToolTip.SetTip(this, "Favourite");
+        ToolTip.SetTip(this, Loc.S("Favourite"));
         Paint();
         IsCheckedChanged += (_, _) =>
         {

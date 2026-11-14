@@ -18,11 +18,10 @@ public sealed partial class MainWindow
         var release = await UpdateCheck.NewerReleaseAsync();
         if (release is null) return;
         await Dispatcher.UIThread.InvokeAsync(() =>
-            ShowNotice("Update available",
-                $"Version {release.Tag} is out. Update now downloads it, closes the editor and opens the new version. "
-                + "Changes you have not saved yet are lost; anything running in the game (Development Speed, Wonderkid Academy) keeps running.",
-                ("Later", false, null),
-                ("Update now", true, () => UpdateAsync(release))));
+            ShowNotice(Loc.S("Update available"),
+                Loc.F("Version {0} is out. Update now downloads it, closes the editor and opens the new version. Changes you have not saved yet are lost; anything running in the game (Development Speed, Wonderkid Academy) keeps running.", release.Tag),
+                (Loc.S("Later"), false, null),
+                (Loc.S("Update now"), true, () => UpdateAsync(release))));
     }
 
     async Task UpdateAsync(ReleaseInfo release)
@@ -34,7 +33,7 @@ public sealed partial class MainWindow
             OpenReleasesPage();
             return;
         }
-        status.Text = $"Downloading {release.Tag}…";
+        status.Text = Loc.F("Downloading {0}…", release.Tag);
         try
         {
             string downloaded = await UpdateCheck.DownloadAsync(release, exe);
@@ -44,11 +43,11 @@ public sealed partial class MainWindow
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Net.Http.HttpRequestException
                                        or TaskCanceledException or InvalidDataException or System.ComponentModel.Win32Exception)
         {
-            status.Text = "Update failed: " + ex.Message;
-            ShowNotice("Update failed",
-                $"The update could not be installed ({ex.Message}). This version is unchanged. You can download {release.Tag} from GitHub instead.",
-                ("Close", false, null),
-                ("Open GitHub", true, () => { OpenReleasesPage(); return Task.CompletedTask; }));
+            status.Text = Loc.F("Update failed: {0}", ex.Message);
+            ShowNotice(Loc.S("Update failed"),
+                Loc.F("The update could not be installed ({0}). This version is unchanged. You can download {1} from GitHub instead.", ex.Message, release.Tag),
+                (Loc.S("Close"), false, null),
+                (Loc.S("Open GitHub"), true, () => { OpenReleasesPage(); return Task.CompletedTask; }));
             return;
         }
         if (Avalonia.Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop) desktop.Shutdown();
@@ -58,6 +57,6 @@ public sealed partial class MainWindow
     void OpenReleasesPage()
     {
         try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(UpdateCheck.ReleasesPage) { UseShellExecute = true }); }
-        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException) { status.Text = "Could not open the browser: " + UpdateCheck.ReleasesPage; }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException) { status.Text = Loc.F("Could not open the browser: {0}", UpdateCheck.ReleasesPage); }
     }
 }

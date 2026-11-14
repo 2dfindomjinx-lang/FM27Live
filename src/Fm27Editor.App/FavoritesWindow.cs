@@ -19,19 +19,19 @@ sealed class FavoritesWindow : Window
         SelectionMode = DataGridSelectionMode.Single, GridLinesVisibility = DataGridGridLinesVisibility.Horizontal,
         HorizontalGridLinesBrush = UiKit.Brush("#1D2130"), RowHeight = 26, Background = UiKit.Brush("#11131C"), BorderThickness = new Thickness(0),
     };
-    readonly Button remove = new() { Content = "Remove", IsEnabled = false, MinWidth = 84, HorizontalContentAlignment = HorizontalAlignment.Center };
+    readonly Button remove = new() { Content = Loc.S("Remove"), IsEnabled = false, MinWidth = 84, HorizontalContentAlignment = HorizontalAlignment.Center };
 
     public FavoritesWindow(IReadOnlyList<PlayerRecord> players, Action<PlayerRecord> open)
     {
         all = players;
-        Title = "Favourites";
+        Title = Loc.S("Favourites");
         Width = 760; Height = 400; MinWidth = 520; MinHeight = 240;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         Background = UiKit.WindowBg;
 
         void Column(string title, string binding, DataGridLength width, bool numeric = false, string? format = null)
         {
-            var col = new DataGridTextColumn { Header = title, Binding = format is null ? new Binding(binding) : new Binding(binding) { StringFormat = format }, Width = width };
+            var col = new DataGridTextColumn { Header = Loc.S(title), Binding = format is null ? new Binding(binding) : new Binding(binding) { StringFormat = format }, Width = width };
             if (numeric) col.CellStyleClasses.Add("numeric");
             grid.Columns.Add(col);
         }
@@ -86,6 +86,6 @@ sealed class FavoritesWindow : Window
     {
         if (count is null) return;
         int n = (grid.ItemsSource as System.Collections.ICollection)?.Count ?? 0;
-        count.Text = n == 1 ? "1 player" : $"{n} players";
+        count.Text = n == 1 ? Loc.S("1 player") : Loc.F("{0} players", n);
     }
 }

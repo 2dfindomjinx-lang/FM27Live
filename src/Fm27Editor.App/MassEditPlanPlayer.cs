@@ -60,7 +60,7 @@ internal sealed partial class MassEditWindow
                 }
                 case Kind.PlayerDetail when row.Index == DetailAge:
                 {
-                    var today = session.ReadGameDate() ?? throw new InvalidOperationException("The in-game date could not be read");
+                    var today = session.ReadGameDate() ?? throw new InvalidOperationException(Loc.S("The in-game date could not be read"));
                     foreach (var p in players)
                     {
                         if (p.DateOfBirth is not { } born) continue;
@@ -72,7 +72,7 @@ internal sealed partial class MassEditWindow
                 }
                 case Kind.PlayerDetail when row.Index == DetailNationality:
                 {
-                    if (nationChoices.FirstOrDefault(n => n.Id == row.Number) is not { Address: not 0 } nation) { rows.Add(MassRow.Refused("(every target)", row.Label, "Choose a nation")); break; }
+                    if (nationChoices.FirstOrDefault(n => n.Id == row.Number) is not { Address: not 0 } nation) { rows.Add(MassRow.Refused(Loc.S("(every target)"), row.Label, Loc.S("Choose a nation"))); break; }
                     var record = new Fm27Editor.Core.Nations.NationRecord(nation.Address, nation.Id, nation.Name, null);
                     foreach (var p in players)
                     {

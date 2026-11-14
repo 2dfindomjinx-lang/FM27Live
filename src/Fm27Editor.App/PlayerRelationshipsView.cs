@@ -31,7 +31,7 @@ public sealed partial class MainWindow
         var panel = new StackPanel { Spacing = 8 };
         var statuses = backend.Session.ReadStatuses(player);
         var edits = new List<EntryEdit>();
-        var save = new Button { IsVisible = false, Content = "Save changes", IsEnabled = false, Classes = { "accent" } };
+        var save = new Button { IsVisible = false, Content = Loc.S("Save changes"), IsEnabled = false, Classes = { "accent" } };
         var infoCodes = RelationshipWriter.OtherNationalityInfos;
 
         var removed = new List<RelationEntry>();
@@ -44,15 +44,15 @@ public sealed partial class MainWindow
         void HideRow(int at) { foreach (var c in grid.Children.Where(c => Grid.GetRow(c) == at)) c.IsVisible = false; }
         grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
         string[] headers = ["Type", "Name", "Caps / Value", "Goals", "Info / Reason", ""];
-        for (int i = 0; i < headers.Length; i++) Cell(new TextBlock { Text = headers[i], Foreground = Brush("#8A8DA3") }, 0, i);
+        for (int i = 0; i < headers.Length; i++) Cell(new TextBlock { Text = Loc.S(headers[i]), Foreground = Brush("#8A8DA3") }, 0, i);
 
         foreach (var entry in statuses.Entries)
         {
             int row = grid.RowDefinitions.Count;
             grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-            var remove = new Button { Content = "Remove" };
+            var remove = new Button { Content = Loc.S("Remove") };
             remove.Click += (_, _) => { removed.Add(entry); HideRow(row); Refresh(); };
-            Cell(new TextBlock { Text = RelationCatalog.NameOf(entry.Type), VerticalAlignment = VerticalAlignment.Center }, row, 0);
+            Cell(new TextBlock { Text = RelationCatalog.Find(entry.Type)?.Name is { } relName ? Loc.S(relName) : Loc.F("Unknown ({0})", entry.Type), VerticalAlignment = VerticalAlignment.Center }, row, 0);
             Cell(new TextBlock { Text = entry.TargetName ?? "", VerticalAlignment = VerticalAlignment.Center }, row, 1);
 
             var edit = new EntryEdit(entry);
@@ -69,7 +69,7 @@ public sealed partial class MainWindow
             {
                 var names = infoCodes.Select(c => InformationLabels.Name(InformationLabels.NationalityInfos, c)).ToList();
                 int at = infoCodes.ToList().IndexOf(entry.Flags);
-                if (at < 0) { names.Add($"Code {entry.Flags}"); at = names.Count - 1; }
+                if (at < 0) { names.Add(Loc.F("Code {0}", entry.Flags)); at = names.Count - 1; }
                 var info = new ComboBox { Width = 150, ItemsSource = names, SelectedIndex = at };
                 info.SelectionChanged += (_, _) => Refresh();
                 edit.Info = info;
@@ -81,7 +81,7 @@ public sealed partial class MainWindow
                 value.TextChanged += (_, _) => Refresh();
                 var reasons = RelationshipLabels.Reasons(KindFor(entry.Type)).ToList();
                 int at = entry.Plus8;
-                if (at >= reasons.Count) reasons.AddRange(Enumerable.Range(reasons.Count, at - reasons.Count + 1).Select(c => $"Code {c}"));
+                if (at >= reasons.Count) reasons.AddRange(Enumerable.Range(reasons.Count, at - reasons.Count + 1).Select(c => Loc.F("Code {0}", c)));
                 var reason = new ComboBox { Width = 150, ItemsSource = reasons, SelectedIndex = Math.Clamp(at, 0, reasons.Count - 1) };
                 reason.SelectionChanged += (_, _) => Refresh();
                 edit.Caps = value; edit.Reason = reason;
@@ -119,13 +119,19 @@ public sealed partial class MainWindow
             int row = grid.RowDefinitions.Count;
             grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
             var d = new DraftRow();
-            var typeBox = new ComboBox { Width = 150, ItemsSource = RelationCatalog.All.Select(t => t.Name).ToArray(), SelectedIndex = -1, MaxDropDownHeight = 300 };
+            var typeBox = new ComboBox
+            {
+                Width = 150,
+                ItemsSource = RelationCatalog.All.Select(t => Loc.S(t.Name)).ToArray(),
+                SelectedIndex = -1,
+                MaxDropDownHeight = 300,
+            };
             var target = new AutoCompleteBox { MinimumPrefixLength = 2, FilterMode = AutoCompleteFilterMode.Custom, MaxDropDownHeight = 300, IsVisible = false,
                 ItemFilter = (q, o) => o is RelationTarget t && Matches(t.Label, q ?? "") };
             var value = new TextBox { Width = 70, HorizontalContentAlignment = HorizontalAlignment.Right, IsVisible = false };
             var goals = new TextBox { Width = 70, HorizontalContentAlignment = HorizontalAlignment.Right, IsVisible = false };
             var info = new ComboBox { Width = 150, ItemsSource = infoCodes.Select(c => InformationLabels.Name(InformationLabels.NationalityInfos, c)).ToArray(), SelectedIndex = infoCodes.ToList().IndexOf(80), IsVisible = false };
-            var removeDraft = new Button { Content = "Remove" };
+            var removeDraft = new Button { Content = Loc.S("Remove") };
             d.TargetBox = target; d.Value = value; d.Goals = goals; d.Info = info;
             Cell(typeBox, row, 0); Cell(target, row, 1); Cell(value, row, 2); Cell(goals, row, 3); Cell(info, row, 4); Cell(removeDraft, row, 5);
             typeBox.SelectionChanged += (_, _) =>
@@ -145,7 +151,7 @@ public sealed partial class MainWindow
             drafts.Add(d);
             Refresh();
         }
-        var add = new Button { Content = "Add", HorizontalAlignment = HorizontalAlignment.Left };
+        var add = new Button { Content = Loc.S("Add"), HorizontalAlignment = HorizontalAlignment.Left };
         add.Click += (_, _) => AddDraft();
 
         var list = new StackPanel();
@@ -160,17 +166,17 @@ public sealed partial class MainWindow
         if (statuses.Holder != 0) panel.Children.Add(UiKit.Card("Relationships", list));
         RelationDraft ToDraft(DraftRow d)
         {
-            var type = d.Type ?? throw new InvalidOperationException("Relationships: choose a type for every new row");
+            var type = d.Type ?? throw new InvalidOperationException(Loc.S("Relationships: choose a type for every new row"));
             ulong target = type.Target == RelationTargetKind.None ? 0
-                : (d.TargetBox!.SelectedItem as RelationTarget)?.Address ?? throw new InvalidOperationException($"{type.Name}: choose a target");
+                : (d.TargetBox!.SelectedItem as RelationTarget)?.Address ?? throw new InvalidOperationException(Loc.F("{0}: choose a target", Loc.S(type.Name)));
             byte value = type.Value, flags = type.Flags;
             if (type.Code is CapsType or YouthCapsType)
             {
                 if (!byte.TryParse(d.Value!.Text, out value) || value > 127 || !byte.TryParse(d.Goals!.Text, out flags) || flags > 127)
-                    throw new InvalidOperationException("Other Nation Caps: Caps and Goals are 0–127");
+                    throw new InvalidOperationException(Loc.S("Other Nation Caps: Caps and Goals are 0–127"));
             }
             else if (type.Code == OtherNationalityType) flags = (byte)infoCodes[d.Info!.SelectedIndex];
-            else if (!byte.TryParse(d.Value!.Text, out value)) throw new InvalidOperationException($"{type.Name}: enter a value");
+            else if (!byte.TryParse(d.Value!.Text, out value)) throw new InvalidOperationException(Loc.F("{0}: enter a value", Loc.S(type.Name)));
             return new RelationDraft(type, target, type.Plus8, value, flags);
         }
         save.Click += (_, _) =>
@@ -188,7 +194,7 @@ public sealed partial class MainWindow
                         if (entry.Type is CapsType or YouthCapsType)
                         {
                             if (!byte.TryParse(e.Caps!.Text, out var caps) || caps > 127 || !byte.TryParse(e.Goals!.Text, out var goals) || goals > 127)
-                                throw new InvalidOperationException("Other Nation Caps: Caps and Goals are 0–127");
+                                throw new InvalidOperationException(Loc.S("Other Nation Caps: Caps and Goals are 0–127"));
                             writer.UpdateEntry(player, entry, entry.Plus8, caps, goals);
                         }
                         else if (entry.Type == OtherNationalityType)
@@ -198,7 +204,7 @@ public sealed partial class MainWindow
                         else
                         {
                             if (!byte.TryParse(e.Caps!.Text, out var value) || value is < 1 or > 100)
-                                throw new InvalidOperationException("Relationships: enter a value 1–100");
+                                throw new InvalidOperationException(Loc.S("Relationships: enter a value 1–100"));
                             writer.UpdateEntry(player, entry, e.Reason!.SelectedIndex, value, entry.Flags);
                         }
                     }
@@ -212,9 +218,9 @@ public sealed partial class MainWindow
                     foreach (var draft in toAdd) writer.AddEntry(player, session.ReadStatuses(player), draft, session.AllocateGameBlock);
                 });
                 rerender();
-                status.Text = "Saved relationships. Continue in FM to see updates.";
+                status.Text = Loc.S("Saved relationships. Continue in FM to see updates.");
             }
-            catch (Exception ex) { status.Text = ex.Message; }
+            catch (Exception ex) { status.Text = UserMessage.For(ex); }
         };
         panel.Children.Add(save);
         return panel;

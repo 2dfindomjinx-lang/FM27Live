@@ -77,14 +77,14 @@ public sealed partial class MainWindow
             {
                 string value = text.Trim().TrimStart('#');
                 if (value.Length != 8 || !uint.TryParse(value, System.Globalization.NumberStyles.HexNumber, Inv, out uint colour))
-                    throw new FormatException("Colour must be #AARRGGBB");
+                    throw new FormatException(Loc.S("Colour must be #AARRGGBB"));
                 colours.Add((index, colour));
             }
             int? style = null;
             if (draft.Style is { } raw)
             {
                 if (!int.TryParse(raw.Trim(), out int value) || value < 1 || value > StyleLimit(draft.Snapshot))
-                    throw new FormatException($"Item Style must be 1 to {StyleLimit(draft.Snapshot)}");
+                    throw new FormatException(Loc.F("Item Style must be 1 to {0}", StyleLimit(draft.Snapshot)));
                 style = value;
             }
             parsed.Add((draft, colours, style));
@@ -92,7 +92,7 @@ public sealed partial class MainWindow
         var current = session.ClubKits.Read(club.Address, club.Id!.Value).ToDictionary(x => x.Slot);
         foreach (var (draft, _, _) in parsed)
             if (!current.TryGetValue(draft.Snapshot.Slot, out var actual) || actual != draft.Snapshot)
-                throw new Fm27Editor.Core.Players.StaleObjectException("Kit item changed since editing began");
+                throw new Fm27Editor.Core.Players.StaleObjectException(Loc.S("Kit item changed since editing began"));
         foreach (var (draft, colours, style) in parsed)
         {
             var snapshot = draft.Snapshot;
@@ -177,11 +177,11 @@ public sealed partial class MainWindow
                 string text = kitDrafts.GetValueOrDefault(ownerAddress)?.GetValueOrDefault(item.Slot)?.Colours.GetValueOrDefault(i) ?? original;
                 var box = new TextBox { Text = text, Width = 110 };
                 box.TextChanged += (_, _) => { SetKitDraft(item, colourIndex, box.Text ?? "", onDraftChanged); onEdited(); };
-                panel.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { new TextBlock { Text = names[i], Width = 148, VerticalAlignment = VerticalAlignment.Center }, ColourInput(box) } });
+                panel.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { new TextBlock { Text = Loc.S(names[i]), Width = 148, VerticalAlignment = VerticalAlignment.Center }, ColourInput(box) } });
             }
             var style = new TextBox { Text = kitDrafts.GetValueOrDefault(ownerAddress)?.GetValueOrDefault(item.Slot)?.Style ?? item.Style.ToString(Inv), Width = 110, HorizontalContentAlignment = HorizontalAlignment.Right };
             style.TextChanged += (_, _) => SetKitDraft(item, null, style.Text ?? "", onDraftChanged);
-            panel.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { new TextBlock { Text = "Item Style", Width = 148, VerticalAlignment = VerticalAlignment.Center }, style } });
+            panel.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { new TextBlock { Text = Loc.S("Item Style"), Width = 148, VerticalAlignment = VerticalAlignment.Center }, style } });
             host.Children.Add(panel);
         }
 
@@ -224,13 +224,13 @@ public sealed partial class MainWindow
                 if (matches.Length == 0)
                 {
                     rowOptions.Add(null);
-                    list.Items.Add(new ListBoxItem { Content = part, IsEnabled = false });
+                    list.Items.Add(new ListBoxItem { Content = Loc.S(part), IsEnabled = false });
                     continue;
                 }
                 foreach (var option in matches)
                 {
                     rowOptions.Add(option);
-                    list.Items.Add(new ListBoxItem { Content = part });
+                    list.Items.Add(new ListBoxItem { Content = Loc.S(part) });
                 }
             }
             list.SelectionChanged += (_, _) =>

@@ -43,12 +43,12 @@ public sealed partial class MainWindow
     void GrantClubNationPermits(ulong club, Func<IReadOnlyList<PlayerRecord>>? getSelectedPlayers, Action<string>? onStatus, Action? onApplied)
     {
         var targets = getSelectedPlayers?.Invoke() ?? [];
-        if (targets.Count == 0) { onStatus?.Invoke("No players selected"); return; }
+        if (targets.Count == 0) { onStatus?.Invoke(Loc.S("No players selected")); return; }
         try
         {
             var session = backend.Session;
             ulong nation = session.NationOfClub(club);
-            string nationName = NationCatalogueForPicker().FirstOrDefault(n => n.Address == nation)?.DisplayName ?? "the club's country";
+            string nationName = NationCatalogueForPicker().FirstOrDefault(n => n.Address == nation)?.DisplayName ?? Loc.S("the club's country");
             int year = session.ReadGameDate()?.Year ?? throw new InvalidOperationException("The in-game date is not readable");
             var skips = new List<WorkPermitBatchSkip>();
             int granted = 0;
@@ -57,11 +57,12 @@ public sealed partial class MainWindow
             onApplied?.Invoke();
             int already = skips.Count(s => s.Reason.StartsWith("already holds", StringComparison.Ordinal));
             var other = skips.Where(s => !s.Reason.StartsWith("already holds", StringComparison.Ordinal)).ToList();
-            onStatus?.Invoke($"Work permit ({nationName}): {granted} granted" +
-                (already > 0 ? $", {already} already had one" : "") +
-                (other.Count > 0 ? $", {other.Count} failed ({string.Join("; ", other.Take(2).Select(s => $"{s.PlayerName}: {s.Reason}"))})" : "") +
-                ". Continue in FM to see updates.");
+            onStatus?.Invoke(Loc.F("Work permit ({0}): {1} granted{2}{3}. Continue in FM to see updates.",
+                nationName,
+                granted,
+                already > 0 ? Loc.F(", {0} already had one", already) : "",
+                other.Count > 0 ? Loc.F(", {0} failed ({1})", other.Count, string.Join("; ", other.Take(2).Select(s => $"{s.PlayerName}: {s.Reason}"))) : ""));
         }
-        catch (Exception ex) { onStatus?.Invoke($"Work permit: {UserMessage.For(ex)}"); }
+        catch (Exception ex) { onStatus?.Invoke(Loc.F("Work permit: {0}", UserMessage.For(ex))); }
     }
 }

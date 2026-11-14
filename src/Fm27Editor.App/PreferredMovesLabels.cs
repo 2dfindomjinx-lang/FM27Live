@@ -37,4 +37,6 @@ public static class PreferredMovesLabels
         "Cuts Inside From Right Wing", "Crosses Early",
         "Brings Ball Out Of Defence",
     ];
+
+    public static string Display(int bit) => Loc.S(Names[bit]);
 }

@@ -8,16 +8,16 @@ internal sealed partial class MassEditWindow
     void AddPlayerActions(List<MassRow> rows, IReadOnlyList<PlayerRecord> players)
     {
         var session = backend.Session;
-        string everyone = $"{players.Count:N0} players";
+        string everyone = Loc.F("{0:N0} players", players.Count);
         if (planInjuryClear)
-            rows.Add(MassRow.Action(everyone, "Injuries", "Remove every injury", () =>
+            rows.Add(MassRow.Action(everyone, "Injuries", Loc.S("Remove every injury"), () =>
             {
                 int count = 0;
                 foreach (var player in players) foreach (var injury in session.ReadInjuries(player)) { session.RemoveInjury(player, injury); count++; }
                 return count;
             }));
         if (planInjuryType is { } injuryTypeChoice)
-            rows.Add(MassRow.Action(everyone, "Injuries", $"Add {injuryTypeChoice.Name}", () =>
+            rows.Add(MassRow.Action(everyone, "Injuries", Loc.F("Add {0}", Loc.S(injuryTypeChoice.Name ?? "")), () =>
             {
                 int count = 0;
                 foreach (var player in players)
@@ -29,9 +29,9 @@ internal sealed partial class MassEditWindow
                 return count;
             }));
         if (planPresetAll)
-            rows.Add(MassRow.Action(everyone, "Preset", "All-in-one", () => { foreach (var player in players) session.AllInOne(player); return players.Count; }));
+            rows.Add(MassRow.Action(everyone, "Preset", Loc.S("All-in-one"), () => { foreach (var player in players) session.AllInOne(player); return players.Count; }));
         if (planPresetTu)
-            rows.Add(MassRow.Action(everyone, "Preset", "Tactical Understanding", () => { foreach (var player in players) session.TacticalUnderstanding(player); return players.Count; }));
+            rows.Add(MassRow.Action(everyone, "Preset", Loc.S("Tactical Understanding"), () => { foreach (var player in players) session.TacticalUnderstanding(player); return players.Count; }));
         if (planMoveStates.Any(s => s != 0))
         {
             ulong on = 0, off = 0;
@@ -40,7 +40,7 @@ internal sealed partial class MassEditWindow
                 if (planMoveStates[i] == 2) on |= 1UL << i;
                 else if (planMoveStates[i] == 1) off |= 1UL << i;
             }
-            rows.Add(MassRow.Action(everyone, "Preferred Moves", $"{System.Numerics.BitOperations.PopCount(on):N0} on, {System.Numerics.BitOperations.PopCount(off):N0} off", () =>
+            rows.Add(MassRow.Action(everyone, "Preferred Moves", Loc.F("{0:N0} on, {1:N0} off", System.Numerics.BitOperations.PopCount(on), System.Numerics.BitOperations.PopCount(off)), () =>
             {
                 var moves = new PreferredMovesAccess(session.Memory, session.Profile, session.ModuleBase);
                 int count = 0;

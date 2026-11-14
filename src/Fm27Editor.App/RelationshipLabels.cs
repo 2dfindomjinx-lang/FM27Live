@@ -16,17 +16,17 @@ public static class RelationshipLabels
 
     public static IReadOnlyList<string> Reasons(RelationshipKind kind) => kind == RelationshipKind.LikesTeam ? TeamReasons : PersonReasons;
 
-    public static string KindName(RelationshipKind kind) => kind switch
+    public static string KindName(RelationshipKind kind) => Loc.S(kind switch
     {
         RelationshipKind.LikesPerson => "Likes Person",
         RelationshipKind.DislikesPerson => "Dislikes Person",
         RelationshipKind.OtherNationality => "Other Nationality",
         _ => "Likes Team",
-    };
+    });
 
     public static string ReasonName(RelationshipKind kind, int reason) => kind switch
     {
-        RelationshipKind.LikesTeam => reason >= 0 && reason < TeamReasons.Length ? TeamReasons[reason] : $"Code {reason}",
-        _ => reason >= 0 && reason < PersonReasons.Length ? PersonReasons[reason] : $"Code {reason}",
+        RelationshipKind.LikesTeam => reason >= 0 && reason < TeamReasons.Length ? Loc.S(TeamReasons[reason]) : Loc.F("Code {0}", reason),
+        _ => reason >= 0 && reason < PersonReasons.Length ? Loc.S(PersonReasons[reason]) : Loc.F("Code {0}", reason),
     };
 }

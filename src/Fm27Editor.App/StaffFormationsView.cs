@@ -23,21 +23,21 @@ public sealed partial class MainWindow
         var outer = new StackPanel { Spacing = 10, MaxWidth = 620, HorizontalAlignment = HorizontalAlignment.Left };
         byte[] snapshot;
         try { snapshot = backend.Session.StaffFormations.Read(staff); }
-        catch (Exception ex) { outer.Children.Add(new TextBlock { Text = ex.Message }); return outer; }
+        catch (Exception ex) { outer.Children.Add(new TextBlock { Text = UserMessage.For(ex) }); return outer; }
         var boxes = new ComboBox[8];
-        var save = new Button { IsVisible = false, Content = "Save changes", IsEnabled = false, Classes = { "accent" } };
+        var save = new Button { IsVisible = false, Content = Loc.S("Save changes"), IsEnabled = false, Classes = { "accent" } };
 
         var rows = new StackPanel { Spacing = 0 };
         int rowIdx = 0;
         foreach (int index in new[] { 0, 4, 1, 5, 2, 6, 3, 7 })
         {
             var choices = FormationChoices.ToList();
-            if (choices.All(c => c.Code != snapshot[index])) choices.Add(new(snapshot[index], $"Unknown ({snapshot[index]})"));
+            if (choices.All(c => c.Code != snapshot[index])) choices.Add(new(snapshot[index], Loc.F("Unknown ({0})", snapshot[index])));
             var box = new ComboBox { Width = 220, ItemsSource = choices, SelectedItem = choices.Single(c => c.Code == snapshot[index]) };
             boxes[index] = box;
             var line = new DockPanel { MinHeight = 26 };
             DockPanel.SetDock(box, Dock.Right); line.Children.Add(box);
-            line.Children.Add(new TextBlock { Text = FormationLabels[index], Foreground = UiKit.TextSecondary, VerticalAlignment = VerticalAlignment.Center });
+            line.Children.Add(new TextBlock { Text = Loc.S(FormationLabels[index]), Foreground = UiKit.TextSecondary, VerticalAlignment = VerticalAlignment.Center });
             rows.Children.Add(new Border
             {
                 Background = rowIdx++ % 2 == 1 ? UiKit.SurfaceZebra : Brushes.Transparent,
@@ -54,8 +54,8 @@ public sealed partial class MainWindow
         save.Click += (_, _) =>
         {
             var values = boxes.Select(b => ((FormationChoice)b.SelectedItem!).Code).ToArray();
-            try { backend.Edits.Execute("Staff", staff.DisplayName, "Formations", () => backend.Session.StaffFormations.Save(staff, snapshot, values)); RenderStaffEditor(); status.Text = "Saved formations. Continue in FM to see updates."; }
-            catch (Exception ex) { status.Text = ex.Message; }
+            try { backend.Edits.Execute("Staff", staff.DisplayName, "Formations", () => backend.Session.StaffFormations.Save(staff, snapshot, values)); RenderStaffEditor(); status.Text = Loc.S("Saved formations. Continue in FM to see updates."); }
+            catch (Exception ex) { status.Text = UserMessage.For(ex); }
         };
         outer.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { save } });
         return outer;

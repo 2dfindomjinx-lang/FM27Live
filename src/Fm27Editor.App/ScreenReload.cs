@@ -8,7 +8,7 @@ public sealed partial class MainWindow
     /// <summary>The star: a pop-up table of the starred players (same columns and sorting as the Players table).</summary>
     void ShowFavourites()
     {
-        if (backend.State.Status != ConnectionStatus.Connected) { status.Text = "Load game first"; return; }
+        if (backend.State.Status != ConnectionStatus.Connected) { status.Text = Loc.S("Load game first"); return; }
         // One window only: another click brings the open one forward and shows the stars as they are now.
         if (favouritesWindow is { } open)
         {
@@ -18,7 +18,7 @@ public sealed partial class MainWindow
             return;
         }
         var players = rows.OfType<PlayerRecord>().ToList();
-        if (FavoriteStore.Count == 0) status.Text = "No favourites yet. Star a player on his page.";
+        if (FavoriteStore.Count == 0) status.Text = Loc.S("No favourites yet. Star a player on his page.");
         var window = new FavoritesWindow(players, PickPlayer);
         favouritesWindow = window;
         window.Closed += (_, _) => favouritesWindow = null;
@@ -33,7 +33,7 @@ public sealed partial class MainWindow
     /// </summary>
     void ReloadCurrentScreen()
     {
-        if (backend.State.Status != ConnectionStatus.Connected) { status.Text = "Load game first"; return; }
+        if (backend.State.Status != ConnectionStatus.Connected) { status.Text = Loc.S("Load game first"); return; }
         try
         {
             // A player tab on screen comes first: the module bar may still point at another module (a player opened from a
@@ -41,7 +41,7 @@ public sealed partial class MainWindow
             var tab = playerTabs.FirstOrDefault(t => ReferenceEquals(t.Root, bodyHost.Content));
             if (tab?.Player is { } open)
             {
-                if (backend.Players.Reload(open.Address) is not { } fresh) { status.Text = "Player no longer readable"; return; }
+                if (backend.Players.Reload(open.Address) is not { } fresh) { status.Text = Loc.S("Player no longer readable"); return; }
                 fresh.GameDate = backend.GameDate;
                 ReplaceRow(fresh);
                 // The page shows values through the player's draft, which keeps the record it was made from; rebase it on
@@ -50,12 +50,12 @@ public sealed partial class MainWindow
                 tab.Player = fresh;
                 selected = fresh;
                 RenderEditor();
-                status.Text = $"Reloaded {fresh.DisplayName}";
+                status.Text = Loc.F("Reloaded {0}", fresh.DisplayName);
                 return;
             }
             if (screens.Any(s => s.ReloadCurrent())) return;
             if (module is PlayersModule) { _ = LoadAsync(); return; }
-            status.Text = "Nothing to reload here";
+            status.Text = Loc.S("Nothing to reload here");
         }
         catch (Exception ex) { status.Text = UserMessage.For(ex); }
     }

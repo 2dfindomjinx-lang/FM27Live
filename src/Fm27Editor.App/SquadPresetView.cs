@@ -11,26 +11,26 @@ public sealed partial class MainWindow
     sealed record SquadPresetStep(PlayerPresetChange? Scalar, InjuryRemovalPlan? Injury, UnhappinessRemovalPlan? Unhappiness = null, BanRemovalPlan? Ban = null, PlayerMassChange? Attribute = null, KeepPlayingPlan? Retirement = null)
     {
         public PlayerRecord Player => Scalar?.Player ?? Injury?.Player ?? Unhappiness?.Player ?? Ban?.Player ?? Attribute?.Player ?? Retirement!.Player;
-        public string Field => Scalar?.Field.ToString() ?? Attribute?.Attribute.ToString() ?? (Injury is not null ? "Injuries" : Unhappiness is not null ? "Unhappiness" : Retirement is not null ? "Retirement" : "Bans");
+        public string Field => Loc.S(Scalar?.Field.ToString() ?? Attribute?.Attribute.ToString() ?? (Injury is not null ? "Injuries" : Unhappiness is not null ? "Unhappiness" : Retirement is not null ? "Retirement" : "Bans"));
         public long Before => Scalar?.Before ?? (long?)Attribute?.Before ?? Injury?.Injuries.Count ?? Unhappiness?.OldCount ?? Ban?.OldCount ?? 0;
         public long After => Scalar?.After ?? (long?)Attribute?.After ?? Unhappiness?.NewCount ?? Ban?.NewCount ?? 0;
-        public string BeforeText => Retirement is { } retirement ? retirement.RetirementDate is { } retires ? DateSetting.Format(retires) : "None" : Before.ToString(Inv);
-        public string AfterText => Retirement is not null ? "Continue" : After.ToString(Inv);
+        public string BeforeText => Retirement is { } retirement ? retirement.RetirementDate is { } retires ? DateSetting.Format(retires) : Loc.S("None") : Before.ToString(Inv);
+        public string AfterText => Retirement is not null ? Loc.S("Continue") : After.ToString(Inv);
     }
     readonly Stack<List<SquadPresetStep>> squadPresetUndo = new();
 
     Control CreateSquadPresetBar(Func<IReadOnlyList<PlayerRecord>> getSquad, Action? onApplied = null)
     {
-        var fitness = new Button { Content = "Fitness" };
-        var morale = new Button { Content = "Morale" };
-        var heal = new Button { Content = "Heal all" };
-        var unhappiness = new Button { Content = "Remove unhappiness" };
-        var bans = new Button { Content = "Lift bans" };
-        var max = new Button { Content = "Max attributes" };
-        var retirement = new Button { Content = "Prevent retirement", IsEnabled = new PlannedRetirements(backend.Session.Memory, backend.Session.Profile, backend.Session.ModuleBase).IsSupported };
-        var freeze = new Button { Content = "Freeze squad" };
-        var unfreeze = new Button { Content = "Unfreeze squad" };
-        var undo = new Button { Content = "Undo preset", IsEnabled = squadPresetUndo.Count > 0 };
+        var fitness = new Button { Content = Loc.S("Fitness") };
+        var morale = new Button { Content = Loc.S("Morale") };
+        var heal = new Button { Content = Loc.S("Heal all") };
+        var unhappiness = new Button { Content = Loc.S("Remove unhappiness") };
+        var bans = new Button { Content = Loc.S("Lift bans") };
+        var max = new Button { Content = Loc.S("Max attributes") };
+        var retirement = new Button { Content = Loc.S("Prevent retirement"), IsEnabled = new PlannedRetirements(backend.Session.Memory, backend.Session.Profile, backend.Session.ModuleBase).IsSupported };
+        var freeze = new Button { Content = Loc.S("Freeze squad") };
+        var unfreeze = new Button { Content = Loc.S("Unfreeze squad") };
+        var undo = new Button { Content = Loc.S("Undo preset"), IsEnabled = squadPresetUndo.Count > 0 };
         fitness.Click += async (_, _) => { await ShowSquadPresetAsync(getSquad(), PlayerPreset.Fitness, false, false, false, false); onApplied?.Invoke(); };
         morale.Click += async (_, _) => { await ShowSquadPresetAsync(getSquad(), PlayerPreset.Morale, false, false, false, false); onApplied?.Invoke(); };
         heal.Click += async (_, _) => { await ShowSquadPresetAsync(getSquad(), PlayerPreset.Fitness, false, true, false, false); onApplied?.Invoke(); };
@@ -46,7 +46,7 @@ public sealed partial class MainWindow
             {
                 try { frz.SetPlayer(p, FrozenPlayer.AllAttributes(p)); count++; } catch { }
             }
-            status.Text = $"Frozen {count} player(s) in squad";
+            status.Text = Loc.F("Frozen {0} player(s) in squad", count);
             onApplied?.Invoke();
         };
         unfreeze.Click += (_, _) =>
@@ -57,7 +57,7 @@ public sealed partial class MainWindow
             {
                 if (p.Id is { } pid) { try { frz.RemovePlayer(pid); count++; } catch { } }
             }
-            status.Text = $"Unfrozen {count} player(s) in squad";
+            status.Text = Loc.F("Unfrozen {0} player(s) in squad", count);
             onApplied?.Invoke();
         };
         undo.Click += async (_, _) => { await ShowSquadPresetAsync(getSquad(), PlayerPreset.Fitness, true, false, false, false); onApplied?.Invoke(); };
@@ -87,7 +87,7 @@ public sealed partial class MainWindow
                 if (busy) return;
                 var session = backend.Session;
                 if (squad.Any(p => p.Id is not > 0) || squad.Select(p => p.Id).Distinct().Count() != squad.Count)
-                    throw new InvalidOperationException("Players must have unique positive IDs");
+                    throw new InvalidOperationException(Loc.S("Players must have unique positive IDs"));
                 busy = true;
                 try
                 {
@@ -108,7 +108,7 @@ public sealed partial class MainWindow
             if (removeUnhappiness && !undoing)
             {
                 var session = backend.Session;
-                var date = session.ReadGameDate() ?? throw new InvalidOperationException("Game date is unavailable");
+                var date = session.ReadGameDate() ?? throw new InvalidOperationException(Loc.S("Game date is unavailable"));
                 var writer = new UnhappinessWriter(session.Memory, session.Profile, session.ModuleBase);
                 changes.AddRange(squad.Select(p => writer.PlanRemoveActive(p, date)).Where(p => p is not null).Select(p => new SquadPresetStep(null, null, p)));
             }
@@ -119,18 +119,19 @@ public sealed partial class MainWindow
                 changes.AddRange(squad.Select(writer.PlanRemoveMatchBans).Where(p => p is not null).Select(p => new SquadPresetStep(null, null, null, p)));
             }
         }
-        catch (Exception ex) { status.Text = $"Preset: {ex.Message}"; return; }
-        if (preventRetirement && !undoing && changes.Count == 0) { status.Text = "Nothing to change: already set to keep playing"; return; }
+        catch (Exception ex) { status.Text = Loc.F("Preset: {0}", UserMessage.For(ex)); return; }
+        if (preventRetirement && !undoing && changes.Count == 0) { status.Text = Loc.S("Nothing to change: already set to keep playing"); return; }
         string? result = null;
-        var window = new Window { Title = undoing ? "Undo preset" : $"{(preventRetirement ? "Prevent retirement" : maxAttributes ? "Max attributes" : heal ? "Heal" : removeUnhappiness ? "Remove unhappiness" : liftBans ? "Lift bans" : preset.ToString())} — Preview", Width = 600, Height = 500, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+        string actionTitle = Loc.S(preventRetirement ? "Prevent retirement" : maxAttributes ? "Max attributes" : heal ? "Heal" : removeUnhappiness ? "Remove unhappiness" : liftBans ? "Lift bans" : preset.ToString());
+        var window = new Window { Title = undoing ? Loc.S("Undo preset") : Loc.F("{0} — Preview", actionTitle), Width = 600, Height = 500, WindowStartupLocation = WindowStartupLocation.CenterOwner };
         var table = new DataGrid { IsReadOnly = true, AutoGenerateColumns = false, CanUserSortColumns = false, ItemsSource = changes, RowHeight = 27 };
-        table.Columns.Add(new DataGridTextColumn { Header = "ID", Binding = new Binding("Player.Id"), Width = new DataGridLength(103) });
-        table.Columns.Add(new DataGridTextColumn { Header = "Player", Binding = new Binding("Player.DisplayName"), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
-        table.Columns.Add(new DataGridTextColumn { Header = "Field", Binding = new Binding("Field"), Width = new DataGridLength(138) });
-        table.Columns.Add(new DataGridTextColumn { Header = undoing ? "Restore" : "Before", Binding = new Binding("BeforeText"), Width = new DataGridLength(109) });
-        table.Columns.Add(new DataGridTextColumn { Header = undoing ? "Current" : "After", Binding = new Binding("AfterText"), Width = new DataGridLength(109) });
-        var apply = new Button { Content = undoing ? "Undo" : "Apply", IsEnabled = changes.Count > 0, Classes = { "accent" } };
-        var text = new TextBlock { Text = $"{changes.Count:N0} changes" + (unavailable > 0 ? $", {unavailable:N0} unavailable" : ""), VerticalAlignment = VerticalAlignment.Center };
+        table.Columns.Add(new DataGridTextColumn { Header = Loc.S("ID"), Binding = new Binding("Player.Id"), Width = new DataGridLength(103) });
+        table.Columns.Add(new DataGridTextColumn { Header = Loc.S("Player"), Binding = new Binding("Player.DisplayName"), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
+        table.Columns.Add(new DataGridTextColumn { Header = Loc.S("Field"), Binding = new Binding("Field"), Width = new DataGridLength(138) });
+        table.Columns.Add(new DataGridTextColumn { Header = undoing ? Loc.S("Restore") : Loc.S("Before"), Binding = new Binding("BeforeText"), Width = new DataGridLength(109) });
+        table.Columns.Add(new DataGridTextColumn { Header = undoing ? Loc.S("Current") : Loc.S("After"), Binding = new Binding("AfterText"), Width = new DataGridLength(109) });
+        var apply = new Button { Content = undoing ? Loc.S("Undo") : Loc.S("Apply"), IsEnabled = changes.Count > 0, Classes = { "accent" } };
+        var text = new TextBlock { Text = Loc.F("{0:N0} changes", changes.Count) + (unavailable > 0 ? Loc.F(", {0:N0} unavailable", unavailable) : ""), VerticalAlignment = VerticalAlignment.Center };
         var footer = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10, Margin = new Thickness(0, 8, 0, 0), Children = { apply, text } };
         var root = new DockPanel { Margin = new Thickness(12) };
         DockPanel.SetDock(footer, Dock.Bottom); root.Children.Add(footer);
@@ -199,7 +200,7 @@ public sealed partial class MainWindow
                 });
                 if (undoing && batch.Count == 0) squadPresetUndo.Pop();
                 else if (!undoing && batch.Count > 0) squadPresetUndo.Push(batch);
-                text.Text = failure is null ? $"{count:N0} changes applied" : $"{count:N0} completed. {failure.Message}";
+                text.Text = failure is null ? Loc.F("{0:N0} changes applied", count) : Loc.F("{0:N0} completed. {1}", count, UserMessage.For(failure));
                 result = text.Text;
             }
             finally { running = busy = false; }

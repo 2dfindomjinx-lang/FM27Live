@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -37,7 +37,7 @@ public sealed partial class MainWindow
     /// </summary>
     void OpenHookManager()
     {
-        if (backend.State.Status != ConnectionStatus.Connected) { status.Text = "Load game first"; return; }
+        if (backend.State.Status != ConnectionStatus.Connected) { status.Text = Loc.S("Load game first"); return; }
         if (hookManagerWindow is { } open)
         {
             if (open.WindowState == WindowState.Minimized) open.WindowState = WindowState.Normal;
@@ -49,21 +49,21 @@ public sealed partial class MainWindow
         var accel = session.AcceleratedDevelopment;
         var players = rows.OfType<PlayerRecord>().ToArray();
 
-        var academyState = new TextBlock { FontSize = 12.5, Text = "Reading…" };
-        var activeText = new TextBlock { FontSize = 12.5, Text = "Active: reading…", TextWrapping = TextWrapping.Wrap };
+        var academyState = new TextBlock { FontSize = 12.5, Text = Loc.S("Reading…") };
+        var activeText = new TextBlock { FontSize = 12.5, Text = Loc.S("Active: reading…"), TextWrapping = TextWrapping.Wrap };
         NumericUpDown Num(int min, int max, int value) => new() { Minimum = min, Maximum = max, Value = value, Width = 110, Height = 24, MinHeight = 24, FontSize = 12.5, FormatString = "0" };
         var minPa = Num(1, 200, 150);
         var maxPa = Num(1, 200, 190);
         var wonderkid = Num(0, 100, 0);
         var scopes = new[] { (GoldenGenerationScope.All, "Every regen"), (GoldenGenerationScope.Club, "Clubs"), (GoldenGenerationScope.Nation, "Nations"), (GoldenGenerationScope.Continent, "Continents") };
-        var scope = new ComboBox { ItemsSource = scopes.Select(s => s.Item2).ToList(), SelectedIndex = 0, Width = 150 };
+        var scope = new ComboBox { ItemsSource = scopes.Select(s => Loc.S(s.Item2)).ToList(), SelectedIndex = 0, Width = 150 };
         var picker = new TextBox
         {
             Width = 300, Height = 24, MinHeight = 24, FontSize = 12.5, IsReadOnly = true,
-            Watermark = "Pick a club…", Cursor = new Cursor(StandardCursorType.Hand),
+            Watermark = Loc.S("Pick a club…"), Cursor = new Cursor(StandardCursorType.Hand),
         };
-        var add = new Button { Content = "Add", Height = 24, MinHeight = 24, Padding = new Thickness(12, 0), FontSize = 12.5 };
-        var undo = new Button { Content = "Undo", Height = 24, MinHeight = 24, Padding = new Thickness(10, 0), FontSize = 12.5, IsEnabled = false };
+        var add = new Button { Content = Loc.S("Add"), Height = 24, MinHeight = 24, Padding = new Thickness(12, 0), FontSize = 12.5 };
+        var undo = new Button { Content = Loc.S("Undo"), Height = 24, MinHeight = 24, Padding = new Thickness(10, 0), FontSize = 12.5, IsEnabled = false };
         var targets = new StackPanel { Spacing = 4 };
         var accelPanel = new StackPanel { Spacing = 6 };
         var accelHits = new TextBlock { FontSize = 12.5 };
@@ -81,7 +81,7 @@ public sealed partial class MainWindow
         Dictionary<GoldenGenerationScope, IReadOnlyList<HookTarget>> catalogues = new();
 
         GoldenGenerationScope CurrentScope() => scopes[Math.Max(0, scope.SelectedIndex)].Item1;
-        string ScopeLabel(GoldenGenerationScope sc) => scopes.First(s => s.Item1 == sc).Item2;
+        string ScopeLabel(GoldenGenerationScope sc) => Loc.S(scopes.First(s => s.Item1 == sc).Item2);
 
         // "Man Utd (First team): 32 players", or "Kylian Mbappé — Real Madrid CF (First team)" for one player.
         List<SpeedGroup> SpeedGroups(IReadOnlyList<AcceleratedPlayer> sped)
@@ -105,10 +105,10 @@ public sealed partial class MainWindow
                 if (g.Count() == 1)
                 {
                     var one = g.First();
-                    string name = byAddress.GetValueOrDefault(one.Address)?.DisplayName ?? $"player id {one.PlayerId}";
+                    string name = byAddress.GetValueOrDefault(one.Address)?.DisplayName ?? Loc.F("player id {0}", one.PlayerId);
                     label = g.Key.Team.Length > 0 ? $"{name} — {g.Key.Team}" : name;
                 }
-                else label = $"{(g.Key.Team.Length > 0 ? g.Key.Team : "Other players")}: {g.Count()} players";
+                else label = Loc.F("{0}: {1} players", g.Key.Team.Length > 0 ? g.Key.Team : Loc.S("Other players"), g.Count());
                 var members = g.Select(r => byAddress.GetValueOrDefault(r.Address)).OfType<PlayerRecord>().ToList();
                 groups.Add(new SpeedGroup(label, g.Key.Multiplier, members));
             }
@@ -117,20 +117,20 @@ public sealed partial class MainWindow
 
         string Placeholder() => CurrentScope() switch
         {
-            GoldenGenerationScope.Club => "Pick a club…",
-            GoldenGenerationScope.Nation => "Pick a nation…",
-            GoldenGenerationScope.Continent => "Pick a continent…",
+            GoldenGenerationScope.Club => Loc.S("Pick a club…"),
+            GoldenGenerationScope.Nation => Loc.S("Pick a nation…"),
+            GoldenGenerationScope.Continent => Loc.S("Pick a continent…"),
             _ => "",
         };
 
         void UpdateActive()
         {
             var s = installed;
-            if (s is not { Enabled: true }) { activeText.Text = "Active: none"; return; }
-            if (s.Scope == GoldenGenerationScope.All) { activeText.Text = "Active: every regen"; return; }
+            if (s is not { Enabled: true }) { activeText.Text = Loc.S("Active: none"); return; }
+            if (s.Scope == GoldenGenerationScope.All) { activeText.Text = Loc.S("Active: every regen"); return; }
             var names = catalogues.GetValueOrDefault(s.Scope);
-            var text = string.Join(", ", s.Ids.Select(id => names?.FirstOrDefault(t => t.Id == id)?.Name ?? $"id {id}"));
-            activeText.Text = $"Active: {ScopeLabel(s.Scope)} — {text}";
+            var text = string.Join(", ", s.Ids.Select(id => names?.FirstOrDefault(t => t.Id == id)?.Name ?? Loc.F("id {0}", id)));
+            activeText.Text = Loc.F("Active: {0} — {1}", ScopeLabel(s.Scope), text);
         }
 
         void ShowTargets()
@@ -140,7 +140,7 @@ public sealed partial class MainWindow
             if (sc == GoldenGenerationScope.All)
             {
                 if (installed is { Enabled: true, Scope: GoldenGenerationScope.All })
-                    targets.Children.Add(TargetRow(new HookTarget(0, "Every regen", "")));
+                    targets.Children.Add(TargetRow(new HookTarget(0, Loc.S("Every regen"), "")));
                 return;
             }
             foreach (var t in drafts[sc]) targets.Children.Add(TargetRow(t));
@@ -166,7 +166,7 @@ public sealed partial class MainWindow
             };
             ToolTip.SetTip(name, target.Name);
             row.Children.Add(name);
-            var clear = new Button { Content = "Clear", Height = 24, MinHeight = 24, Padding = new Thickness(10, 0), FontSize = 12.5, VerticalAlignment = VerticalAlignment.Center };
+            var clear = new Button { Content = Loc.S("Clear"), Height = 24, MinHeight = 24, Padding = new Thickness(10, 0), FontSize = 12.5, VerticalAlignment = VerticalAlignment.Center };
             Grid.SetColumn(clear, 1);
             clear.Click += (_, _) => ClearTarget(target);
             row.Children.Add(clear);
@@ -185,14 +185,14 @@ public sealed partial class MainWindow
             if (window is null) return;
             var sc = CurrentScope();
             if (sc == GoldenGenerationScope.All) return;
-            if (!catalogues.ContainsKey(sc)) { status.Text = "Still reading the name list…"; return; }
+            if (!catalogues.ContainsKey(sc)) { status.Text = Loc.S("Still reading the name list…"); return; }
             var title = sc switch
             {
-                GoldenGenerationScope.Club => "Pick a club",
-                GoldenGenerationScope.Nation => "Pick a nation",
-                _ => "Pick a continent",
+                GoldenGenerationScope.Club => Loc.S("Pick a club"),
+                GoldenGenerationScope.Nation => Loc.S("Pick a nation"),
+                _ => Loc.S("Pick a continent"),
             };
-            if (await PickerDialog.Show(window, title, Find, "Type part of the name") is { } hit)
+            if (await PickerDialog.Show(window, title, Find, Loc.S("Type part of the name")) is { } hit)
             {
                 picked = hit;
                 UpdatePicker();
@@ -235,8 +235,8 @@ public sealed partial class MainWindow
             if (sc == GoldenGenerationScope.All)
             {
                 Remember();
-                try { academy.Uninstall(); installed = null; status.Text = "Wonderkid Academy turned off."; }
-                catch (Exception ex) { status.Text = $"Wonderkid Academy: {UserMessage.For(ex)}"; }
+                try { academy.Uninstall(); installed = null; status.Text = Loc.S("Wonderkid Academy turned off."); }
+                catch (Exception ex) { status.Text = Loc.F("Wonderkid Academy: {0}", UserMessage.For(ex)); }
                 UpdateActive();
                 ShowTargets();
                 UpdatePicker();
@@ -254,17 +254,17 @@ public sealed partial class MainWindow
             {
                 try
                 {
-                    if (list.Count == 0) { academy.Uninstall(); installed = null; status.Text = "Wonderkid Academy turned off."; }
+                    if (list.Count == 0) { academy.Uninstall(); installed = null; status.Text = Loc.S("Wonderkid Academy turned off."); }
                     else
                     {
                         academy.Configure(true, lo, hi, wk, sc, list.Select(c => c.Id).ToList());
                         installed = academy.Read()?.Settings;
-                        status.Text = $"On: new regens from {string.Join(", ", list.Select(c => c.Name))} get PA {lo}-{hi}.";
+                        status.Text = Loc.F("On: new regens from {0} get PA {1}-{2}.", string.Join(", ", list.Select(c => c.Name)), lo, hi);
                     }
                 }
-                catch (Exception ex) { status.Text = $"Wonderkid Academy: {UserMessage.For(ex)}"; }
+                catch (Exception ex) { status.Text = Loc.F("Wonderkid Academy: {0}", UserMessage.For(ex)); }
             }
-            else status.Text = $"{target.Name} removed from the {ScopeLabel(sc)} list; the active setting is unchanged.";
+            else status.Text = Loc.F("{0} removed from the {1} list; the active setting is unchanged.", target.Name, ScopeLabel(sc));
             UpdateActive();
             ShowTargets();
             UpdatePicker();
@@ -285,10 +285,10 @@ public sealed partial class MainWindow
                 Text = group.Multiplier.ToString("0.#", CultureInfo.InvariantCulture), Width = 64,
                 Height = 24, MinHeight = 24, FontSize = 12.5, VerticalAlignment = VerticalAlignment.Center,
             };
-            ToolTip.SetTip(box, "Any speed from 1.1x to 20x in steps of 0.1; 1 means normal speed. Press Enter to apply.");
+            ToolTip.SetTip(box, Loc.S("Any speed from 1.1x to 20x in steps of 0.1; 1 means normal speed. Press Enter to apply."));
             var remove = new Button
             {
-                Content = "Remove", Height = 24, MinHeight = 24, Padding = new Thickness(8, 0), FontSize = 12.5,
+                Content = Loc.S("Remove"), Height = 24, MinHeight = 24, Padding = new Thickness(8, 0), FontSize = 12.5,
                 VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0),
             };
             Grid.SetColumn(box, 1);
@@ -303,7 +303,7 @@ public sealed partial class MainWindow
                 if (done) return;
                 if (ParseSpeed(box.Text) is not { } multiplier || multiplier != 0 && !AcceleratedDevelopment.IsAllowedMultiplier(multiplier))
                 {
-                    status.Text = $"Development speed: enter {AcceleratedDevelopment.MinMultiplier.ToString(CultureInfo.InvariantCulture)} to {AcceleratedDevelopment.MaxMultiplier} with at most one decimal (1 = normal).";
+                    status.Text = Loc.F("Development speed: enter {0} to {1} with at most one decimal (1 = normal).", AcceleratedDevelopment.MinMultiplier.ToString(CultureInfo.InvariantCulture), AcceleratedDevelopment.MaxMultiplier);
                     box.Text = group.Multiplier.ToString("0.#", CultureInfo.InvariantCulture);
                     return;
                 }
@@ -313,9 +313,9 @@ public sealed partial class MainWindow
                 {
                     int changed = 0;
                     foreach (var p in group.Players) if (accel.Set(p, multiplier)) changed++;
-                    status.Text = $"Development speed set to {SpeedText(multiplier)} for {group.Label}.";
+                    status.Text = Loc.F("Development speed set to {0} for {1}.", SpeedText(multiplier), group.Label);
                 }
-                catch (Exception ex) { status.Text = $"Development Speed: {UserMessage.For(ex)}"; }
+                catch (Exception ex) { status.Text = Loc.F("Development Speed: {0}", UserMessage.For(ex)); }
                 _ = RefreshAsync();
             }
             box.KeyDown += (_, e) => { if (e.Key == Key.Enter) { Apply(); e.Handled = true; } };
@@ -328,9 +328,9 @@ public sealed partial class MainWindow
                 {
                     foreach (var p in group.Players) accel.Set(p, 0);
                     if (accel.Read()?.Players.Count is 0) accel.Uninstall();
-                    status.Text = $"Development speed removed for {group.Label}.";
+                    status.Text = Loc.F("Development speed removed for {0}.", group.Label);
                 }
-                catch (Exception ex) { status.Text = $"Development Speed: {UserMessage.For(ex)}"; }
+                catch (Exception ex) { status.Text = Loc.F("Development Speed: {0}", UserMessage.For(ex)); }
                 _ = RefreshAsync();
             };
             return grid;
@@ -352,18 +352,18 @@ public sealed partial class MainWindow
                 try
                 {
                     installed = a?.Settings;
-                    if (a is null) academyState.Text = "Not installed";
+                    if (a is null) academyState.Text = Loc.S("Not installed");
                     else
                     {
                         var s = a.Settings;
-                        academyState.Text = $"{(s.Enabled ? "On" : "Off")} · regens seen {a.Calls} · PA raised {a.Raised} · wonderkids {a.Wonderkids}";
+                        academyState.Text = Loc.F("{0} · regens seen {1} · PA raised {2} · wonderkids {3}", Loc.S(s.Enabled ? "On" : "Off"), a.Calls, a.Raised, a.Wonderkids);
                         if (s.MinPa >= 1) { minPa.Value = s.MinPa; maxPa.Value = s.MaxPa; }
                         wonderkid.Value = s.WonderkidChance;
                         // Only the active scope's list is the hook; the other lists stay as the user left them.
                         if (s.Scope != GoldenGenerationScope.All)
                         {
                             var names = catalogues.GetValueOrDefault(s.Scope);
-                            drafts[s.Scope] = s.Ids.Select(id => names?.FirstOrDefault(t => t.Id == id) ?? new HookTarget(id, $"id {id}", "")).ToList();
+                            drafts[s.Scope] = s.Ids.Select(id => names?.FirstOrDefault(t => t.Id == id) ?? new HookTarget(id, Loc.F("id {0}", id), "")).ToList();
                         }
                     }
                     if (firstSync)
@@ -378,12 +378,12 @@ public sealed partial class MainWindow
                 UpdatePicker();
 
                 accelPanel.Children.Clear();
-                if (d is null) { accelPanel.Children.Add(new TextBlock { Text = "Not installed", FontSize = 12.5 }); accelHits.Text = ""; }
+                if (d is null) { accelPanel.Children.Add(new TextBlock { Text = Loc.S("Not installed"), FontSize = 12.5 }); accelHits.Text = ""; }
                 else
                 {
-                    if (groups.Count == 0) accelPanel.Children.Add(new TextBlock { Text = "No players sped up", FontSize = 12.5 });
+                    if (groups.Count == 0) accelPanel.Children.Add(new TextBlock { Text = Loc.S("No players sped up"), FontSize = 12.5 });
                     foreach (var g in groups) accelPanel.Children.Add(SpeedRow(g));
-                    accelHits.Text = $"Gains changed {d.Hits}";
+                    accelHits.Text = Loc.F("Gains changed {0}", d.Hits);
                 }
             }
             catch (Exception ex) { academyState.Text = UserMessage.For(ex); }
@@ -413,14 +413,14 @@ public sealed partial class MainWindow
                     drafts[GoldenGenerationScope.Nation].Clear();
                     drafts[GoldenGenerationScope.Continent].Clear();
                     installed = academy.Read()?.Settings;
-                    status.Text = $"On: every new regen gets PA {lo}-{hi}.";
+                    status.Text = Loc.F("On: every new regen gets PA {0}-{1}.", lo, hi);
                 }
                 else
                 {
-                    if (picked is null) { status.Text = "Pick a club, nation or continent first."; return; }
+                    if (picked is null) { status.Text = Loc.S("Pick a club, nation or continent first."); return; }
                     var list = drafts[sc];
                     bool newEntry = list.All(c => c.Id != picked.Id);
-                    if (newEntry && list.Count >= GoldenGenerationHook.MaxIds) { status.Text = $"At most {GoldenGenerationHook.MaxIds} entries."; return; }
+                    if (newEntry && list.Count >= GoldenGenerationHook.MaxIds) { status.Text = Loc.F("At most {0} entries.", GoldenGenerationHook.MaxIds); return; }
                     Remember();
                     if (newEntry) list.Add(picked);
                     // A broader target makes the narrower entries it covers redundant.
@@ -433,10 +433,10 @@ public sealed partial class MainWindow
                     }
                     academy.Configure(true, lo, hi, wk, sc, list.Select(c => c.Id).ToList());
                     installed = academy.Read()?.Settings;
-                    status.Text = $"On: new regens from {string.Join(", ", list.Select(c => c.Name))} get PA {lo}-{hi}.";
+                    status.Text = Loc.F("On: new regens from {0} get PA {1}-{2}.", string.Join(", ", list.Select(c => c.Name)), lo, hi);
                 }
             }
-            catch (Exception ex) { status.Text = $"Wonderkid Academy: {UserMessage.For(ex)}"; }
+            catch (Exception ex) { status.Text = Loc.F("Wonderkid Academy: {0}", UserMessage.For(ex)); }
             UpdateActive();
             ShowTargets();
             UpdatePicker();
@@ -467,9 +467,9 @@ public sealed partial class MainWindow
                     installed = academy.Read()?.Settings;
                 }
                 else { academy.Uninstall(); installed = null; }
-                status.Text = "Wonderkid Academy: reverted.";
+                status.Text = Loc.S("Wonderkid Academy: reverted.");
             }
-            catch (Exception ex) { status.Text = $"Wonderkid Academy: {UserMessage.For(ex)}"; }
+            catch (Exception ex) { status.Text = Loc.F("Wonderkid Academy: {0}", UserMessage.For(ex)); }
             picked = null;
             UpdateActive();
             ShowTargets();
@@ -485,10 +485,10 @@ public sealed partial class MainWindow
             {
                 academy.Configure(true, (int)(minPa.Value ?? 150), (int)(maxPa.Value ?? 190), (int)(wonderkid.Value ?? 0), current.Scope, current.Ids);
                 installed = academy.Read()?.Settings;
-                status.Text = "Wonderkid Academy: settings updated.";
+                status.Text = Loc.S("Wonderkid Academy: settings updated.");
                 UpdateActive();
             }
-            catch (Exception ex) { status.Text = $"Wonderkid Academy: {UserMessage.For(ex)}"; }
+            catch (Exception ex) { status.Text = Loc.F("Wonderkid Academy: {0}", UserMessage.For(ex)); }
         }
         minPa.ValueChanged += SettingsChanged;
         maxPa.ValueChanged += SettingsChanged;
@@ -500,11 +500,11 @@ public sealed partial class MainWindow
             foreach (var c in items) { c.VerticalAlignment = VerticalAlignment.Center; row.Children.Add(c); }
             return row;
         }
-        TextBlock Label(string text) => new() { Text = text, FontSize = 12.5 };
-        TextBlock Header(string text) => new() { Text = text, FontSize = 14, FontWeight = FontWeight.SemiBold, Margin = new Thickness(0, 8, 0, 0) };
+        TextBlock Label(string text) => new() { Text = Loc.S(text), FontSize = 12.5 };
+        TextBlock Header(string text) => new() { Text = Loc.S(text), FontSize = 14, FontWeight = FontWeight.SemiBold, Margin = new Thickness(0, 8, 0, 0) };
 
         var stack = new StackPanel { Spacing = 8, Margin = new Thickness(14) };
-        var howTo = new Button { Content = "How to use", FontSize = 12, Height = 24, MinHeight = 24, Padding = new Thickness(10, 0), Margin = new Thickness(10, 8, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+        var howTo = new Button { Content = Loc.S("How to use"), FontSize = 12, Height = 24, MinHeight = 24, Padding = new Thickness(10, 0), Margin = new Thickness(10, 8, 0, 0), VerticalAlignment = VerticalAlignment.Center };
         howTo.Click += (_, _) => { if (window is not null) WonderkidAcademyHelp.Show(window); };
         stack.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Children = { Header("Wonderkid Academy (Experimental)"), howTo } });
         stack.Children.Add(academyState);
@@ -513,16 +513,16 @@ public sealed partial class MainWindow
         stack.Children.Add(Row(Label("Applies to"), scope, picker, add, undo));
         stack.Children.Add(targets);
         stack.Children.Add(UiKit.TitleWithInfo(Header("Development Speed"),
-            "Players listed here improve faster from training: 2 is twice as fast, 1 is normal. " +
-            "Add a player with Set speed in his Actions panel. Works until you close the game."));
+            Loc.S("Players listed here improve faster from training: 2 is twice as fast, 1 is normal. " +
+            "Add a player with Set speed in his Actions panel. Works until you close the game.")));
         stack.Children.Add(accelPanel);
         stack.Children.Add(accelHits);
         // Force Accept Transfer is shelved until the code patch is finished; the mechanism is hidden (see ForceAcceptTransferView.cs).
         // stack.Children.Add(BuildForceAcceptTransferSection(session));
-        stack.Children.Add(UiKit.Card("Force Accept Transfer", new TextBlock { Text = "Coming Soon", FontSize = 13, Foreground = UiKit.TextMuted }));
+        stack.Children.Add(UiKit.Card("Force Accept Transfer", new TextBlock { Text = Loc.S("Coming Soon"), FontSize = 13, Foreground = UiKit.TextMuted }));
         window = new Window
         {
-            Title = "Hook Manager",
+            Title = Loc.S("Hook Manager"),
             Width = 720,
             Height = 560,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,

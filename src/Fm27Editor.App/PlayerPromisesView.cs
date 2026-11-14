@@ -11,7 +11,11 @@ public sealed partial class MainWindow
     sealed class PromiseEditor(PromiseRecord record)
     {
         public PromiseRecord Record { get; } = record;
-        public ComboBox Type { get; } = new() { MinWidth = 420 };
+        public ComboBox Type { get; } = new()
+        {
+            MinWidth = 420,
+            ItemTemplate = new Avalonia.Controls.Templates.FuncDataTemplate<PromiseType>((t, _) => new TextBlock { Text = t is null ? "" : Loc.S(t.Text) }),
+        };
         public DateBox Made { get; } = new() { Width = 120 };
         public DateBox Deadline { get; } = new() { Width = 120 };
         public int Parameter0 { get; set; } = record.Parameter0;
@@ -20,7 +24,7 @@ public sealed partial class MainWindow
 
         /// <summary>The list for the type box: FMRTE's 68 types, plus "Unknown (N)" when the game made a promise of a kind FMRTE does not list (67 on the Steam save).</summary>
         public IReadOnlyList<PromiseType> TypeChoices => PromiseTypes.Find(record.TypeId) is null
-            ? [.. PromiseTypes.All, new PromiseType(record.TypeId, $"Unknown ({record.TypeId})", PromiseParameter.None)]
+            ? [.. PromiseTypes.All, new PromiseType(record.TypeId, Loc.F("Unknown ({0})", record.TypeId), PromiseParameter.None)]
             : PromiseTypes.All;
     }
 
@@ -34,14 +38,14 @@ public sealed partial class MainWindow
         var owner = session.Owner(player);
         var promises = store.Read(owner);
         var editors = promises.Select(p => new PromiseEditor(p)).ToList();
-        var save = new Button { IsVisible = false, Content = "Save changes", IsEnabled = false, Classes = { "accent" } };
+        var save = new Button { IsVisible = false, Content = Loc.S("Save changes"), IsEnabled = false, Classes = { "accent" } };
 
         IReadOnlyList<Fm27Editor.Core.Competitions.CompetitionRecord> Competitions() =>
             unifiedCompetitions.Count > 0 ? unifiedCompetitions : unifiedCompetitions = session.Competitions.LoadAll();
         IReadOnlyList<Fm27Editor.Core.Staff.StaffRecord> Staff() =>
             unifiedStaff.Count > 0 ? unifiedStaff : unifiedStaff = session.Staff.LoadAll();
-        string CompetitionName(int index) => index < 0 ? "" : Competitions().FirstOrDefault(c => c.Index == index)?.Name ?? $"Competition {index}";
-        string PersonName(int index) => index < 0 ? "" : PersonNames().TryGetValue((uint)index, out var n) ? n : $"Person {index}";
+        string CompetitionName(int index) => index < 0 ? "" : Competitions().FirstOrDefault(c => c.Index == index)?.Name ?? Loc.F("Competition {0}", index);
+        string PersonName(int index) => index < 0 ? "" : PersonNames().TryGetValue((uint)index, out var n) ? n : Loc.F("Person {0}", index);
         // The person who made the promise is usually a manager, but the game also makes some on a player's own behalf (Bruno Fernandes shows himself).
         string ManagerName(ulong person) => Staff().FirstOrDefault(s => s.Address == person)?.DisplayName
             ?? AllPlayers().FirstOrDefault(p => p.Address + (ulong)(session.Profile.Relations?.PlayerPerson ?? 0x288) == person)?.DisplayName ?? "";
@@ -56,21 +60,21 @@ public sealed partial class MainWindow
 
         void Change(Action change, string done)
         {
-            if (editors.Any(Pending)) { status.Text = "Save the promise edits first"; return; }
+            if (editors.Any(Pending)) { status.Text = Loc.S("Save the promise edits first"); return; }
             try { backend.Edits.Execute("Player", player.DisplayName, "Promises", change); status.Text = done; RenderEditor(); }
-            catch (Exception ex) { status.Text = ex.Message; }
+            catch (Exception ex) { status.Text = UserMessage.For(ex); }
         }
 
         Control Row(string label, Control value) => new StackPanel
         {
             Orientation = Orientation.Horizontal, Spacing = 8, MinHeight = 28,
-            Children = { new TextBlock { Text = label, Width = 100, VerticalAlignment = VerticalAlignment.Center, Foreground = UiKit.Brush("#94A3B8") }, value },
+            Children = { new TextBlock { Text = Loc.S(label), Width = 100, VerticalAlignment = VerticalAlignment.Center, Foreground = UiKit.Brush("#94A3B8") }, value },
         };
 
         Control Picker(string title, string current, Func<Task<(string Name, int Id)?>> choose, Action<int> set)
         {
             var text = new TextBlock { Text = current, VerticalAlignment = VerticalAlignment.Center, Foreground = UiKit.Brush("#F1F5F9") };
-            var change = new Button { Content = "Change", Margin = new Thickness(8, 0, 0, 0) };
+            var change = new Button { Content = Loc.S("Change"), Margin = new Thickness(8, 0, 0, 0) };
             change.Click += async (_, _) =>
             {
                 if (await choose() is not { } picked) return;
@@ -81,13 +85,13 @@ public sealed partial class MainWindow
             return new StackPanel { Orientation = Orientation.Horizontal, Children = { text, change } };
         }
 
-        Task<(string Name, int Id)?> ChooseCompetition() => PickerDialog.Show(this, "Search Competitions", q =>
+        Task<(string Name, int Id)?> ChooseCompetition() => PickerDialog.Show(this, Loc.S("Search Competitions"), q =>
         {
             return Competitions().Where(c => c.Name is not null && PickerSearch.Hit(q, c.Name)).Take(200)
                 .Select(c => (c.Name!, (object)c.Index)).ToList();
         }).ContinueWith(t => t.Result is int index ? ((string, int)?)(CompetitionName(index), index) : null);
 
-        Task<(string Name, int Id)?> ChoosePerson() => PickerDialog.Show(this, "Searching Persons", q =>
+        Task<(string Name, int Id)?> ChoosePerson() => PickerDialog.Show(this, Loc.S("Searching Persons"), q =>
         {
             string folded = Fold(q);
             var found = new List<(string, object)>();
@@ -128,8 +132,8 @@ public sealed partial class MainWindow
             e.Made.TextChanged += (_, _) => Refresh();
             e.Deadline.TextChanged += (_, _) => Refresh();
 
-            var remove = new Button { Content = "Remove" };
-            remove.Click += (_, _) => Change(() => store.Remove(owner, record), "Removed the promise. Continue in FM to see updates.");
+            var remove = new Button { Content = Loc.S("Remove") };
+            remove.Click += (_, _) => Change(() => store.Remove(owner, record), Loc.S("Removed the promise. Continue in FM to see updates."));
             var body = new StackPanel
             {
                 Spacing = 4, Margin = new Thickness(12, 8),
@@ -145,7 +149,7 @@ public sealed partial class MainWindow
             panel.Children.Add(UiKit.Card("Promise", body));
         }
 
-        var add = new Button { Content = "Add promise" };
+        var add = new Button { Content = Loc.S("Add promise") };
         add.Click += (_, _) =>
         {
             ulong manager = promises.FirstOrDefault()?.Manager ?? 0, team = promises.FirstOrDefault()?.Team ?? 0;
@@ -158,11 +162,11 @@ public sealed partial class MainWindow
                     .FirstOrDefault()?.Address ?? 0;
                 team = entry?.FirstTeam?.Address ?? 0;
             }
-            if (manager == 0 || team == 0) { status.Text = $"{player.DisplayName} has no club manager to make the promise"; return; }
-            if (session.ReadGameDate() is not { } today) { status.Text = "The game date could not be read"; return; }
+            if (manager == 0 || team == 0) { status.Text = Loc.F("{0} has no club manager to make the promise", player.DisplayName); return; }
+            if (session.ReadGameDate() is not { } today) { status.Text = Loc.S("The game date could not be read"); return; }
             var values = new PromiseValues(1, today, today.AddDays(91), -1, 0);
             Change(() => store.Add(owner, manager, team, values, session.Process.Allocate),
-                "Added a promise. Its record lives outside the game's allocator; keep a backup of the save. Continue in FM to see updates.");
+                Loc.S("Added a promise. Its record lives outside the game's allocator; keep a backup of the save. Continue in FM to see updates."));
         };
         panel.Children.Add(add);
 
@@ -171,16 +175,16 @@ public sealed partial class MainWindow
             var changes = new List<(PromiseEditor Editor, PromiseValues Values)>();
             foreach (var e in editors.Where(Pending))
             {
-                if (!DateBox.TryParse(e.Made.Text, out var made) || !DateBox.TryParse(e.Deadline.Text, out var deadline)) { status.Text = "Promises: enter dates like 2026-12-30"; return; }
+                if (!DateBox.TryParse(e.Made.Text, out var made) || !DateBox.TryParse(e.Deadline.Text, out var deadline)) { status.Text = Loc.F("Promises: enter dates like {0}", DateSetting.Hint); return; }
                 changes.Add((e, new PromiseValues(e.TypeId, made, deadline, e.Parameter0, e.Parameter1)));
             }
             try
             {
                 backend.Edits.Execute("Player", player.DisplayName, "Page save", () => { foreach (var (e, v) in changes) store.Update(owner, e.Record, v); });
-                status.Text = "Saved promises. Continue in FM to see updates.";
+                status.Text = Loc.S("Saved promises. Continue in FM to see updates.");
                 RenderEditor();
             }
-            catch (Exception ex) { status.Text = ex.Message; }
+            catch (Exception ex) { status.Text = UserMessage.For(ex); }
         };
         if (editors.Count > 0) panel.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { save } });
         return panel;

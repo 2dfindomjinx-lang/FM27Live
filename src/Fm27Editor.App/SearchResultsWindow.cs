@@ -18,10 +18,13 @@ internal sealed class SearchResultsWindow : Window
         int? totalCount = null, string? filterNote = null)
     {
         int shown = scope == "Coach" ? staff.Count : clubs.Count;
-        string noun = scope == "Coach" ? "staff" : "clubs";
-        Title = $"Advanced Search Results - {shown:N0} {noun}";
+        string noun = Loc.S(scope == "Coach" ? "staff" : "clubs");
+        Title = Loc.F("Advanced Search Results - {0:N0} {1}", shown, noun);
         if (totalCount is { } total && shown < total)
-            StatusMessage = $"{shown:N0} of {total:N0} {noun} shown ({total - shown:N0} hidden{(string.IsNullOrEmpty(filterNote) ? "" : $", {filterNote}")})";
+        {
+            string note = string.IsNullOrEmpty(filterNote) ? "" : $", {Loc.S(filterNote)}";
+            StatusMessage = Loc.F("{0:N0} of {1:N0} {2} shown ({3:N0} hidden{4})", shown, total, noun, total - shown, note);
+        }
         Width = 900;
         Height = 600;
         CanResize = true;
@@ -44,30 +47,30 @@ internal sealed class SearchResultsWindow : Window
         DateOnly today = gameDate ?? DateOnly.FromDateTime(DateTime.Today);
         if (scope == "Coach")
         {
-            grid.Columns.Add(new DataGridTextColumn { Header = "Name", Binding = new Avalonia.Data.Binding(nameof(StaffRow.Name)), Width = new DataGridLength(220) });
-            grid.Columns.Add(new DataGridTextColumn { Header = "Age", Binding = new Avalonia.Data.Binding(nameof(StaffRow.Age)), Width = new DataGridLength(70) });
-            grid.Columns.Add(new DataGridTextColumn { Header = "Club", Binding = new Avalonia.Data.Binding(nameof(StaffRow.Club)), Width = new DataGridLength(220) });
-            grid.Columns.Add(new DataGridTextColumn { Header = "Job", Binding = new Avalonia.Data.Binding(nameof(StaffRow.Job)), Width = new DataGridLength(160) });
-            grid.Columns.Add(new DataGridTextColumn { Header = "Nationality", Binding = new Avalonia.Data.Binding(nameof(StaffRow.Nationality)), Width = new DataGridLength(150) });
-            grid.Columns.Add(new DataGridTextColumn { Header = "CA", Binding = new Avalonia.Data.Binding(nameof(StaffRow.Ca)), Width = new DataGridLength(70) });
-            grid.Columns.Add(new DataGridTextColumn { Header = "PA", Binding = new Avalonia.Data.Binding(nameof(StaffRow.Pa)), Width = new DataGridLength(70) });
+            grid.Columns.Add(new DataGridTextColumn { Header = Loc.S("Name"), Binding = new Avalonia.Data.Binding(nameof(StaffRow.Name)), Width = new DataGridLength(220) });
+            grid.Columns.Add(new DataGridTextColumn { Header = Loc.S("Age"), Binding = new Avalonia.Data.Binding(nameof(StaffRow.Age)), Width = new DataGridLength(70) });
+            grid.Columns.Add(new DataGridTextColumn { Header = Loc.S("Club"), Binding = new Avalonia.Data.Binding(nameof(StaffRow.Club)), Width = new DataGridLength(220) });
+            grid.Columns.Add(new DataGridTextColumn { Header = Loc.S("Job"), Binding = new Avalonia.Data.Binding(nameof(StaffRow.Job)), Width = new DataGridLength(160) });
+            grid.Columns.Add(new DataGridTextColumn { Header = Loc.S("Nationality"), Binding = new Avalonia.Data.Binding(nameof(StaffRow.Nationality)), Width = new DataGridLength(150) });
+            grid.Columns.Add(new DataGridTextColumn { Header = Loc.S("CA"), Binding = new Avalonia.Data.Binding(nameof(StaffRow.Ca)), Width = new DataGridLength(70) });
+            grid.Columns.Add(new DataGridTextColumn { Header = Loc.S("PA"), Binding = new Avalonia.Data.Binding(nameof(StaffRow.Pa)), Width = new DataGridLength(70) });
             grid.ItemsSource = staff.Select(s => new StaffRow(
                 s.DisplayName,
                 s.DateOfBirth is { } born ? (today.Year - born.Year - (born.AddYears(today.Year - born.Year) > today ? 1 : 0)).ToString() : "",
                 s.Club?.DisplayName ?? "",
-                StaffLabels.Job(s.JobCode),
+                Loc.S(StaffLabels.Job(s.JobCode)),
                 s.Nationality?.DisplayName ?? "",
                 s.CurrentAbility.ToString(),
                 s.PotentialAbility.ToString())).ToArray();
         }
         else
         {
-            grid.Columns.Add(new DataGridTextColumn { Header = "Club", Binding = new Avalonia.Data.Binding(nameof(ClubRow.Name)), Width = new DataGridLength(400) });
-            grid.Columns.Add(new DataGridTextColumn { Header = "ID", Binding = new Avalonia.Data.Binding(nameof(ClubRow.Id)), Width = new DataGridLength(100) });
+            grid.Columns.Add(new DataGridTextColumn { Header = Loc.S("Club"), Binding = new Avalonia.Data.Binding(nameof(ClubRow.Name)), Width = new DataGridLength(400) });
+            grid.Columns.Add(new DataGridTextColumn { Header = Loc.S("ID"), Binding = new Avalonia.Data.Binding(nameof(ClubRow.Id)), Width = new DataGridLength(100) });
             grid.ItemsSource = clubs.Select(c => new ClubRow(c.DisplayName, c.Id?.ToString() ?? "")).ToArray();
         }
 
-        var close = new Button { Content = "Close", MinWidth = 80 };
+        var close = new Button { Content = Loc.S("Close"), MinWidth = 80 };
         close.Click += (_, _) => Close();
         var bottomDock = new DockPanel { LastChildFill = true };
         DockPanel.SetDock(close, Dock.Right);

@@ -17,7 +17,7 @@ public sealed partial class MainWindow
 
     sealed record WonderkidOption(WonderkidChance Value, string Label)
     {
-        public override string ToString() => Label;
+        public override string ToString() => Loc.S(Label);
     }
 
     /// <summary>Batch Golden Generation for a youth squad: snapshot a baseline, preview the rolls, apply the plan.</summary>
@@ -38,15 +38,15 @@ public sealed partial class MainWindow
         };
         var wonderkid = new ComboBox { ItemsSource = wonderkidOptions, SelectedIndex = 0 };
         var maxAge = new NumericUpDown { Minimum = 0, Maximum = 60, Value = 0, Height = 24, MinHeight = 24, FontSize = 12.5, FormatString = "0" };
-        ToolTip.SetTip(maxAge, "0 means no age limit");
-        var baselineLabel = new TextBlock { Text = "Baseline: none (everyone is treated as new)", Foreground = UiKit.TextSecondary, FontSize = 12 };
+        ToolTip.SetTip(maxAge, Loc.S("0 means no age limit"));
+        var baselineLabel = new TextBlock { Text = Loc.S("Baseline: none (everyone is treated as new)"), Foreground = UiKit.TextSecondary, FontSize = 12 };
         List<PlayerRecord>? baseline = null;
         var ledger = GoldenGenerationLedger.Load(GoldenLedgerPath);
         var grid = new DataGrid { IsReadOnly = true, AutoGenerateColumns = false, CanUserSortColumns = false, RowHeight = 27, Height = 320 };
-        grid.Columns.Add(new DataGridTextColumn { Header = "Player", Binding = new Binding("Player.DisplayName"), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
-        grid.Columns.Add(new DataGridTextColumn { Header = "PA", Binding = new Binding("Change"), Width = new DataGridLength(110) });
-        grid.Columns.Add(new DataGridTextColumn { Header = "Reason", Binding = new Binding("Reason"), Width = new DataGridLength(130) });
-        grid.Columns.Add(new DataGridTextColumn { Header = "Detail", Binding = new Binding("Detail"), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
+        grid.Columns.Add(new DataGridTextColumn { Header = Loc.S("Player"), Binding = new Binding("Player.DisplayName"), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
+        grid.Columns.Add(new DataGridTextColumn { Header = Loc.S("PA"), Binding = new Binding("Change"), Width = new DataGridLength(110) });
+        grid.Columns.Add(new DataGridTextColumn { Header = Loc.S("Reason"), Binding = new Binding("Reason"), Width = new DataGridLength(130) });
+        grid.Columns.Add(new DataGridTextColumn { Header = Loc.S("Detail"), Binding = new Binding("Detail"), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
         IReadOnlyList<GoldenGenerationEntry>? plan = null;
 
         GoldenGenerationRequest Request()
@@ -73,49 +73,49 @@ public sealed partial class MainWindow
                 HashSet<int>? baselineIds = baseline is null ? null : GoldenGenerationRegens.Ids(baseline).ToHashSet();
                 plan = batch.Plan(squad, Request(), baselineIds, ledger, facts);
                 grid.ItemsSource = plan.Select(e => new GoldenBatchRow(e.Player, e.PaBefore, e.CaBefore, e.PaAfter, e.CaAfter,
-                    e.Reason == GoldenGenerationSkipReason.None ? (e.WillWrite ? "Roll" : "Held") : e.Reason.ToString(), e.Detail)).ToList();
+                    Loc.S(e.Reason == GoldenGenerationSkipReason.None ? (e.WillWrite ? "Roll" : "Held") : e.Reason.ToString()), e.Detail)).ToList();
                 int writes = plan.Count(e => e.WillWrite);
-                onStatus?.Invoke($"Golden Batch preview: {writes} to roll, {plan.Count - writes} held back.");
+                onStatus?.Invoke(Loc.F("Golden Batch preview: {0} to roll, {1} held back.", writes, plan.Count - writes));
             }
-            catch (Exception ex) { onStatus?.Invoke($"Golden Batch: {ex.Message}"); }
+            catch (Exception ex) { onStatus?.Invoke(Loc.F("Golden Batch: {0}", UserMessage.For(ex))); }
             finally { busy = false; }
         }
 
-        var snapshot = new Button { Content = "Snapshot baseline" };
+        var snapshot = new Button { Content = Loc.S("Snapshot baseline") };
         snapshot.Click += (_, _) =>
         {
             baseline = getSquad().ToList();
-            baselineLabel.Text = $"Baseline: {baseline.Count} players ({DateTime.Now:HH:mm})";
+            baselineLabel.Text = Loc.F("Baseline: {0} players ({1})", baseline.Count, DateTime.Now.ToString("HH:mm"));
         };
-        var preview = new Button { Content = "Preview" };
+        var preview = new Button { Content = Loc.S("Preview") };
         preview.Click += (_, _) => Preview();
-        var apply = new Button { Content = "Apply" };
+        var apply = new Button { Content = Loc.S("Apply") };
         apply.Click += (_, _) =>
         {
             if (busy) return;
             if (plan is null) Preview();
-            if (plan is null || plan.Count(e => e.WillWrite) == 0) { onStatus?.Invoke("Golden Batch: nothing to apply."); return; }
+            if (plan is null || plan.Count(e => e.WillWrite) == 0) { onStatus?.Invoke(Loc.S("Golden Batch: nothing to apply.")); return; }
             busy = true;
             try
             {
                 var batch = new GoldenGenerationBatch(session.Writer, session.Profile, backend.Edits.Journal);
                 var result = batch.Apply(plan, ledger);
                 ledger.Save(GoldenLedgerPath);
-                onStatus?.Invoke($"Golden Batch: {result.Written} rolled, {result.Skipped} skipped. Continue in FM to see updates.");
+                onStatus?.Invoke(Loc.F("Golden Batch: {0} rolled, {1} skipped. Continue in FM to see updates.", result.Written, result.Skipped));
                 onApplied?.Invoke();
                 plan = null;
             }
-            catch (Exception ex) { onStatus?.Invoke($"Golden Batch: {ex.Message}"); }
+            catch (Exception ex) { onStatus?.Invoke(Loc.F("Golden Batch: {0}", UserMessage.For(ex))); }
             finally { busy = false; }
         };
 
         var inputs = new WrapPanel { Orientation = Orientation.Horizontal, ItemSpacing = 8, LineSpacing = 8, Margin = new Thickness(0, 0, 0, 8) };
-        inputs.Children.Add(new TextBlock { Text = "PA", VerticalAlignment = VerticalAlignment.Center });
+        inputs.Children.Add(new TextBlock { Text = Loc.S("PA"), VerticalAlignment = VerticalAlignment.Center });
         inputs.Children.Add(minPa);
         inputs.Children.Add(maxPa);
-        inputs.Children.Add(new TextBlock { Text = "Wonderkid", VerticalAlignment = VerticalAlignment.Center });
+        inputs.Children.Add(new TextBlock { Text = Loc.S("Wonderkid"), VerticalAlignment = VerticalAlignment.Center });
         inputs.Children.Add(wonderkid);
-        inputs.Children.Add(new TextBlock { Text = "Max age", VerticalAlignment = VerticalAlignment.Center });
+        inputs.Children.Add(new TextBlock { Text = Loc.S("Max age"), VerticalAlignment = VerticalAlignment.Center });
         inputs.Children.Add(maxAge);
         inputs.Children.Add(snapshot);
         inputs.Children.Add(preview);
@@ -124,7 +124,7 @@ public sealed partial class MainWindow
         stack.Children.Add(inputs);
         stack.Children.Add(baselineLabel);
         stack.Children.Add(grid);
-        var window = new Window { Title = "Golden Batch — Preview", Width = 760, Height = 520, WindowStartupLocation = WindowStartupLocation.CenterOwner, Content = stack };
+        var window = new Window { Title = Loc.S("Golden Batch — Preview"), Width = 760, Height = 520, WindowStartupLocation = WindowStartupLocation.CenterOwner, Content = stack };
         window.Show();
     }
 }

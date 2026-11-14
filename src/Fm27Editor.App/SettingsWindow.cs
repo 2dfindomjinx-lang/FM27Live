@@ -21,7 +21,8 @@ public sealed partial class MainWindow
             MinWidth = 34, Width = 34, MinHeight = 28, Height = 28,
             Background = Brush("#181C29"), BorderBrush = Brush("#272D42"), BorderThickness = new Thickness(1), Foreground = Brush("#DCE2EE"),
         };
-        ToolTip.SetTip(button, "Settings");
+        ToolTip.SetTip(button, Loc.S("Settings"));
+        Fm27Editor.Core.Settings.LanguageSetting.Changed += () => ToolTip.SetTip(button, Loc.S("Settings"));
         button.Click += (_, _) => ShowSettings();
         return button;
     }
@@ -47,14 +48,15 @@ public sealed partial class MainWindow
             status.Text = $"Date format {DateSetting.Hint}";
         };
         var row = new Grid { ColumnDefinitions = new ColumnDefinitions("110,*"), ColumnSpacing = 12 };
-        var label = new TextBlock { Text = "Date format", VerticalAlignment = VerticalAlignment.Center, Foreground = UiKit.TextSecondary };
+        var label = new TextBlock { Text = Loc.S("Date format"), VerticalAlignment = VerticalAlignment.Center, Foreground = UiKit.TextSecondary };
         Grid.SetColumn(combo, 1);
         row.Children.Add(label); row.Children.Add(combo);
 
         // First entry follows the game's own currency (re-read at every Load Game); any other entry is the player's
         // choice and stays. Money is always stored in pounds; this only changes what is shown and how typed amounts convert.
         var detected = Fm27Editor.Core.Settings.GameCurrency.Detected();
-        string autoLabel = detected is { } d ? $"Same as the game ({d.Code})" : "Same as the game (not recognised, £)";
+        string AutoCurrencyLabel() => detected is { } d ? Loc.F("Same as the game ({0})", d.Code) : Loc.S("Same as the game (not recognised, £)");
+        string autoLabel = AutoCurrencyLabel();
         var currencyChoices = new[] { new CurrencyChoice(null, autoLabel) }
             .Concat(Fm27Editor.Core.Settings.CurrencySetting.Available.Select(c => new CurrencyChoice(c, $"{c.Code} - {c.Name} - {c.Symbol}"))).ToArray();
         var currencyCombo = new ComboBox
@@ -79,20 +81,55 @@ public sealed partial class MainWindow
             status.Text = $"Currency {now.Code} - {now.Name}";
         };
         var currencyRow = new Grid { ColumnDefinitions = new ColumnDefinitions("110,*"), ColumnSpacing = 12 };
-        var currencyLabel = new TextBlock { Text = "Currency", VerticalAlignment = VerticalAlignment.Center, Foreground = UiKit.TextSecondary };
+        var currencyLabel = new TextBlock { Text = Loc.S("Currency"), VerticalAlignment = VerticalAlignment.Center, Foreground = UiKit.TextSecondary };
         Grid.SetColumn(currencyCombo, 1);
         currencyRow.Children.Add(currencyLabel); currencyRow.Children.Add(currencyCombo);
+
+        var langChoices = new[]
+        {
+            new LanguageChoice(AppLanguage.English, LanguageSetting.DisplayName(AppLanguage.English)),
+            new LanguageChoice(AppLanguage.Vietnamese, LanguageSetting.DisplayName(AppLanguage.Vietnamese)),
+        };
+        var langCombo = new ComboBox
+        {
+            ItemsSource = langChoices,
+            SelectedItem = langChoices.First(c => c.Language == LanguageSetting.Current),
+            Width = 230,
+        };
+        langCombo.SelectionChanged += (_, _) =>
+        {
+            if (langCombo.SelectedItem is not LanguageChoice chosen || chosen.Language == LanguageSetting.Current) return;
+            LanguageSetting.Set(chosen.Language);
+        };
+        var langRow = new Grid { ColumnDefinitions = new ColumnDefinitions("110,*"), ColumnSpacing = 12 };
+        var langLabel = new TextBlock { Text = Loc.S("Language"), VerticalAlignment = VerticalAlignment.Center, Foreground = UiKit.TextSecondary };
+        Grid.SetColumn(langCombo, 1);
+        langRow.Children.Add(langLabel); langRow.Children.Add(langCombo);
+
         var window = new Window
         {
-            Title = "Settings", Width = 420, SizeToContent = SizeToContent.Height, CanResize = false,
+            Title = Loc.S("Settings"), Width = 420, SizeToContent = SizeToContent.Height, CanResize = false,
             WindowStartupLocation = WindowStartupLocation.CenterOwner, Background = UiKit.WindowBg,
-            Content = new StackPanel { Margin = new Thickness(20), Spacing = 14, Children = { row, currencyRow } },
+            Content = new StackPanel { Margin = new Thickness(20), Spacing = 14, Children = { row, currencyRow, langRow } },
         };
+        void RefreshLang()
+        {
+            window.Title = Loc.S("Settings");
+            label.Text = Loc.S("Date format");
+            currencyLabel.Text = Loc.S("Currency");
+            langLabel.Text = Loc.S("Language");
+        }
+        LanguageSetting.Changed += RefreshLang;
         settingsWindow = window;
-        window.Closed += (_, _) => settingsWindow = null;
+        window.Closed += (_, _) =>
+        {
+            LanguageSetting.Changed -= RefreshLang;
+            settingsWindow = null;
+        };
         window.Show(this);
     }
 
     sealed record DateChoice(DateLayout Layout, string Text) { public override string ToString() => Text; }
     sealed record CurrencyChoice(Fm27Editor.Core.Settings.CurrencyInfo? Info, string Text) { public override string ToString() => Text; }
+    sealed record LanguageChoice(AppLanguage Language, string Text) { public override string ToString() => Text; }
 }

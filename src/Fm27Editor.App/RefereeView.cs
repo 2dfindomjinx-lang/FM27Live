@@ -19,11 +19,11 @@ internal sealed class RefereeScreen(IScreenHost host)
 
     protected override void ConfigureColumns(DataGrid grid)
     {
-        grid.Columns.Add(new DataGridTextColumn { Header = "Name", Binding = new Binding(nameof(RefereeRow.Name)), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
+        grid.Columns.Add(new DataGridTextColumn { Header = Loc.S("Name"), Binding = new Binding(nameof(RefereeRow.Name)), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
         foreach (var (title, property, width) in new[] { ("CA", nameof(RefereeRow.CA), 65), ("PA", nameof(RefereeRow.PA), 65),
                      ("Reputation", nameof(RefereeRow.Reputation), 100), ("ID", nameof(RefereeRow.Id), 110) })
         {
-            var column = new DataGridTextColumn { Header = title, Binding = new Binding(property), Width = new DataGridLength(width) };
+            var column = new DataGridTextColumn { Header = Loc.S(title), Binding = new Binding(property), Width = new DataGridLength(width) };
             column.CellStyleClasses.Add("numeric");
             grid.Columns.Add(column);
         }
@@ -64,10 +64,10 @@ internal sealed class RefereeScreen(IScreenHost host)
     protected override void BuildEditor(RefereeRecord r, Dictionary<RefereeField, string> draft, Action changed)
     {
         HeaderHost.Content = UiKit.EntityBanner(r.DisplayName, new TextBlock { Text = $"ID {r.UniqueId.ToString(Inv)}" }, null);
-        var info = CardRows("Information", [("ID", Label(r.UniqueId.ToString(Inv), "#F1F5F9")),
-            ("Date of Birth", Label(DateSetting.Format(r.DateOfBirth), "#F1F5F9"))]);
+        var info = CardRows("Information", [(Loc.S("ID"), Label(r.UniqueId.ToString(Inv), "#F1F5F9")),
+            (Loc.S("Date of Birth"), Label(DateSetting.Format(r.DateOfBirth), "#F1F5F9"))]);
         Control Card(string title, RefereeField[] fields) => CardRows(title, fields.Select(f =>
-            (LabelFor(f), (Control)FieldBox(draft, f, Value(r, f).ToString(Inv), 96, changed))));
+            (Loc.S(LabelFor(f)), (Control)FieldBox(draft, f, Value(r, f).ToString(Inv), 96, changed))));
         var left = new StackPanel { Spacing = 8, Children = { info, Card("Ability", Ability) } };
         var right = new StackPanel { Spacing = 8, Children = { Card("Skills", Skills), Card("Flags", Flags) } };
         Editor.Children.Add(TwoColumns(left, right));
@@ -84,7 +84,7 @@ internal sealed class RefereeScreen(IScreenHost host)
                 RefereeField.Reputation => 10000, RefereeField.EliteList or RefereeField.Continental => 1,
                 RefereeField.EuropeanCategory => 5, _ => 20 };
             if (!int.TryParse(text.Trim(), System.Globalization.NumberStyles.Integer, Inv, out int value) || value < min || value > max)
-                return $"{LabelFor(field)}: enter a whole number {min} to {max}";
+                return Loc.F("{0}: enter a whole number {1} to {2}", Loc.S(LabelFor(field)), min, max);
             values[field] = value;
         }
         write = () =>
@@ -94,9 +94,9 @@ internal sealed class RefereeScreen(IScreenHost host)
             foreach (var (field, value) in values)
             {
                 session.SetReferee(current, field, value);
-                current = session.Referees.Read(r.Address) ?? throw new StaleObjectException("The referee is no longer readable");
+                current = session.Referees.Read(r.Address) ?? throw new StaleObjectException(Loc.S("The referee is no longer readable"));
                 if (current.UniqueId != r.UniqueId || current.VtableRva != r.VtableRva)
-                    throw new StaleObjectException("The referee changed while saving");
+                    throw new StaleObjectException(Loc.S("The referee changed while saving"));
             }
             return values.Count;
         };

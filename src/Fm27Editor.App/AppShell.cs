@@ -22,7 +22,7 @@ public sealed partial class MainWindow
         Width = 280,
         Height = 26,
         FontSize = 13,
-        Watermark = "Universal search: player, club, stadium, staff, competition, award or ID",
+        Watermark = Loc.S("Universal search: player, club, stadium, staff, competition, award or ID"),
     };
     readonly Border searchOverlay = new()
     {
@@ -51,17 +51,16 @@ public sealed partial class MainWindow
         unifiedSearch.Height = 32;
         unifiedSearch.FontSize = 14.5;
         unifiedSearch.HorizontalAlignment = HorizontalAlignment.Stretch;
-        unifiedSearch.Watermark = "Universal search: player, club, stadium, staff, competition, award or ID";
+        Loc.BindWatermark(unifiedSearch, "Universal search: player, club, stadium, staff, competition, award or ID");
 
-        var closeBtn = new Button
+        var closeBtn = Loc.BindContent(new Button
         {
-            Content = "Close",
             FontSize = 13,
             Padding = new Thickness(12, 3),
             MinHeight = 32,
             Height = 32,
             Margin = new Thickness(8, 0, 0, 0),
-        };
+        }, "Close");
         closeBtn.Click += (_, _) => CloseUnified();
 
         var fieldRow = new DockPanel { LastChildFill = true };
@@ -90,30 +89,28 @@ public sealed partial class MainWindow
         };
         DockPanel.SetDock(rightActions, Dock.Right);
 
-        unifiedGroupToggleBtn = new Button
+        unifiedGroupToggleBtn = Loc.Bind(new Button
         {
-            Content = unifiedGroupByType ? "Grouped ✓" : "Group by type",
             Classes = { "meta-link" },
             FontSize = 13,
             Foreground = unifiedGroupByType ? UiKit.Brush("#C084FC") : UiKit.TextMuted,
             Cursor = new Cursor(StandardCursorType.Hand),
-        };
+        }, () => unifiedGroupToggleBtn!.Content = Loc.S(unifiedGroupByType ? "Grouped ✓" : "Group by type"));
         unifiedGroupToggleBtn.Click += (_, _) =>
         {
             unifiedGroupByType = !unifiedGroupByType;
-            unifiedGroupToggleBtn.Content = unifiedGroupByType ? "Grouped ✓" : "Group by type";
+            unifiedGroupToggleBtn.Content = Loc.S(unifiedGroupByType ? "Grouped ✓" : "Group by type");
             unifiedGroupToggleBtn.Foreground = unifiedGroupByType ? UiKit.Brush("#C084FC") : UiKit.TextMuted;
             RenderCurrentUnifiedResults();
         };
 
-        var advSearchBtn = new Button
+        var advSearchBtn = Loc.BindContent(new Button
         {
-            Content = "Advanced search...",
             Classes = { "meta-link" },
             FontSize = 13,
             Foreground = UiKit.Brush("#A78BFA"),
             Cursor = new Cursor(StandardCursorType.Hand),
-        };
+        }, "Advanced search...");
         advSearchBtn.Click += (_, _) =>
         {
             CloseUnified();
@@ -173,7 +170,7 @@ public sealed partial class MainWindow
     {
         unifiedReleaseTimer.Stop();
         searchOverlay.IsVisible = true;
-        unifiedResultsLabel.Text = "Results";
+        unifiedResultsLabel.Text = Loc.S("Results");
         unifiedCountBadge.IsVisible = false;
         unifiedList.Children.Clear();
         unifiedSearch.Focus();
@@ -262,7 +259,7 @@ public sealed partial class MainWindow
                 BorderThickness = new Thickness(1),
                 Foreground = Brush("#DCE2EE"),
             };
-            ToolTip.SetTip(b, tip);
+            Loc.BindTip(b, tip);
             b.Click += (_, _) => action();
             return b;
         }
@@ -305,14 +302,13 @@ public sealed partial class MainWindow
         };
         DockPanel.SetDock(shortcutPill, Dock.Right);
         searchRow.Children.Add(shortcutPill);
-        searchRow.Children.Add(new TextBlock
+        searchRow.Children.Add(Loc.BindText(new TextBlock
         {
-            Text = "Universal search: player, club, stadium, award or ID…",
             FontSize = 13.5,
             Foreground = Brush("#64748B"),
             VerticalAlignment = VerticalAlignment.Center,
             TextTrimming = TextTrimming.CharacterEllipsis,
-        });
+        }, "Universal search: player, club, stadium, award or ID…"));
 
         var searchOpen = new Button
         {
@@ -354,17 +350,16 @@ public sealed partial class MainWindow
             BorderBrush = Brush("#272D42"),
             BorderThickness = new Thickness(1),
         };
-        ToolTip.SetTip(github, "Open the project repository");
+        Loc.BindTip(github, "Open the project repository");
         github.Click += (_, _) => OpenUrl("https://github.com/Jackhamerp24/Football-Manager-27-Editor");
-        var loadGame = new Button
+        var loadGame = Loc.BindContent(new Button
         {
-            Content = "Load Game",
             FontSize = 13.5,
             Padding = new Thickness(14, 0),
             MinHeight = 28,
             Height = 28,
             Classes = { "accent" },
-        };
+        }, "Load Game");
         loadGame.Click += async (_, _) => await ReloadGameAsync();
         right.Children.Add(github);
         right.Children.Add(loadGame);
@@ -432,8 +427,8 @@ public sealed partial class MainWindow
 
     async Task ChooseGraphicsAsync()
     {
-        try { if (await graphics.ChooseAsync(this)) status.Text = $"Graphics: {graphics.Folder}"; }
-        catch (Exception ex) { status.Text = $"Graphics: {ex.Message}"; }
+        try { if (await graphics.ChooseAsync(this)) status.Text = Loc.F("Graphics: {0}", graphics.Folder); }
+        catch (Exception ex) { status.Text = Loc.F("Graphics: {0}", ex.Message); }
     }
 
     static void RaiseClick(Button? button)
@@ -722,9 +717,8 @@ public sealed partial class MainWindow
         moduleRoots[header] = content;
         moduleNav[header] = navItem;
 
-        var button = new Button
+        var button = Loc.BindContent(new Button
         {
-            Content = header,
             FontSize = 13,
             Padding = new Thickness(11, 3),
             MinHeight = 25,
@@ -734,7 +728,7 @@ public sealed partial class MainWindow
             BorderThickness = new Thickness(0, 0, 0, 2),
             BorderBrush = Brushes.Transparent,
             Foreground = Brush("#94A3B8"),
-        };
+        }, header);
         button.Click += (_, _) => ShowModule(header);
         moduleButtons[header] = button;
         moduleBar.Children.Add(button);
@@ -1025,13 +1019,13 @@ public sealed partial class MainWindow
             }
             // The club and nation catalogues are warmed first by Load Game; reuse them instead of reading the same
             // objects twice (the nation catalogue costs over a second).
-            progress?.Invoke("Reading clubs…");
+            progress?.Invoke(Loc.S("Reading clubs…"));
             try { unifiedClubs = clubCache ?? session.LoadClubs(players); } catch { }
-            progress?.Invoke("Reading nations…");
+            progress?.Invoke(Loc.S("Reading nations…"));
             try { unifiedNations = nationCatalogue ?? session.Nations.LoadAll(); } catch { }
             if (session.Profile.Competition is not null)
             {
-                progress?.Invoke("Reading competitions…");
+                progress?.Invoke(Loc.S("Reading competitions…"));
                 try
                 {
                     unifiedCompetitions = session.Competitions.LoadAll();
@@ -1052,22 +1046,22 @@ public sealed partial class MainWindow
             }
             if (session.Profile.Staff is not null)
             {
-                progress?.Invoke("Reading staff…");
+                progress?.Invoke(Loc.S("Reading staff…"));
                 try { unifiedStaff = session.Staff.LoadAll(); } catch { }
             }
             if (session.Profile.Stadium is not null)
             {
-                progress?.Invoke("Reading stadiums…");
+                progress?.Invoke(Loc.S("Reading stadiums…"));
                 try { unifiedStadiums = session.Stadiums.LoadAll(); } catch { }
             }
             if (session.Profile.Award is not null)
             {
-                progress?.Invoke("Reading awards…");
+                progress?.Invoke(Loc.S("Reading awards…"));
                 try { unifiedAwards = session.Awards.LoadAll(); } catch { }
             }
-            progress?.Invoke("Reading referees…");
+            progress?.Invoke(Loc.S("Reading referees…"));
             try { unifiedReferees = session.ReadReferees(); } catch { }
-            progress?.Invoke("Reading cities…");
+            progress?.Invoke(Loc.S("Reading cities…"));
             try { unifiedCities = session.Cities.LoadAll(); } catch { }
             unifiedNationNames = unifiedNations.Where(nat => nat.Address != 0).GroupBy(nat => nat.Address).ToDictionary(g => g.Key, g => g.First().DisplayName);
             unifiedCacheLoaded = true;
@@ -1118,7 +1112,7 @@ public sealed partial class MainWindow
         {
             lastUnifiedResults.Clear();
             unifiedList.Children.Clear();
-            unifiedResultsLabel.Text = "Results";
+            unifiedResultsLabel.Text = Loc.S("Results");
             unifiedCountBadge.IsVisible = false;
             return;
         }
@@ -1186,7 +1180,7 @@ public sealed partial class MainWindow
             int score = MatchScore(comp.DisplayName, comp.ShortName, comp.Id, 15);
             if (score > 0)
             {
-                string meta = comp.Reputation > 0 ? $"Rep {comp.Reputation}" : "";
+                string meta = comp.Reputation > 0 ? Loc.F("Rep {0}", comp.Reputation) : "";
                 results.Add(new("COMPETITION", comp.DisplayName, meta, score, () => PickCompetition(comp)));
                 catCount++;
             }
@@ -1217,7 +1211,7 @@ public sealed partial class MainWindow
             int score = MatchScore(player.DisplayName, player.FullName, player.Id, 13);
             if (score > 0)
             {
-                string playerMeta = string.Join(" · ", new[] { player.NationalityName, player.Club?.DisplayName ?? "Free agent" }.Where(s => !string.IsNullOrEmpty(s)));
+                string playerMeta = string.Join(" · ", new[] { player.NationalityName, player.Club?.DisplayName ?? Loc.S("Free agent") }.Where(s => !string.IsNullOrEmpty(s)));
                 results.Add(new("PLAYER", player.DisplayName, playerMeta, score, () => PickPlayer(player)));
                 catCount++;
             }
@@ -1285,7 +1279,7 @@ public sealed partial class MainWindow
             int score = MatchScore(aName, award.ShortName, aId, 9);
             if (score > 0)
             {
-                string meta = aRep > 0 ? $"Rep {aRep}" : "";
+                string meta = aRep > 0 ? Loc.F("Rep {0}", aRep) : "";
                 results.Add(new("AWARD", aName, meta, score, () => PickAward(award)));
                 catCount++;
             }
@@ -1334,12 +1328,12 @@ public sealed partial class MainWindow
         unifiedList.Children.Clear();
         if (lastUnifiedResults.Count == 0)
         {
-            unifiedResultsLabel.Text = "Results";
+            unifiedResultsLabel.Text = Loc.S("Results");
             unifiedCountBadge.IsVisible = false;
             return;
         }
 
-        unifiedResultsLabel.Text = "Results";
+        unifiedResultsLabel.Text = Loc.S("Results");
         unifiedResultsCountText.Text = lastUnifiedResults.Count.ToString(Inv);
         unifiedCountBadge.IsVisible = true;
 
@@ -1432,7 +1426,7 @@ public sealed partial class MainWindow
         var rowContent = new DockPanel { LastChildFill = true };
         var role = new TextBlock
         {
-            Text = string.Concat(item.Kind[..1], item.Kind[1..].ToLowerInvariant()),
+            Text = Loc.S(string.Concat(item.Kind[..1], item.Kind[1..].ToLowerInvariant())),
             FontSize = 12.5,
             Foreground = UiKit.TextMuted,
             VerticalAlignment = VerticalAlignment.Center,
@@ -1467,7 +1461,7 @@ public sealed partial class MainWindow
         return row;
     }
 
-    static string PluralizeKind(string kind) => kind switch
+    static string PluralizeKind(string kind) => Loc.S(kind switch
     {
         "COMPETITION" => "COMPETITIONS",
         "CLUB" => "CLUBS",
@@ -1479,11 +1473,11 @@ public sealed partial class MainWindow
         "REFEREE" => "REFEREES",
         "CITY" => "CITIES",
         _ => kind
-    };
+    });
 
     static Border CreateKindPill(string kind)
     {
-        string label = kind switch
+        string label = Loc.S(kind switch
         {
             "COMPETITION" => "Competition",
             "CLUB" => "Club",
@@ -1493,7 +1487,7 @@ public sealed partial class MainWindow
             "STADIUM" => "Stadium",
             "AWARD" => "Award",
             _ => kind
-        };
+        });
         return UiKit.MetaPill(label, highlight: kind is "COMPETITION" or "PLAYER");
     }
 
@@ -1531,19 +1525,19 @@ public sealed partial class MainWindow
             if (button.IsEnabled) { RaiseClick(button); ranAny = true; }
         if (ranAny) return;
 
-        status.Text = "No unsaved changes";
+        status.Text = Loc.S("No unsaved changes");
     }
 
     void OpenCurrentFreezer()
     {
-        if (backend.State.Status != ConnectionStatus.Connected) { status.Text = "Load game first"; return; }
-        if (backend.Freezer is null) { status.Text = backend.FreezeError is { } err ? $"Freezer unavailable: {err}" : "Freezer unavailable"; return; }
+        if (backend.State.Status != ConnectionStatus.Connected) { status.Text = Loc.S("Load game first"); return; }
+        if (backend.Freezer is null) { status.Text = backend.FreezeError is { } err ? Loc.F("Freezer unavailable: {0}", err) : Loc.S("Freezer unavailable"); return; }
         _ = ShowFreezerManagerAsync();
     }
 
     async Task ShowEditHistoryAsync()
     {
-        if (backend.State.Status != ConnectionStatus.Connected || backend.Edits?.Journal is not { } journal) { status.Text = "Load game first"; return; }
+        if (backend.State.Status != ConnectionStatus.Connected || backend.Edits?.Journal is not { } journal) { status.Text = Loc.S("Load game first"); return; }
         var window = new EditHistoryWindow(journal, backend.Session.Memory, text => status.Text = text, RefreshAfterHistoryUndo);
         await window.ShowDialog(this);
     }
@@ -1581,7 +1575,7 @@ public sealed partial class MainWindow
             var clubs = clubCache ?? await Task.Run(() => backend.Session.LoadClubs(rows.OfType<PlayerRecord>().ToArray()));
             clubCache = clubs;
             var club = clubs.FirstOrDefault(c => c.Address == address);
-            if (club is null) { status.Text = "Club unavailable"; return; }
+            if (club is null) { status.Text = Loc.S("Club unavailable"); return; }
             PickClub(club);
         }
         catch (Exception ex) { status.Text = UserMessage.For(ex); }
@@ -1594,7 +1588,7 @@ public sealed partial class MainWindow
             var nations = nationCatalogue ?? await Task.Run(() => backend.Session.Nations.LoadAll());
             nationCatalogue = nations;
             var nation = nations.FirstOrDefault(n => n.Address == address);
-            if (nation is null) { status.Text = "Nation unavailable"; return; }
+            if (nation is null) { status.Text = Loc.S("Nation unavailable"); return; }
             PickNation(nation);
         }
         catch (Exception ex) { status.Text = UserMessage.For(ex); }
@@ -1605,7 +1599,7 @@ public sealed partial class MainWindow
         try
         {
             var competition = backend.Session.Competitions.Reload(address);
-            if (competition is null) { status.Text = "Competition unavailable"; return; }
+            if (competition is null) { status.Text = Loc.S("Competition unavailable"); return; }
             competitionScreen.Pick(competition);
         }
         catch (Exception ex) { status.Text = UserMessage.For(ex); }

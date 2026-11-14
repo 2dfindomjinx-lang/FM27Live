@@ -72,7 +72,7 @@ sealed class ColourPickerWindow : Window
 
     public ColourPickerWindow(uint initial)
     {
-        Title = "Pick a colour";
+        Title = Loc.S("Pick a colour");
         Width = 348;
         SizeToContent = SizeToContent.Height;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
@@ -144,13 +144,13 @@ sealed class ColourPickerWindow : Window
             VerticalAlignment = VerticalAlignment.Center,
             Child = new StackPanel { Orientation = Orientation.Horizontal, Children = { newPreview, oldPreview } },
         };
-        ToolTip.SetTip(newPreview, "Selected colour");
-        ToolTip.SetTip(oldPreview, "Current colour");
+        ToolTip.SetTip(newPreview, Loc.S("Selected colour"));
+        ToolTip.SetTip(oldPreview, Loc.S("Current colour"));
 
         var topHexRow = new DockPanel { LastChildFill = false };
         DockPanel.SetDock(previewFrame, Dock.Left);
         topHexRow.Children.Add(previewFrame);
-        var hexGroup = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, VerticalAlignment = VerticalAlignment.Center, Children = { new TextBlock { Text = "Hex", Foreground = UiKit.Brush("#94A3B8"), VerticalAlignment = VerticalAlignment.Center }, hex } };
+        var hexGroup = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, VerticalAlignment = VerticalAlignment.Center, Children = { new TextBlock { Text = Loc.S("Hex"), Foreground = UiKit.Brush("#94A3B8"), VerticalAlignment = VerticalAlignment.Center }, hex } };
         DockPanel.SetDock(hexGroup, Dock.Right);
         topHexRow.Children.Add(hexGroup);
 
@@ -163,9 +163,9 @@ sealed class ColourPickerWindow : Window
             channelRow.Children.Add(channelColumns[i]);
         }
 
-        var ok = new Button { Content = "OK", Classes = { "accent" }, MinWidth = 68, HorizontalContentAlignment = HorizontalAlignment.Center };
+        var ok = new Button { Content = Loc.S("OK"), Classes = { "accent" }, MinWidth = 68, HorizontalContentAlignment = HorizontalAlignment.Center };
         ok.Click += (_, _) => { ParseHexIfFocused(); ReadChannelsIfFocused(); Close(ToColour().ToUInt32()); };
-        var cancel = new Button { Content = "Cancel", MinWidth = 68, HorizontalContentAlignment = HorizontalAlignment.Center };
+        var cancel = new Button { Content = Loc.S("Cancel"), MinWidth = 68, HorizontalContentAlignment = HorizontalAlignment.Center };
         cancel.Click += (_, _) => Close(null);
 
         KeyDown += (_, e) =>
@@ -185,8 +185,8 @@ sealed class ColourPickerWindow : Window
             Children =
             {
                 spectrum,
-                new StackPanel { Spacing = 2, Children = { new TextBlock { Text = "Hue", FontSize = 12.5, Foreground = UiKit.Brush("#94A3B8") }, hueRamp, hueSlider } },
-                new StackPanel { Spacing = 2, Children = { new TextBlock { Text = "Alpha", FontSize = 12.5, Foreground = UiKit.Brush("#94A3B8") }, alphaRamp, alphaSlider } },
+                new StackPanel { Spacing = 2, Children = { new TextBlock { Text = Loc.S("Hue"), FontSize = 12.5, Foreground = UiKit.Brush("#94A3B8") }, hueRamp, hueSlider } },
+                new StackPanel { Spacing = 2, Children = { new TextBlock { Text = Loc.S("Alpha"), FontSize = 12.5, Foreground = UiKit.Brush("#94A3B8") }, alphaRamp, alphaSlider } },
                 topHexRow,
                 channelRow,
                 new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Spacing = 8, Margin = new Thickness(0, 4, 0, 0), Children = { cancel, ok } },

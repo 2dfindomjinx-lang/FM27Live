@@ -36,10 +36,10 @@ public sealed partial class MainWindow
         catch (Exception ex) { status.Text = UserMessage.For(ex); return; }
         finally { busy = false; }
         if (backend.State.Status != ConnectionStatus.Connected || !ReferenceEquals(session, backend.Session)) return;
-        var window = new Window { Title = "Release Player", Width = 390, Height = 200, WindowStartupLocation = WindowStartupLocation.CenterOwner };
-        var confirm = new Button { Content = "Release", Classes = { "accent" } };
-        var cancel = new Button { Content = "Cancel" };
-        var message = new TextBlock { Text = $"{player.DisplayName}\n{player.ClubName}  →  Free agent\nSquads: {plan.Squads}   Captaincies: {plan.Captaincies}" };
+        var window = new Window { Title = Loc.S("Release Player"), Width = 390, Height = 200, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+        var confirm = new Button { Content = Loc.S("Release"), Classes = { "accent" } };
+        var cancel = new Button { Content = Loc.S("Cancel") };
+        var message = new TextBlock { Text = Loc.F("{0}\n{1}  →  Free agent\nSquads: {2}   Captaincies: {3}", player.DisplayName, player.ClubName ?? "", plan.Squads, plan.Captaincies) };
         var problem = new TextBlock { TextWrapping = Avalonia.Media.TextWrapping.Wrap };
         bool running = false;
         window.Closing += (_, e) => { if (running) e.Cancel = true; };
@@ -54,7 +54,7 @@ public sealed partial class MainWindow
                 releaseUndo.Push(plan);
                 var fresh = session.Players.Reload(player.Address) ?? throw new InvalidOperationException("Player no longer readable");
                 selected = fresh; ReplaceRow(fresh); RenderEditor();
-                status.Text = $"Released {player.DisplayName}. Continue in FM to see updates.";
+                status.Text = Loc.F("Released {0}. Continue in FM to see updates.", player.DisplayName);
                 running = false;
                 window.Close();
             }
@@ -80,7 +80,7 @@ public sealed partial class MainWindow
             releaseUndo.Pop();
             var fresh = session.Players.Reload(plan.Player.Address) ?? throw new InvalidOperationException("Player no longer readable");
             selected = fresh; ReplaceRow(fresh); RenderEditor();
-            status.Text = $"Undid release for {plan.Player.DisplayName}. Continue in FM to see updates.";
+            status.Text = Loc.F("Undid release for {0}. Continue in FM to see updates.", plan.Player.DisplayName);
         }
         catch (Exception ex) { status.Text = UserMessage.For(ex); }
         finally { busy = false; }

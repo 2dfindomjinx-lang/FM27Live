@@ -38,10 +38,14 @@ static class UiKit
     /// A local option group (Home/Away kits, contract kinds and the like) in the app's own language: the same text buttons and
     /// 2px accent underline as the module row on the main screen, never the system TabControl.
     /// </summary>
-    public static Control OptionTabs(IReadOnlyList<(string Title, Control Content)> pages, int selectedIndex = 0, Action<int>? onSelected = null)
+    public static Control OptionTabs(IReadOnlyList<(string Title, Control Content)> pages, int selectedIndex = 0, Action<int>? onSelected = null, bool stretchContent = false)
     {
-        var bar = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 2, Margin = new Thickness(0, 0, 0, 8) };
-        var host = new ContentControl { HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Top };
+        var bar = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 2, Margin = new Thickness(0, 0, 0, stretchContent ? 0 : 8) };
+        var host = new ContentControl
+        {
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            VerticalAlignment = stretchContent ? VerticalAlignment.Stretch : VerticalAlignment.Top,
+        };
         var buttons = new List<Button>();
         void Apply(int index)
         {
@@ -59,9 +63,10 @@ static class UiKit
         for (int i = 0; i < pages.Count; i++)
         {
             int index = i;
+            string titleKey = pages[i].Title;
             var button = new Button
             {
-                Content = pages[i].Title,
+                Content = Loc.S(titleKey),
                 FontSize = 13,
                 Padding = new Thickness(11, 3),
                 MinHeight = 25,
@@ -75,9 +80,23 @@ static class UiKit
             button.Click += (_, _) => { Apply(index); onSelected?.Invoke(index); };
             buttons.Add(button);
             bar.Children.Add(button);
+            Loc.BindContent(button, titleKey);
         }
         Apply(selectedIndex);
-        return new StackPanel { Children = { bar, host } };
+        if (!stretchContent) return new StackPanel { Children = { bar, host } };
+        var strip = new Border
+        {
+            Background = Surface,
+            BorderBrush = BorderSubtle,
+            BorderThickness = new Thickness(0, 0, 0, 1),
+            Padding = new Thickness(10, 4, 10, 0),
+            Child = bar,
+        };
+        var dock = new DockPanel();
+        DockPanel.SetDock(strip, Dock.Top);
+        dock.Children.Add(strip);
+        dock.Children.Add(host);
+        return dock;
     }
 
     public static IBrush Brush(string hex) => AppTheme.Brush(hex);
@@ -99,7 +118,7 @@ static class UiKit
                 HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
             },
         };
-        ToolTip.SetTip(badge, new TextBlock { Text = explanation, TextWrapping = TextWrapping.Wrap, MaxWidth = 380 });
+        ToolTip.SetTip(badge, new TextBlock { Text = Loc.S(explanation), TextWrapping = TextWrapping.Wrap, MaxWidth = 380 });
         ToolTip.SetShowDelay(badge, 150);
         return badge;
     }
@@ -137,15 +156,23 @@ static class UiKit
         DockPanel.SetDock(pip, Dock.Left);
         headerDock.Children.Add(pip);
 
-        headerDock.Children.Add(customTitle ?? new TextBlock
+        if (customTitle is not null)
         {
-            Text = title.ToUpperInvariant(),
-            FontSize = 12.5,
-            FontWeight = FontWeight.Bold,
-            Foreground = Brush("#E2E8F0"),
-            VerticalAlignment = VerticalAlignment.Center,
-            LetterSpacing = 0.3,
-        });
+            headerDock.Children.Add(customTitle);
+        }
+        else
+        {
+            var titleBlock = new TextBlock
+            {
+                FontSize = 12.5,
+                FontWeight = FontWeight.Bold,
+                Foreground = Brush("#E2E8F0"),
+                VerticalAlignment = VerticalAlignment.Center,
+                LetterSpacing = 0.3,
+            };
+            Loc.Bind(titleBlock, () => titleBlock.Text = Loc.S(title).ToUpperInvariant());
+            headerDock.Children.Add(titleBlock);
+        }
 
         var header = new Border
         {
@@ -491,13 +518,12 @@ static class UiKit
             int row = rowOf[colIndex]++;
             while (grid.RowDefinitions.Count <= row) grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
 
-            var name = new TextBlock
+            var name = Loc.BindText(new TextBlock
             {
-                Text = label,
                 FontSize = 13,
                 VerticalAlignment = VerticalAlignment.Center,
                 Foreground = Brush("#CBD5E1")
-            };
+            }, label);
             Grid.SetRow(name, row);
             Grid.SetColumn(name, colIndex == 0 ? 0 : 3);
             grid.Children.Add(name);
@@ -546,7 +572,7 @@ static class UiKit
             {
                 var head = new TextBlock
                 {
-                    Text = i == 0 ? "Item" : $"{periodHeaders[i - 1]} (£)",
+                    Text = i == 0 ? Loc.S("Item") : $"{Loc.S(periodHeaders[i - 1])} (£)",
                     FontSize = 12.5,
                     FontWeight = FontWeight.Bold,
                     Foreground = Brush("#94A3B8"),
@@ -564,7 +590,7 @@ static class UiKit
                 grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
                 var name = new TextBlock
                 {
-                    Text = label,
+                    Text = Loc.S(label),
                     FontSize = 13,
                     FontWeight = bold ? FontWeight.SemiBold : FontWeight.Normal,
                     VerticalAlignment = VerticalAlignment.Center,

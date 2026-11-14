@@ -25,23 +25,23 @@ internal interface IStaffContractScope
 internal sealed class ClubStaffScope(GameSession session) : IStaffContractScope
 {
     public string Name => "Club";
-    public string ExpiryText(StaffRecord staff) => session.StaffContracts.Read(staff) is { } c ? c.Expires is { } ends ? DateSetting.Format(ends) : "No limit" : "";
+    public string ExpiryText(StaffRecord staff) => session.StaffContracts.Read(staff) is { } c ? c.Expires is { } ends ? DateSetting.Format(ends) : Loc.S("No limit") : "";
     public void Renew(StaffRecord staff, int years, DateOnly today) => session.StaffContracts.Renew(staff, Need(staff), years, today);
     public void Expire(StaffRecord staff, DateOnly today) => session.StaffContracts.Expire(staff, Need(staff), today);
     public void Shift(StaffRecord staff, int years) => session.StaffContracts.ShiftExpiry(staff, Need(staff), years);
     Fm27Editor.Core.Players.OfferContract Need(StaffRecord staff) =>
-        session.StaffContracts.Read(staff) ?? throw new InvalidOperationException($"{staff.DisplayName} has no club contract");
+        session.StaffContracts.Read(staff) ?? throw new InvalidOperationException(Loc.F("{0} has no club contract", staff.DisplayName));
 }
 
 internal sealed class NationStaffScope(GameSession session) : IStaffContractScope
 {
     public string Name => "National";
-    public string ExpiryText(StaffRecord staff) => session.NationStaffContracts.Read(staff) is { } c ? c.Expires is { } ends ? DateSetting.Format(ends) : "No limit" : "";
+    public string ExpiryText(StaffRecord staff) => session.NationStaffContracts.Read(staff) is { } c ? c.Expires is { } ends ? DateSetting.Format(ends) : Loc.S("No limit") : "";
     public void Renew(StaffRecord staff, int years, DateOnly today) => session.NationStaffContracts.Renew(staff, Need(staff), years, today);
     public void Expire(StaffRecord staff, DateOnly today) => session.NationStaffContracts.Expire(staff, Need(staff), today);
     public void Shift(StaffRecord staff, int years) => session.NationStaffContracts.ShiftExpiry(staff, Need(staff), years);
     Fm27Editor.Core.Players.OfferContract Need(StaffRecord staff) =>
-        session.NationStaffContracts.Read(staff) ?? throw new InvalidOperationException($"{staff.DisplayName} has no national contract");
+        session.NationStaffContracts.Read(staff) ?? throw new InvalidOperationException(Loc.F("{0} has no national contract", staff.DisplayName));
 }
 
 /// <summary>One line of a Staff list (club or nation).</summary>
@@ -74,7 +74,7 @@ public sealed partial class MainWindow
         grid.Columns.Add(ToolGrid.Text<StaffListRow>("Nat", r => r.Nation, 118, "Nationality"));
         grid.Columns.Add(ToolGrid.Number<StaffListRow>("CA", r => r.CA.ToString(CultureInfo.InvariantCulture), 41, "Current Ability"));
         grid.Columns.Add(ToolGrid.Number<StaffListRow>("PA", r => r.PA.ToString(CultureInfo.InvariantCulture), 41, "Potential Ability"));
-        grid.Columns.Add(ToolGrid.Number<StaffListRow>("Expires", r => r.Expires, 92, $"{scope.Name} contract expiry"));
+        grid.Columns.Add(ToolGrid.Number<StaffListRow>("Expires", r => r.Expires, 92, scope.Name == "Club" ? "Club contract expiry" : "National contract expiry"));
         var keys = new Dictionary<string, Func<StaffListRow, IComparable?>>
         {
             ["Job"] = r => r.Job.ToLowerInvariant(),
@@ -84,7 +84,7 @@ public sealed partial class MainWindow
             ["Nat"] = r => r.Nation.ToLowerInvariant(),
             ["CA"] = r => r.CA,
             ["PA"] = r => r.PA,
-            ["Expires"] = r => r.Expires.Length > 0 && r.Expires != "No limit" ? r.Expires : null,
+            ["Expires"] = r => r.Expires.Length > 0 && r.Expires != Loc.S("No limit") ? r.Expires : null,
         };
         ToolGrid.EnableSort(grid, keys);
         grid.DoubleTapped += (_, e) =>
@@ -96,16 +96,16 @@ public sealed partial class MainWindow
         updateCount = () =>
         {
             int included = rows.Count(r => !excluded.Contains(r.Staff.Address));
-            count.Text = included == 1 ? "( 1 Staff )" : $"( {included} Staff )";
+            count.Text = included == 1 ? Loc.S("( 1 Staff )") : Loc.F("( {0} Staff )", included);
         };
         updateCount();
 
         void Run(string action, Action<StaffRecord, DateOnly> operation)
         {
             var chosen = rows.Where(r => !excluded.Contains(r.Staff.Address)).Select(r => r.Staff).ToList();
-            if (chosen.Count == 0) { status.Text = "No staff ticked"; return; }
+            if (chosen.Count == 0) { status.Text = Loc.S("No staff ticked"); return; }
             DateOnly today;
-            try { today = backend.Session.ReadGameDate() ?? throw new InvalidOperationException("The in-game date could not be read"); }
+            try { today = backend.Session.ReadGameDate() ?? throw new InvalidOperationException(Loc.S("The in-game date could not be read")); }
             catch (Exception ex) { status.Text = UserMessage.For(ex); return; }
             int done = 0;
             var failed = new List<string>();
@@ -114,9 +114,11 @@ public sealed partial class MainWindow
                 try { backend.Edits.Execute("Staff", s.DisplayName, $"{scope.Name} contract: {action}", () => operation(s, today)); done++; }
                 catch (Exception ex) { failed.Add($"{s.DisplayName}: {UserMessage.For(ex)}"); }
             }
+            string scopeVi = Loc.S(scope.Name);
+            string actionVi = Loc.S(action);
             status.Text = failed.Count == 0
-                ? $"{scope.Name} contract, {action}: {done} staff updated. Continue in FM to see updates."
-                : $"{scope.Name} contract, {action}: {done} updated, {failed.Count} not changed ({string.Join("; ", failed.Take(2))}).";
+                ? Loc.F("{0} contract, {1}: {2} staff updated. Continue in FM to see updates.", scopeVi, actionVi, done)
+                : Loc.F("{0} contract, {1}: {2} updated, {3} not changed ({4}).", scopeVi, actionVi, done, failed.Count, string.Join("; ", failed.Take(2)));
             if (done > 0) refresh();
         }
 
@@ -124,7 +126,7 @@ public sealed partial class MainWindow
         {
             var b = new Button
             {
-                Content = text, FontSize = 12.5, Height = 24, MinHeight = 24, Padding = new Thickness(3, 0),
+                Content = Loc.S(text), FontSize = 12.5, Height = 24, MinHeight = 24, Padding = new Thickness(3, 0),
                 VerticalContentAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Stretch,
                 HorizontalContentAlignment = HorizontalAlignment.Center,
             };

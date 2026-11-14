@@ -19,20 +19,20 @@ public sealed partial class MainWindow
         // result in the session reader, so opening this tab never freezes the window.
         IReadOnlyDictionary<ulong, NationalCallUp>? all = null;
         string From(PlayerRecord p) => all is null
-            ? "Reading call-ups…"
-            : all.TryGetValue(p.Address, out var c) ? session.CareerPlans.Item(c.NationFootball)?.Name ?? "National team" : "None";
+            ? Loc.S("Reading call-ups…")
+            : all.TryGetValue(p.Address, out var c) ? session.CareerPlans.Item(c.NationFootball)?.Name ?? Loc.S("National team") : Loc.S("None");
 
         var fromPlayer = new TextBlock { Text = From(player), Foreground = UiKit.TextSecondary };
-        var pick = new Button { Width = 300, HorizontalContentAlignment = HorizontalAlignment.Left, Content = "Choose player…" };
+        var pick = new Button { Width = 300, HorizontalContentAlignment = HorizontalAlignment.Left, Content = Loc.S("Choose player…") };
         PlayerRecord? other = null;
-        var otherFrom = new TextBlock { Text = "None", Foreground = UiKit.TextPrimary, VerticalAlignment = VerticalAlignment.Center };
-        var swap = new Button { Content = "Swap Call-Up", IsEnabled = false, Classes = { "accent" } };
+        var otherFrom = new TextBlock { Text = Loc.S("None"), Foreground = UiKit.TextPrimary, VerticalAlignment = VerticalAlignment.Center };
+        var swap = new Button { Content = Loc.S("Swap Call-Up"), IsEnabled = false, Classes = { "accent" } };
         var others = rows.OfType<PlayerRecord>().ToList();
         PlayerRecord? Other() => other;
         void RefreshState()
         {
             fromPlayer.Text = From(player);
-            otherFrom.Text = Other() is { } o ? From(o) : "None";
+            otherFrom.Text = Other() is { } o ? From(o) : Loc.S("None");
             swap.IsEnabled = all is not null && Other() is { } chosen &&
                 (all.ContainsKey(player.Address) || all.ContainsKey(chosen.Address));
         }
@@ -42,7 +42,7 @@ public sealed partial class MainWindow
             var choices = others.Where(p => p.Address != player.Address
                 && p.Gender != Fm27Editor.Core.Offsets.Gender.Women && p.Club?.Gender != Fm27Editor.Core.Offsets.Gender.Women)
                 .Select(p => new RelationTarget($"{p.DisplayName} ({p.ClubName})", p.Address)).ToList();
-            var chosen = await PickerDialog.Show<RelationTarget>(this, "Choose player to swap with", q => choices.Where(t => PickerSearch.Hit(q, t.Label)).Select(t => (t.Label, t)).ToList());
+            var chosen = await PickerDialog.Show<RelationTarget>(this, Loc.S("Choose player to swap with"), q => choices.Where(t => PickerSearch.Hit(q, t.Label)).Select(t => (t.Label, t)).ToList());
             if (chosen is null) return;
             other = others.FirstOrDefault(p => p.Address == chosen.Address);
             pick.Content = chosen.Label;
@@ -55,10 +55,10 @@ public sealed partial class MainWindow
             {
                 backend.Edits.Execute("Player", player.DisplayName, "Page save", () => session.CallUpWriter.Swap(player, all.GetValueOrDefault(player.Address), o, all.GetValueOrDefault(o.Address)));
                 session.CallUps.Invalidate();
-                status.Text = $"Swapped national call-ups of {player.DisplayName} and {o.DisplayName}. Continue in FM to see updates.";
+                status.Text = Loc.F("Swapped national call-ups of {0} and {1}. Continue in FM to see updates.", player.DisplayName, o.DisplayName);
                 RenderEditor();
             }
-            catch (Exception ex) { status.Text = ex.Message; }
+            catch (Exception ex) { status.Text = UserMessage.For(ex); }
         };
 
         _ = Task.Run(() => session.CallUps.All()).ContinueWith(task => Avalonia.Threading.Dispatcher.UIThread.Post(() =>
@@ -69,10 +69,10 @@ public sealed partial class MainWindow
         }));
 
         var body = Pairs(
-            ("Swap", new TextBlock { Text = player.DisplayName, FontWeight = FontWeight.SemiBold, Foreground = UiKit.TextPrimary }),
-            ("From", fromPlayer),
-            ("With", new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Children = { pick } }),
-            ("From", otherFrom));
+            (Loc.S("Swap"), new TextBlock { Text = player.DisplayName, FontWeight = FontWeight.SemiBold, Foreground = UiKit.TextPrimary }),
+            (Loc.S("From"), fromPlayer),
+            (Loc.S("With"), new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Children = { pick } }),
+            (Loc.S("From"), otherFrom));
         body.Margin = new Thickness(12, 10);
 
         panel.Children.Add(UiKit.Card("Swap National Call Up", body));

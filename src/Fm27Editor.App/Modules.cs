@@ -109,7 +109,7 @@ public sealed record FilterPreset(
     public ContractType? ContractType { get; init; }
     public PlayingTime? AgreedPlayingTime { get; init; }
     public IReadOnlyList<ContractClauseCriterion>? Clauses { get; init; }
-    public override string ToString() => Name;
+    public override string ToString() => Loc.S(Name);
 }
 
 public static class PositionLabels

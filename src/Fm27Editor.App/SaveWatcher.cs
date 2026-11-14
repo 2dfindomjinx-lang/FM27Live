@@ -77,7 +77,8 @@ public sealed partial class MainWindow
     /// </summary>
     Control BuildStaleOverlay()
     {
-        var load = new Button { Content = "Load Game", Classes = { "accent" }, Width = 130, HorizontalContentAlignment = HorizontalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center };
+        var load = new Button { Width = 130, HorizontalContentAlignment = HorizontalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center, Classes = { "accent" } };
+        Loc.BindContent(load, "Load Game");
         load.Click += async (_, _) => await ReloadGameAsync();
         staleOverlay = new Border
         {
@@ -115,7 +116,7 @@ public sealed partial class MainWindow
         emptyChecks = 0;
         // The game moves on while the editor is open; keep the date in the status bar current (it was only set at Load Game).
         if (!backend.SaveChanged && backend.GameDate is { } today) gameDateText.Text = today.ToString("dd MMM yyyy", Inv);
-        if (backend.SaveChanged) staleHeading.Text = "A save was loaded in the game";   // the start screen was shown, a save is back
+        if (backend.SaveChanged) staleHeading.Text = Loc.S("A save was loaded in the game");   // the start screen was shown, a save is back
         if (noSaveAtConnect)
         {
             if (TakeFingerprint() is not { } first) return;
@@ -134,10 +135,10 @@ public sealed partial class MainWindow
     void MarkSaveChanged(string heading)
     {
         backend.SaveChanged = true;
-        staleHeading.Text = heading;
+        staleHeading.Text = Loc.S(heading);
         if (staleOverlay is not null) staleOverlay.IsVisible = true;
         favouritesWindow?.Close();
-        status.Text = "Press Load Game to read the new save";
+        status.Text = Loc.S("Press Load Game to read the new save");
     }
 
     /// <summary>A small modeless window with a message and buttons, in the same style as the other prompts.</summary>
@@ -146,17 +147,17 @@ public sealed partial class MainWindow
         var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
         var dialog = new Window
         {
-            Title = title, Width = 460, SizeToContent = SizeToContent.Height, CanResize = false, Topmost = true, ShowActivated = false,
+            Title = Loc.S(title), Width = 460, SizeToContent = SizeToContent.Height, CanResize = false, Topmost = true, ShowActivated = false,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             Content = new StackPanel
             {
                 Margin = new Thickness(20), Spacing = 16,
-                Children = { new TextBlock { Text = message, TextWrapping = Avalonia.Media.TextWrapping.Wrap }, row },
+                Children = { new TextBlock { Text = Loc.S(message), TextWrapping = Avalonia.Media.TextWrapping.Wrap }, row },
             },
         };
         foreach (var (label, accent, click) in buttons)
         {
-            var button = new Button { Content = label, MinWidth = 80, HorizontalContentAlignment = HorizontalAlignment.Center };
+            var button = new Button { Content = Loc.S(label), MinWidth = 80, HorizontalContentAlignment = HorizontalAlignment.Center };
             if (accent) button.Classes.Add("accent");
             button.Click += async (_, _) => { dialog.Close(); if (click is not null) await click(); };
             row.Children.Add(button);
@@ -170,9 +171,9 @@ public sealed partial class MainWindow
     {
         noSaveAtConnect = true;
         string build = backend.Session.Profile.Build;
-        status.Text = "No save is loaded in the game yet";
+        status.Text = Loc.S("No save is loaded in the game yet");
         ShowNotice("Save not loaded",
-            $"This game version ({build}) is supported, but no save is loaded yet. Load your save in the game, save it without exiting, then press Load Game again.",
+            Loc.F("This game version ({0}) is supported, but no save is loaded yet. Load your save in the game, save it without exiting, then press Load Game again.", build),
             ("OK", true, null));
     }
 
@@ -192,7 +193,7 @@ public sealed partial class MainWindow
         personNames = null;
         unifiedCities = [];
         WorkPermitTable.Forget();
-        status.Text = "Loading game…";
+        status.Text = Loc.S("Loading game…");
         watchedSave = null;
         await ConnectAsync();
         if (backend.State.Status == ConnectionStatus.Connected)
@@ -208,9 +209,9 @@ public sealed partial class MainWindow
                 try
                 {
                     int removed = await Task.Run(() => backend.Session.AcceleratedDevelopment.RemoveStale());
-                    status.Text = $"Development speed: removed {removed} stale player row(s).";
+                    status.Text = Loc.F("Development speed: removed {0} stale player row(s).", removed);
                 }
-                catch (Exception ex) { status.Text = $"Development speed cleanup failed: {UserMessage.For(ex)}"; }
+                catch (Exception ex) { status.Text = Loc.F("Development speed cleanup failed: {0}", UserMessage.For(ex)); }
                 try
                 {
                     if (await Task.Run(() => backend.Session.GoldenGenerationHook.SwitchOff()))
@@ -218,7 +219,7 @@ public sealed partial class MainWindow
                             "A save was loaded, so Wonderkid Academy was switched off. Your settings are kept: switch it on again in the Hook Manager if you want it for this save.",
                             ("OK", true, null));
                 }
-                catch (Exception ex) { status.Text = $"Wonderkid Academy could not be switched off: {UserMessage.For(ex)}"; }
+                catch (Exception ex) { status.Text = Loc.F("Wonderkid Academy could not be switched off: {0}", UserMessage.For(ex)); }
             }
         }
     }

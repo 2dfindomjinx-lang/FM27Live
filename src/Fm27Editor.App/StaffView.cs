@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Templates;
 using Avalonia.Data;
 using Avalonia.Layout;
 using Avalonia.Media;
@@ -12,6 +13,7 @@ namespace Fm27Editor.App;
 /// <summary>One grid row; columns bind to the plain properties.</summary>
 public sealed record StaffRow(StaffRecord Staff, string Name, string Job, string Club, string Nation, int? Age, int CA, int PA)
 {
+    public string JobDisplay => Loc.S(Job);
     public string SearchName
     {
         get
@@ -62,7 +64,10 @@ internal sealed partial class StaffScreen(IScreenHost host, IStaffPanels panels)
     protected override Control BuildSearchHeader(TextBox searchBox)
     {
         searchBox.Margin = new Thickness(0, 0, 6, 0);
-        ToolTip.SetTip(genderFilter, "Gender filter");
+        ToolTip.SetTip(genderFilter, Loc.S("Gender filter"));
+        genderFilter.ItemTemplate = new FuncDataTemplate<string>((s, _) => new TextBlock { Text = Loc.S(s) });
+        clubFilter.ItemTemplate = new FuncDataTemplate<string>((s, _) => new TextBlock { Text = s == AllClubs ? Loc.S(AllClubs) : s });
+        jobFilter.ItemTemplate = new FuncDataTemplate<string>((s, _) => new TextBlock { Text = Loc.S(s) });
         var searchControls = new DockPanel();
         searchControls.Children.Add(searchBox);
         var filters = new Grid { ColumnDefinitions = new ColumnDefinitions("104,*,*"), ColumnSpacing = 8 };
@@ -76,20 +81,39 @@ internal sealed partial class StaffScreen(IScreenHost host, IStaffPanels panels)
         return new StackPanel { Spacing = 6, Children = { searchControls, filters } };
     }
 
+    protected override void OnRefreshLanguage()
+    {
+        ToolTip.SetTip(genderFilter, Loc.S("Gender filter"));
+        RefreshFilterCombo(genderFilter);
+        RefreshFilterCombo(clubFilter);
+        RefreshFilterCombo(jobFilter);
+    }
+
+    void RefreshFilterCombo(ComboBox box)
+    {
+        if (box.ItemsSource is not { } items) return;
+        int idx = box.SelectedIndex;
+        updatingFilters = true;
+        box.ItemsSource = null;
+        box.ItemsSource = items;
+        box.SelectedIndex = idx;
+        updatingFilters = false;
+    }
+
     protected override string FilteredMessage(int shown, int total) =>
         SelectedGender() is { } g && SearchText.Length == 0 && clubFilter.SelectedIndex == 0 && jobFilter.SelectedIndex == 0
-            ? $"{shown:N0} of {total:N0} staff shown ({total - shown:N0} hidden by {g} filter)"
+            ? Loc.F("{0:N0} of {1:N0} staff shown ({2:N0} hidden by {3} filter)", shown, total, total - shown, Loc.S(g.ToString()))
             : base.FilteredMessage(shown, total);
 
     protected override void ConfigureColumns(DataGrid grid)
     {
-        grid.Columns.Add(new DataGridTextColumn { Header = "Name", Binding = new Binding(nameof(StaffRow.Name)), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
-        grid.Columns.Add(new DataGridTextColumn { Header = "Job", Binding = new Binding(nameof(StaffRow.Job)), Width = new DataGridLength(156) });
-        grid.Columns.Add(new DataGridTextColumn { Header = "Club", Binding = new Binding(nameof(StaffRow.Club)), Width = new DataGridLength(150) });
-        grid.Columns.Add(new DataGridTextColumn { Header = "Nation", Binding = new Binding(nameof(StaffRow.Nation)), Width = new DataGridLength(126) });
+        grid.Columns.Add(new DataGridTextColumn { Header = Loc.S("Name"), Binding = new Binding(nameof(StaffRow.Name)), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
+        grid.Columns.Add(new DataGridTextColumn { Header = Loc.S("Job"), Binding = new Binding(nameof(StaffRow.JobDisplay)), Width = new DataGridLength(156) });
+        grid.Columns.Add(new DataGridTextColumn { Header = Loc.S("Club"), Binding = new Binding(nameof(StaffRow.Club)), Width = new DataGridLength(150) });
+        grid.Columns.Add(new DataGridTextColumn { Header = Loc.S("Nation"), Binding = new Binding(nameof(StaffRow.Nation)), Width = new DataGridLength(126) });
         foreach (var (h, p) in new[] { ("Age", nameof(StaffRow.Age)), ("CA", nameof(StaffRow.CA)), ("PA", nameof(StaffRow.PA)) })
         {
-            var col = new DataGridTextColumn { Header = h, Binding = new Binding(p), Width = new DataGridLength(78) };
+            var col = new DataGridTextColumn { Header = Loc.S(h), Binding = new Binding(p), Width = new DataGridLength(78) };
             col.CellStyleClasses.Add("numeric");
             grid.Columns.Add(col);
         }
@@ -164,7 +188,7 @@ internal sealed partial class StaffScreen(IScreenHost host, IStaffPanels panels)
     {
         if (Rows.Count == 0 && Host.Backend.State.Status == ConnectionStatus.Connected) await LoadAsync();
         var row = StaffNavigation.Find(Rows, address, id);
-        if (row is null) { Host.SetStatus("Staff member no longer available."); return; }
+        if (row is null) { Host.SetStatus(Loc.S("Staff member no longer available.")); return; }
         updatingFilters = true; clubFilter.SelectedIndex = 0; jobFilter.SelectedIndex = 0; updatingFilters = false;
         Pick(row.Staff);
         Reveal(r => ReferenceEquals(r, row));
@@ -203,7 +227,7 @@ internal sealed partial class StaffScreen(IScreenHost host, IStaffPanels panels)
             // and Motivating, so each one is planned on what the previous one wrote (FMRTE's "Set to" rule).
             foreach (var (key, half) in v.Where(kv => kv.Key.StartsWith("train:", StringComparison.Ordinal)))
             {
-                var fresh = Host.Backend.Session.Staff.Reload(s.Address) ?? throw new Fm27Editor.Core.Players.StaleObjectException("Staff member is gone");
+                var fresh = Host.Backend.Session.Staff.Reload(s.Address) ?? throw new Fm27Editor.Core.Players.StaleObjectException(Loc.S("Staff member is gone"));
                 foreach (var change in StaffDetailsMassEdit.Training([fresh], Enum.Parse<TrainingCategory>(key[6..]), Fm27Editor.Core.Players.MassEditMode.Set, half / 2.0, w))
                     StaffDetailsMassEdit.Apply(change, Host.Backend.Session.Staff);
             }
@@ -275,7 +299,7 @@ internal sealed partial class StaffScreen(IScreenHost host, IStaffPanels panels)
                 var line = new DockPanel { MinHeight = 23, LastChildFill = true };
                 DockPanel.SetDock(value, Dock.Right);
                 line.Children.Add(value);
-                line.Children.Add(Text(label));
+                line.Children.Add(Text(Loc.S(label)));
                 stack.Children.Add(new Border { Background = idx++ % 2 == 1 ? UiKit.SurfaceZebra : Brushes.Transparent, Padding = new Thickness(8, 2, 7, 2), Child = line });
             }
             return stack;
@@ -287,7 +311,7 @@ internal sealed partial class StaffScreen(IScreenHost host, IStaffPanels panels)
         if (!string.IsNullOrEmpty(jobName))
         {
             badges.Children.Add(UiKit.MetaDot());
-            badges.Children.Add(UiKit.MetaText(jobName, highlight: true));
+            badges.Children.Add(UiKit.MetaText(Loc.S(jobName), highlight: true));
         }
         if (s.Club is { } club && !string.IsNullOrEmpty(club.DisplayName))
         {
@@ -322,19 +346,19 @@ internal sealed partial class StaffScreen(IScreenHost host, IStaffPanels panels)
         // Freezer: the same Freeze / Unfreeze pair the player tools have; every attribute is frozen at its current value.
         if (Host.Backend.Freezer is { } freezer)
         {
-            var freeze = new Button { Content = "Freeze" };
-            var unfreeze = new Button { Content = "Unfreeze" };
-            ToolTip.SetTip(freeze, "Keeps this staff member's attributes from changing while you play. Edits made here still apply.");
-            ToolTip.SetTip(unfreeze, "Lets this staff member's attributes change again.");
+            var freeze = new Button { Content = Loc.S("Freeze") };
+            var unfreeze = new Button { Content = Loc.S("Unfreeze") };
+            ToolTip.SetTip(freeze, Loc.S("Keeps this staff member's attributes from changing while you play. Edits made here still apply."));
+            ToolTip.SetTip(unfreeze, Loc.S("Lets this staff member's attributes change again."));
             freeze.Click += (_, _) =>
             {
-                try { Host.Backend.Edits.Execute(() => freezer.SetStaff(s, FrozenStaff.AllAttributes(s))); Host.SetStatus($"Frozen: {s.DisplayName}"); }
-                catch (Exception ex) { Host.SetStatus($"Freezer: {UserMessage.For(ex)}"); }
+                try { Host.Backend.Edits.Execute(() => freezer.SetStaff(s, FrozenStaff.AllAttributes(s))); Host.SetStatus(Loc.F("Frozen: {0}", s.DisplayName)); }
+                catch (Exception ex) { Host.SetStatus(Loc.F("Freezer: {0}", UserMessage.For(ex))); }
             };
             unfreeze.Click += (_, _) =>
             {
-                try { Host.Backend.Edits.Execute(() => freezer.RemoveStaff(s.Id)); Host.SetStatus($"Unfrozen: {s.DisplayName}"); }
-                catch (Exception ex) { Host.SetStatus($"Freezer: {UserMessage.For(ex)}"); }
+                try { Host.Backend.Edits.Execute(() => freezer.RemoveStaff(s.Id)); Host.SetStatus(Loc.F("Unfrozen: {0}", s.DisplayName)); }
+                catch (Exception ex) { Host.SetStatus(Loc.F("Freezer: {0}", UserMessage.For(ex))); }
             };
             headerCommands.Children.Add(freeze);
             headerCommands.Children.Add(unfreeze);
@@ -346,20 +370,20 @@ internal sealed partial class StaffScreen(IScreenHost host, IStaffPanels panels)
 
         var info = new List<(string, Control)>
         {
-            ("Unique ID", Text(s.Id.ToString(Inv), "#F1F5F9")),
-            ("Full Name", Text(s.FullName ?? "", "#F1F5F9", trim: true)),
-            ("Born", Text(DateSetting.Format(s.DateOfBirth), "#F1F5F9")),
+            (Loc.S("Unique ID"), Text(s.Id.ToString(Inv), "#F1F5F9")),
+            (Loc.S("Full Name"), Text(s.FullName ?? "", "#F1F5F9", trim: true)),
+            (Loc.S("Born"), Text(DateSetting.Format(s.DateOfBirth), "#F1F5F9")),
         };
-        if (s.Caps is { } capsValue) info.Add(("Caps", Box("caps", capsValue.ToString(Inv), 58)));
-        if (s.Goals is { } goalsValue) info.Add(("Goals", Box("goals", goalsValue.ToString(Inv), 58)));
-        if (s.License is { } licenseValue) info.Add(("License", LicenseBox(licenseValue)));
+        if (s.Caps is { } capsValue) info.Add((Loc.S("Caps"), Box("caps", capsValue.ToString(Inv), 58)));
+        if (s.Goals is { } goalsValue) info.Add((Loc.S("Goals"), Box("goals", goalsValue.ToString(Inv), 58)));
+        if (s.License is { } licenseValue) info.Add((Loc.S("License"), LicenseBox(licenseValue)));
         col[0].Children.Add(UiKit.Card("Information", Rows(info)));
 
         // FMRTE's licence dropdown; the draft keeps the chosen code like any other field.
         ComboBox LicenseBox(StaffLicense current)
         {
             var options = StaffDetailsMassEdit.Licenses;
-            var box = new ComboBox { ItemsSource = options.Select(o => o.Name).ToList(), Width = 196, Height = 22, MinHeight = 22, FontSize = 12.5, Padding = new Thickness(6, 0) };
+            var box = new ComboBox { ItemsSource = options.Select(o => Loc.S(o.Name)).ToList(), Width = 196, Height = 22, MinHeight = 22, FontSize = 12.5, Padding = new Thickness(6, 0) };
             string original = ((int)current).ToString(Inv);
             int at = Array.FindIndex(options, o => ((int)o.Value).ToString(Inv) == draft.Changes.GetValueOrDefault("license", original));
             box.SelectedIndex = at;
@@ -377,9 +401,9 @@ internal sealed partial class StaffScreen(IScreenHost host, IStaffPanels panels)
             ("PA", Box("PA", s.PotentialAbility.ToString(Inv), 58)),
         ])));
         col[0].Children.Add(UiKit.Card("Reputation", Rows([
-            ("Home", Box("rep:Home", s.HomeReputation.ToString(Inv), 68)),
-            ("Current", Box("rep:Current", s.CurrentReputation.ToString(Inv), 68)),
-            ("World", Box("rep:World", s.WorldReputation.ToString(Inv), 68)),
+            (Loc.S("Home"), Box("rep:Home", s.HomeReputation.ToString(Inv), 68)),
+            (Loc.S("Current"), Box("rep:Current", s.CurrentReputation.ToString(Inv), 68)),
+            (Loc.S("World"), Box("rep:World", s.WorldReputation.ToString(Inv), 68)),
         ])));
         if (s.ManagerAttributes is { } mgr)
             col[0].Children.Add(UiKit.Card("Manager", Rows(StaffLabels.Manager
@@ -458,13 +482,13 @@ internal sealed partial class StaffScreen
                 changed();
             };
             var line = new Grid { ColumnDefinitions = new ColumnDefinitions("210,*,Auto"), MinHeight = 28 };
-            var label = new TextBlock { Text = TrainingRatings.Label(c), FontSize = 13, Foreground = UiKit.Brush("#CBD5E1"), VerticalAlignment = VerticalAlignment.Center };
+            var label = new TextBlock { Text = Loc.S(TrainingRatings.Label(c)), FontSize = 13, Foreground = UiKit.Brush("#CBD5E1"), VerticalAlignment = VerticalAlignment.Center };
             Grid.SetColumn(slider, 1); Grid.SetColumn(number, 2);
             line.Children.Add(label); line.Children.Add(slider); line.Children.Add(number);
             return (Control)line;
         });
-        var card = MainWindow.AttributeCard("Training Rating", rows, rightHeader: UiKit.InfoBadge("How good this coach is at training each area, from 0 to 5 stars, based on his attributes. " +
-            "Changing a rating changes the attributes behind it, so other ratings can move too."));
+        var card = MainWindow.AttributeCard("Training Rating", rows, rightHeader: UiKit.InfoBadge(Loc.S("How good this coach is at training each area, from 0 to 5 stars, based on his attributes. " +
+            "Changing a rating changes the attributes behind it, so other ratings can move too.")));
         card.MaxWidth = 720;
         card.HorizontalAlignment = HorizontalAlignment.Left;
         return card;
@@ -500,9 +524,9 @@ public sealed partial class MainWindow : IStaffPanels
         var nationalContract = session.NationStaffContracts.Read(s);
         var pages = new List<(string Title, Control Page)>();
         if (clubContract is not null)
-            pages.Add(("Club", ContractEditor(s, "Club Contract", clubContract, fields => session.StaffContracts.Set(s, clubContract, fields))));
+            pages.Add((Loc.S("Club"), ContractEditor(s, "Club Contract", clubContract, fields => session.StaffContracts.Set(s, clubContract, fields))));
         if (nationalContract is not null)
-            pages.Add(("National", ContractEditor(s, "National Contract", nationalContract, fields => session.NationStaffContracts.Set(s, nationalContract, fields))));
+            pages.Add((Loc.S("National"), ContractEditor(s, "National Contract", nationalContract, fields => session.NationStaffContracts.Set(s, nationalContract, fields))));
         if (pages.Count == 0) return new StackPanel();
         if (pages.Count == 1) return pages[0].Page;
 
@@ -529,18 +553,18 @@ public sealed partial class MainWindow : IStaffPanels
     Control ContractEditor(StaffRecord s, string title, Fm27Editor.Core.Players.OfferContract contract, Action<Fm27Editor.Core.Players.OfferContractFields> write)
     {
         var panel = new StackPanel { Spacing = 10, MaxWidth = 540, HorizontalAlignment = HorizontalAlignment.Left };
-        var save = new Button { IsVisible = false, Content = "Save contract", IsEnabled = false, Classes = { "accent" } };
+        var save = new Button { IsVisible = false, Content = Loc.S("Save contract"), IsEnabled = false, Classes = { "accent" } };
         OfferContractEditor? editor = null;
         editor = OfferContractBox(contract, () => save.IsEnabled = editor?.Changed() == true, out var view);
         view.Margin = new Thickness(12, 10);
         panel.Children.Add(UiKit.Card(title, view));
         save.Click += (_, _) =>
         {
-            if (editor.Parse() is not { } fields) { status.Text = "Contract: enter wages of 0 or more and dates like 2027-06-30, expiry after start"; return; }
+            if (editor.Parse() is not { } fields) { status.Text = Loc.F("Contract: enter wages of 0 or more and dates like {0}, expiry after start", DateSetting.Hint); return; }
             try
             {
                 backend.Edits.Execute("Staff", s.DisplayName, $"{title}", () => write(fields));
-                status.Text = $"Saved {s.DisplayName}'s {title.ToLowerInvariant()}. Continue in FM to see updates.";
+                status.Text = Loc.F("Saved {0}'s {1}. Continue in FM to see updates.", s.DisplayName, Loc.S(title).ToLowerInvariant());
                 RenderStaffEditor();
             }
             catch (Exception ex) { status.Text = UserMessage.For(ex); }

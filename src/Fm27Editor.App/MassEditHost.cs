@@ -28,6 +28,19 @@ public sealed partial class MainWindow
         massEditWindow.Show(this);
     }
 
+    internal void OpenMassEditForPlayers(IReadOnlyList<PlayerRecord> targets)
+    {
+        if (massEditWindow is { } open)
+        {
+            open.SetPlayerTargets(targets);
+            open.Activate();
+            return;
+        }
+        massEditWindow = new MassEditWindow(this);
+        massEditWindow.SetPlayerTargets(targets);
+        massEditWindow.Show(this);
+    }
+
     internal void MassEditClosed(MassEditWindow window)
     {
         if (ReferenceEquals(massEditWindow, window)) massEditWindow = null;

@@ -50,8 +50,8 @@ public sealed partial class MainWindow
             if (groups[i] == "Technical")
             {
                 var picker = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 3, VerticalAlignment = VerticalAlignment.Center };
-                var technical = new Button { Content = "Tec.", Padding = new Thickness(7, 0), MinHeight = 20, Height = 20, FontSize = 12 };
-                var goalkeeping = new Button { Content = "GK", Padding = new Thickness(7, 0), MinHeight = 20, Height = 20, FontSize = 12 };
+                var technical = new Button { Content = Loc.S("Tec."), Padding = new Thickness(7, 0), MinHeight = 20, Height = 20, FontSize = 12 };
+                var goalkeeping = new Button { Content = Loc.S("GK"), Padding = new Thickness(7, 0), MinHeight = 20, Height = 20, FontSize = 12 };
                 var selectedColumn = new ContentControl { HorizontalAlignment = HorizontalAlignment.Stretch };
                 void Select(bool keeper)
                 {
@@ -100,7 +100,7 @@ public sealed partial class MainWindow
         {
             var text = new TextBlock
             {
-                Text = label,
+                Text = Loc.S(label),
                 FontSize = 13,
                 Foreground = UiKit.TextSecondary,
                 VerticalAlignment = VerticalAlignment.Center,
@@ -154,7 +154,7 @@ public sealed partial class MainWindow
         {
             if (!values.TryGetValue(field, out long raw)) return () => null;
             int current = (int)raw;
-            var items = list.Any(x => x.Code == current) ? list : [.. list, (current, $"Code {current}")];
+            var items = list.Any(x => x.Code == current) ? list : [.. list, (current, Loc.F("Code {0}", current))];
             var box = new ComboBox { HorizontalAlignment = HorizontalAlignment.Stretch, ItemsSource = items.Select(x => x.Name).ToArray(), SelectedIndex = items.ToList().FindIndex(x => x.Code == current) };
             box.SelectionChanged += (_, _) => Refresh();
             Row(label, box);
@@ -200,10 +200,10 @@ public sealed partial class MainWindow
 
         // Nationality: one button, the app's search picker (FMRTE's own choice box).
         NationRecord? chosenNation = null;
-        var nationPick = new Button { HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Left, Content = player.Nationality?.DisplayName ?? "Choose nation…" };
+        var nationPick = new Button { HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Left, Content = player.Nationality?.DisplayName ?? Loc.S("Choose nation…") };
         nationPick.Click += async (_, _) =>
         {
-            var chosen = await PickerDialog.Show<NationRecord>(this, "Choose nationality", q => nations.Where(n => PickerSearch.Hit(q, n.DisplayName, n.ShortName)).Select(n => (n.DisplayName, n)).ToList());
+            var chosen = await PickerDialog.Show<NationRecord>(this, Loc.S("Choose nationality"), q => nations.Where(n => PickerSearch.Hit(q, n.DisplayName, n.ShortName)).Select(n => (n.DisplayName, n)).ToList());
             if (chosen is null) return;
             chosenNation = chosen;
             nationPick.Content = chosen.DisplayName;
@@ -217,12 +217,12 @@ public sealed partial class MainWindow
         var nationNames = nations.ToDictionary(n => n.Address, n => n.DisplayName);
         string CityLabel(CityRecord c) => nationNames.TryGetValue(c.Nation, out var n) ? $"{c.Name} ({n})" : c.Name;
         RelationTarget? chosenCity = city is null ? null : new RelationTarget(CityLabel(city), city.Address);
-        var cityPick = new Button { HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Left, Content = city is null ? "Choose city…" : CityLabel(city) };
+        var cityPick = new Button { HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Left, Content = city is null ? Loc.S("Choose city…") : CityLabel(city) };
         cityPick.Click += async (_, _) =>
         {
             cityCatalogue ??= cities.LoadAll();
             var choices = cityCatalogue.Select(c => new RelationTarget(CityLabel(c), c.Address)).ToList();
-            var chosen = await PickerDialog.Show<RelationTarget>(this, "Choose city of birth", q => choices.Where(t => PickerSearch.Hit(q, t.Label)).Select(t => (t.Label, t)).ToList());
+            var chosen = await PickerDialog.Show<RelationTarget>(this, Loc.S("Choose city of birth"), q => choices.Where(t => PickerSearch.Hit(q, t.Label)).Select(t => (t.Label, t)).ToList());
             if (chosen is null) return;
             chosenCity = chosen;
             cityPick.Content = chosen.Label;
@@ -264,11 +264,11 @@ public sealed partial class MainWindow
             {
                 var plans = retirements.ReadAll();
                 uint person = retirements.PersonId(player);
-                retirementDate = plans.TryGetValue(person, out var plan) ? plan.Date is { } retires ? DateSetting.Format(retires) : "Unknown" : "None";
+                retirementDate = plans.TryGetValue(person, out var plan) ? plan.Date is { } retires ? DateSetting.Format(retires) : Loc.S("Unknown") : Loc.S("None");
             }
             catch (Exception ex) when (ex is StaleObjectException or Fm27Editor.Core.Memory.MemoryAccessException)
             {
-                retirementDate = "Unavailable";
+                retirementDate = Loc.S("Unavailable");
             }
             Row("Planned Retirement", new TextBlock { Text = retirementDate, VerticalAlignment = VerticalAlignment.Center });
         }
@@ -279,7 +279,7 @@ public sealed partial class MainWindow
             int? newDays = null;
             if (days is not null && days.Text != daysBefore!.Value.ToString(Inv))
             {
-                if (!int.TryParse(days.Text, out var d) || d < 0 || d > 36500) { status.Text = "Days in Country: enter 0–36500"; return false; }
+                if (!int.TryParse(days.Text, out var d) || d < 0 || d > 36500) { status.Text = Loc.S("Days in Country: enter 0–36500"); return false; }
                 newDays = d;
             }
             var writes = new List<Action>();
@@ -310,12 +310,12 @@ public sealed partial class MainWindow
             try
             {
                 backend.Edits.Execute("Player", player.DisplayName, "Page save", () => { foreach (var w in writes) w(); });
-                status.Text = "Saved information. Continue in FM to see updates.";
+                status.Text = Loc.S("Saved information. Continue in FM to see updates.");
                 // The nationality lives on the player record; reload it so the next write checks against the new nation.
                 if ((chosenNation?.Address ?? 0) != (player.Nationality?.Address ?? 0) && backend.Players.Reload(player.Address) is { } fresh) { fresh.GameDate = backend.GameDate; selected = fresh; ReplaceRow(fresh); }
                 return true;
             }
-            catch (Exception ex) { status.Text = $"Some information changes may have been saved. {ex.Message}"; return false; }
+            catch (Exception ex) { status.Text = Loc.F("Some information changes may have been saved. {0}", UserMessage.For(ex)); return false; }
         }
         informationDirty = () => checks.Any(changed => changed());
         saveInformation = SaveInformation;

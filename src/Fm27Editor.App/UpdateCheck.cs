@@ -97,7 +97,7 @@ public static class UpdateCheck
         string target = exePath + ".new";
         using var http = Client(TimeSpan.FromMinutes(5));
         string sums = await http.GetStringAsync(release.ChecksumsUrl, ct);
-        string expected = ChecksumFor(sums, ExeName) ?? throw new InvalidDataException("The release has no checksum for the editor");
+        string expected = ChecksumFor(sums, ExeName) ?? throw new InvalidDataException(Loc.S("The release has no checksum for the editor"));
         try
         {
             await using (var source = await http.GetStreamAsync(release.ExeUrl, ct))
@@ -105,7 +105,7 @@ public static class UpdateCheck
                 await source.CopyToAsync(file, ct);
             await using var check = File.OpenRead(target);
             string actual = Convert.ToHexString(await SHA256.HashDataAsync(check, ct)).ToLowerInvariant();
-            if (actual != expected) throw new InvalidDataException("The downloaded file does not match the release checksum");
+            if (actual != expected) throw new InvalidDataException(Loc.S("The downloaded file does not match the release checksum"));
             return target;
         }
         catch

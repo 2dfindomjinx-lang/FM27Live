@@ -13,10 +13,10 @@ internal static class PickerDialog
     public static async Task<T?> Show<T>(Window owner, string title, Func<string, IReadOnlyList<(string Text, T Value)>> search, string watermark = "Type the name to search") where T : class
     {
         T? result = null;
-        var input = new TextBox { Watermark = watermark, Margin = new Thickness(0, 0, 0, 8) };
+        var input = new TextBox { Watermark = Loc.S(watermark), Margin = new Thickness(0, 0, 0, 8) };
         var list = new ListBox { MinHeight = 260, SelectionMode = SelectionMode.Single };
-        var ok = new Button { Content = "OK", IsEnabled = false, Classes = { "accent" }, Width = 80, HorizontalContentAlignment = HorizontalAlignment.Center };
-        var cancel = new Button { Content = "Cancel", Width = 80, HorizontalContentAlignment = HorizontalAlignment.Center };
+        var ok = new Button { Content = Loc.S("OK"), IsEnabled = false, Classes = { "accent" }, Width = 80, HorizontalContentAlignment = HorizontalAlignment.Center };
+        var cancel = new Button { Content = Loc.S("Cancel"), Width = 80, HorizontalContentAlignment = HorizontalAlignment.Center };
         IReadOnlyList<(string Text, T Value)> shown = [];
         void Refresh()
         {
@@ -28,7 +28,7 @@ internal static class PickerDialog
         list.SelectionChanged += (_, _) => ok.IsEnabled = list.SelectedIndex >= 0;
         var window = new Window
         {
-            Title = title, Width = 480, Height = 460, CanResize = false, WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Title = Loc.S(title), Width = 480, Height = 460, CanResize = false, WindowStartupLocation = WindowStartupLocation.CenterOwner,
             Content = new DockPanel
             {
                 Margin = new Thickness(16),

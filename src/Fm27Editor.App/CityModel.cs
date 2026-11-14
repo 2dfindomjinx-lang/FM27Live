@@ -53,7 +53,7 @@ public static class CityLabels
             _ => (0, CityWriter.MaxAttraction),
         };
         if (ok && value >= min && value <= max) return true;
-        error = $"{Label(field)}: enter a number {min.ToString(CultureInfo.InvariantCulture)} to {max.ToString(CultureInfo.InvariantCulture)}";
+        error = Loc.F("{0}: enter a number {1} to {2}", Loc.S(Label(field)), min.ToString(CultureInfo.InvariantCulture), max.ToString(CultureInfo.InvariantCulture));
         return false;
     }
 }

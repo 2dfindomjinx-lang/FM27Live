@@ -54,7 +54,7 @@ internal static class ToolGrid
     {
         var tb = new TextBlock
         {
-            Text = text,
+            Tag = text,
             FontSize = 12.5,
             FontWeight = FontWeight.SemiBold,
             Foreground = Brush("#94A3B8"),
@@ -62,7 +62,11 @@ internal static class ToolGrid
             HorizontalAlignment = align,
             TextTrimming = TextTrimming.None,
         };
-        ToolTip.SetTip(tb, tooltip);
+        Loc.Bind(tb, () =>
+        {
+            tb.Text = Loc.S(text);
+            ToolTip.SetTip(tb, Loc.S(tooltip));
+        });
         return tb;
     }
 
@@ -115,7 +119,7 @@ internal static class ToolGrid
         void Changed() { foreach (var sync in syncs.ToArray()) sync(); changed(); }
 
         var all = new CheckBox { IsChecked = true, MinWidth = 0, Padding = new Thickness(0), Margin = new Thickness(6, 0, 0, 0) };
-        ToolTip.SetTip(all, "Include every row");
+        ToolTip.SetTip(all, Loc.S("Include every row"));
         all.IsCheckedChanged += (_, _) =>
         {
             if (all.IsChecked == true) excluded.Clear();
@@ -173,7 +177,7 @@ internal static class ToolGrid
         grid.CanUserSortColumns = true;
         foreach (var column in grid.Columns)
         {
-            if (column.Header is TextBlock { Text: { } name } && keys.TryGetValue(name, out var key))
+            if (column.Header is TextBlock tb && ((tb.Tag as string ?? tb.Text) is { } name) && keys.TryGetValue(name, out var key))
             {
                 column.CustomSortComparer = new KeyComparer<T>(key);
                 column.CanUserSort = true;

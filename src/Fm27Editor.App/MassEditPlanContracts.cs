@@ -10,7 +10,7 @@ internal sealed partial class MassEditWindow
         if (planContractStatus > 0 && session.ReadGameDate() is { } today)
         {
             int choice = planContractStatus;
-            string after = choice switch { 1 => "Expired", 2 => "Expiring in 6 Months", _ => "Expiring in 1 Year" };
+            string after = Loc.S(choice switch { 1 => "Expired", 2 => "Expiring in 6 Months", _ => "Expiring in 1 Year" });
             rows.Add(MassRow.Action(everyone, "Contract", after, () =>
             {
                 int count = 0;
@@ -26,11 +26,15 @@ internal sealed partial class MassEditWindow
         }
         if (planContractType > 0)
         {
-            var type = planContractType switch
+            var (type, label) = planContractType switch
             {
-                1 => ContractType.PartTime, 2 => ContractType.FullTime, 3 => ContractType.Amateur, 4 => ContractType.Youth, _ => ContractType.NonContract,
+                1 => (ContractType.PartTime, "Part-Time"),
+                2 => (ContractType.FullTime, "Full-Time"),
+                3 => (ContractType.Amateur, "Amateur"),
+                4 => (ContractType.Youth, "Youth"),
+                _ => (ContractType.NonContract, "Non-Contract"),
             };
-            rows.Add(MassRow.Action(everyone, "Contract Type", type.ToString(), () =>
+            rows.Add(MassRow.Action(everyone, "Contract Type", Loc.S(label), () =>
             {
                 int count = 0;
                 foreach (var player in players)
@@ -48,7 +52,7 @@ internal sealed partial class MassEditWindow
             short code = ReleaseClauses[planClauseType - 1];
             int fee = planClauseFee;
             bool remove = planRemoveClause;
-            rows.Add(MassRow.Action(everyone, ContractLabels.Term(code), remove ? "Remove" : $"Set to {fee:N0}", () =>
+            rows.Add(MassRow.Action(everyone, ContractLabels.Term(code), remove ? Loc.S("Remove") : Loc.F("Set to {0:N0}", fee), () =>
             {
                 int count = 0;
                 foreach (var player in players)

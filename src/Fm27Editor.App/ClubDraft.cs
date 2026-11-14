@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using Fm27Editor.Core.Clubs;
 using Fm27Editor.Core.Offsets;
 
@@ -201,10 +201,10 @@ public sealed class ClubDraft(ulong clubAddress)
             value = value != 0 ? 1 : 0;
 
         if (field.Kind == ClubDisplayKind.Date && !IsValidDateValue(value))
-            throw new ArgumentOutOfRangeException(nameof(value), value, "Invalid calendar date");
+            throw new ArgumentOutOfRangeException(nameof(value), value, Loc.S("Invalid calendar date"));
 
         if (value < field.Min || value > field.Max)
-            throw new ArgumentOutOfRangeException(nameof(value), value, $"Expected {field.Min}..{field.Max}");
+            throw new ArgumentOutOfRangeException(nameof(value), value, Loc.F("Expected {0}..{1}", field.Min, field.Max));
 
         var target = field.Target;
         if (!snapshots.TryGetValue(target, out long original))
@@ -230,7 +230,7 @@ public sealed class ClubDraft(ulong clubAddress)
         ArgumentNullException.ThrowIfNull(edits);
         ArgumentNullException.ThrowIfNull(access);
         if (invalidInputs.Count > 0)
-            throw new FormatException("Fix invalid values before saving");
+            throw new FormatException(Loc.S("Fix invalid values before saving"));
 
         int saved = 0;
         foreach (var (target, newValue) in changes.ToArray())

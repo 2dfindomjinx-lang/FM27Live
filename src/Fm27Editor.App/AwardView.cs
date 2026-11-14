@@ -16,11 +16,11 @@ internal sealed class AwardScreen(IScreenHost host)
 {
     protected override void ConfigureColumns(DataGrid grid)
     {
-        grid.Columns.Add(new DataGridTextColumn { Header = "Award", Binding = new Binding(nameof(AwardRow.Name)), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
-        var rep = new DataGridTextColumn { Header = "Reputation", Binding = new Binding(nameof(AwardRow.Reputation)), Width = new DataGridLength(115) };
+        grid.Columns.Add(new DataGridTextColumn { Header = Loc.S("Award"), Binding = new Binding(nameof(AwardRow.Name)), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
+        var rep = new DataGridTextColumn { Header = Loc.S("Reputation"), Binding = new Binding(nameof(AwardRow.Reputation)), Width = new DataGridLength(115) };
         rep.CellStyleClasses.Add("numeric");
         grid.Columns.Add(rep);
-        var id = new DataGridTextColumn { Header = "ID", Binding = new Binding(nameof(AwardRow.Id)), Width = new DataGridLength(115) };
+        var id = new DataGridTextColumn { Header = Loc.S("ID"), Binding = new Binding(nameof(AwardRow.Id)), Width = new DataGridLength(115) };
         id.CellStyleClasses.Add("numeric");
         grid.Columns.Add(id);
     }
@@ -74,12 +74,12 @@ internal sealed class AwardScreen(IScreenHost host)
         HeaderHost.Content = UiKit.EntityBanner(a.DisplayName, badges, actions, Host.Graphics.Image("award", a.Id, 72));
 
         var identification = CardRows("Identification", [
-            ("Unique ID", Label(a.Id.ToString(Inv), "#F1F5F9")),
-            ("Full Name", Label(a.Name ?? a.DisplayName, "#F1F5F9")),
-            ("Short Name", Label(a.ShortName ?? "", "#F1F5F9")),
+            (Loc.S("Unique ID"), Label(a.Id.ToString(Inv), "#F1F5F9")),
+            (Loc.S("Full Name"), Label(a.Name ?? a.DisplayName, "#F1F5F9")),
+            (Loc.S("Short Name"), Label(a.ShortName ?? "", "#F1F5F9")),
         ]);
         var reputation = CardRows("Reputation", Enum.GetValues<AwardField>()
-            .Select(f => (FieldLabel(f), (Control)FieldBox(draft, f, FieldValue(a, f), 96, changed))));
+            .Select(f => (Loc.S(FieldLabel(f)), (Control)FieldBox(draft, f, FieldValue(a, f), 96, changed))));
         Editor.Children.Add(TwoColumns(identification, reputation));
     }
 
@@ -92,7 +92,7 @@ internal sealed class AwardScreen(IScreenHost host)
         {
             int max = f == AwardField.Reputation ? AwardWriter.MaxReputation : AwardWriter.MaxWinnerReputation;
             if (!int.TryParse(text.Trim(), System.Globalization.NumberStyles.Integer, Inv, out int v) || v < 0 || v > max)
-                return $"{FieldLabel(f)}: enter a whole number 0 to {max}";
+                return Loc.F("{0}: enter a whole number 0 to {1}", Loc.S(FieldLabel(f)), max);
             values[f] = v;
         }
         var writer = Host.Backend.Session.AwardWriter;

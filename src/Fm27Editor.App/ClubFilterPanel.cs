@@ -41,8 +41,8 @@ internal sealed class ClubFilterPanel : UserControl
     readonly ClubFieldAccess access;
     readonly Dictionary<string, Control> pages = [];
     readonly List<(ClubField Field, TextBox Min, TextBox Max)> rangeInputs = [];
-    readonly TextBox nameBox = new() { Watermark = "Name", Width = 320, HorizontalAlignment = HorizontalAlignment.Left };
-    readonly ComboBox genderCombo = new() { ItemsSource = new[] { "Men", "Women", "All" }, SelectedIndex = 0, Width = 140, MinWidth = 140, MaxWidth = 140, HorizontalAlignment = HorizontalAlignment.Left, MaxDropDownHeight = 260 };
+    readonly TextBox nameBox = new() { Watermark = Loc.S("Name"), Width = 320, HorizontalAlignment = HorizontalAlignment.Left };
+    readonly ComboBox genderCombo = new() { ItemsSource = new[] { Loc.S("Men"), Loc.S("Women"), Loc.S("All") }, SelectedIndex = 0, Width = 140, MinWidth = 140, MaxWidth = 140, HorizontalAlignment = HorizontalAlignment.Left, MaxDropDownHeight = 260 };
 
     public event EventHandler? Changed;
 
@@ -72,7 +72,7 @@ internal sealed class ClubFilterPanel : UserControl
                     Spacing = 3,
                     Children =
                     {
-                        new TextBlock { Text = "NAME", FontSize = 11, FontWeight = Avalonia.Media.FontWeight.SemiBold, Foreground = UiKit.TextMuted },
+                        new TextBlock { Text = Loc.S("NAME").ToUpper(Loc.FormatCulture), FontSize = 11, FontWeight = Avalonia.Media.FontWeight.SemiBold, Foreground = UiKit.TextMuted },
                         nameBox,
                     }
                 },
@@ -81,7 +81,7 @@ internal sealed class ClubFilterPanel : UserControl
                     Spacing = 3,
                     Children =
                     {
-                        new TextBlock { Text = "GENDER", FontSize = 11, FontWeight = Avalonia.Media.FontWeight.SemiBold, Foreground = UiKit.TextMuted },
+                        new TextBlock { Text = Loc.S("GENDER").ToUpper(Loc.FormatCulture), FontSize = 11, FontWeight = Avalonia.Media.FontWeight.SemiBold, Foreground = UiKit.TextMuted },
                         genderCombo,
                     }
                 },
@@ -93,14 +93,14 @@ internal sealed class ClubFilterPanel : UserControl
             foreach (var (field, label) in group)
             {
                 if (!access.IsMapped(field)) continue;
-                var min = new TextBox { Watermark = "Min", Width = 110, HorizontalContentAlignment = HorizontalAlignment.Right };
-                var max = new TextBox { Watermark = "Max", Width = 110, HorizontalContentAlignment = HorizontalAlignment.Right };
+                var min = new TextBox { Watermark = Loc.S("Min"), Width = 110, HorizontalContentAlignment = HorizontalAlignment.Right };
+                var max = new TextBox { Watermark = Loc.S("Max"), Width = 110, HorizontalContentAlignment = HorizontalAlignment.Right };
                 rangeInputs.Add((field, min, max));
                 foreach (var box in new[] { min, max }) box.TextChanged += (_, _) => Changed?.Invoke(this, EventArgs.Empty);
                 var row = new DockPanel { LastChildFill = true, MinHeight = 30 };
                 DockPanel.SetDock(max, Dock.Right); row.Children.Add(max);
                 DockPanel.SetDock(min, Dock.Right); row.Children.Add(min);
-                row.Children.Add(new TextBlock { Text = label, Margin = new Thickness(0, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center });
+                row.Children.Add(new TextBlock { Text = Loc.S(label), Margin = new Thickness(0, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center });
                 rows.Children.Add(row);
             }
             if (rows.Children.Count > 0)
@@ -163,19 +163,20 @@ internal sealed class ClubFilterPanel : UserControl
     {
         int count = FilterCount();
         var gender = SelectedGender();
+        string genderTag = gender is { } g ? $" ({Loc.F("Gender: {0}", Loc.S(g.ToString()))})" : "";
         if (HasRangeFilters() || Criteria() is null)
-            return count == 0 ? "No filters set" : $"{count} filter(s) set{(gender is { } g ? $" (Gender: {g})" : "")}";
+            return count == 0 ? Loc.S("No filters set") : $"{Loc.F("{0} filter(s) set", count)}{genderTag}";
 
         int shown = Matched().Count;
         int total = source.Count;
         if (count == 0)
-            return total > 0 ? $"All {total:N0} clubs" : "No filters set";
+            return total > 0 ? Loc.F("All {0:N0} clubs", total) : Loc.S("No filters set");
 
-        string prefix = gender is { } activeGender ? $"{count} filter(s) (Gender: {activeGender})" : $"{count} filter(s)";
+        string prefix = $"{Loc.F("{0} filter(s)", count)}{genderTag}";
         if (total == 0) return prefix;
         return shown < total
-            ? $"{prefix} — {shown:N0} of {total:N0} clubs shown ({total - shown:N0} hidden)"
-            : $"{prefix} — {shown:N0} club(s)";
+            ? $"{prefix} — {Loc.F("{0:N0} of {1:N0} clubs shown ({2:N0} hidden)", shown, total, total - shown)}"
+            : $"{prefix} — {Loc.F("{0:N0} club(s)", shown)}";
     }
 
     public void Clear()

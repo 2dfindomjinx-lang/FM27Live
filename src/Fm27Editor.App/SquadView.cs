@@ -23,10 +23,10 @@ public sealed partial class MainWindow
     static string SquadTeamLabel(IReadOnlyList<TeamEntry> orderedTeams, int i)
     {
         var t = orderedTeams[i];
-        if (t.IsFirstTeam) return "First team";
-        if (orderedTeams.Count == 2) return "Reserves";
-        if (orderedTeams.Count == 3) return i == 1 ? "U21" : "U18";
-        return $"Team {i + 1}";
+        if (t.IsFirstTeam) return Loc.S("First team");
+        if (orderedTeams.Count == 2) return Loc.S("Reserves");
+        if (orderedTeams.Count == 3) return i == 1 ? Loc.S("U21") : Loc.S("U18");
+        return Loc.F("Team {0}", i + 1);
     }
 
     bool HookClubSquadsView(ClubEntry club, IReadOnlyList<TeamEntry> orderedTeams, TeamEntry? activeTeam, ulong teamAddr)
@@ -38,7 +38,7 @@ public sealed partial class MainWindow
         {
             clubEditorPanel.Children.Add(new TextBlock
             {
-                Text = "No teams available for this club.",
+                Text = Loc.S("No teams available for this club."),
                 Foreground = Brush("#94A3B8"),
                 FontSize = 13,
                 Margin = new Thickness(4, 12, 0, 0),
@@ -109,16 +109,16 @@ public sealed partial class MainWindow
                 bool isFrozen = backend.Freezer?.Players.Any(fp => fp.Id == p.Id) == true;
                 string inf = SquadFormatters.FormatInfFlags(p, isInjured, isBanned, unhappy.Count > 0, isFrozen);
                 var tips = new List<string>();
-                if (isFrozen) tips.Add("Frozen");
+                if (isFrozen) tips.Add(Loc.S("Frozen"));
                 if (isInjured)
                 {
                     tips.Add(string.Join(", ", injuries.Select(injury => !string.IsNullOrEmpty(injury.Name)
                         ? char.ToUpper(injury.Name[0]) + injury.Name[1..]
-                        : "Injured")));
+                        : Loc.S("Injured"))));
                 }
                 if (isBanned)
                 {
-                    tips.Add(string.Join(", ", bans.Select(b => b.Matches > 0 ? $"{b.Matches} match ban" : "Ban")));
+                    tips.Add(string.Join(", ", bans.Select(b => b.Matches > 0 ? Loc.F("{0} match ban", b.Matches) : Loc.S("Ban"))));
                 }
                 if (unhappy.Count > 0) tips.Add(string.Join(", ", unhappy.Select(m => UnhappinessLabels.Motive(m.Motive))));
                 string infTip = string.Join("; ", tips);
@@ -298,6 +298,7 @@ public sealed partial class MainWindow
                 e.Handled = true;
             }
         };
+        AttachPlayerContextMenu(squadGrid, item => (item as SquadPlayerRow)?.Player);
 
         // Header click sorts like the Players table: numbers start high to low, text starts A to Z, a second click reverses.
         // Rows with no value (blank number, no age) stay at the bottom either way.
@@ -409,6 +410,6 @@ public sealed partial class MainWindow
         grid.SelectedItem = target;
         updating = false;
         ShowDetailTab(target);
-        status.Text = $"Opened {target.DisplayName}";
+        status.Text = Loc.F("Opened {0}", target.DisplayName);
     }
 }

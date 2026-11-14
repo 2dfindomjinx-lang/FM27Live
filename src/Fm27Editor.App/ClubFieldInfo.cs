@@ -39,7 +39,7 @@ public enum ClubDisplayKind
 
 public sealed record ClubCodeOption(long Value, string Label)
 {
-    public override string ToString() => Label;
+    public override string ToString() => Loc.S(Label);
 }
 
 public sealed record ClubFieldMeta(
@@ -103,16 +103,16 @@ public static class ClubFieldInfo
     };
 
     public static string FormatEmbargoReason(long code) =>
-        EmbargoReasons.TryGetValue(code, out var name) ? name : code.ToString(Inv);
+        EmbargoReasons.TryGetValue(code, out var name) ? Loc.S(name) : code.ToString(Inv);
 
     public static string FormatOwnershipType(long code) =>
-        OwnershipTypes.TryGetValue(code, out var name) ? name : code.ToString(Inv);
+        OwnershipTypes.TryGetValue(code, out var name) ? Loc.S(name) : code.ToString(Inv);
 
     public static string FormatChairpersonTitle(long code) =>
-        ChairpersonTitles.TryGetValue(code, out var name) ? name : code.ToString(Inv);
+        ChairpersonTitles.TryGetValue(code, out var name) ? Loc.S(name) : code.ToString(Inv);
 
     public static string FormatRichBenefactor(long code) =>
-        RichBenefactors.TryGetValue(code, out var name) ? name : code.ToString(Inv);
+        RichBenefactors.TryGetValue(code, out var name) ? Loc.S(name) : code.ToString(Inv);
 
     public static IReadOnlyList<ClubCodeOption> OptionsFor(ClubFieldMeta meta, params ReadOnlySpan<long> extraValues)
     {
@@ -190,7 +190,7 @@ public static class ClubFieldInfo
         ClubSection.Relationships or
         ClubSection.Staff;
 
-    public static string SectionTitle(ClubSection section) => section switch
+    public static string SectionTitle(ClubSection section) => Loc.S(section switch
     {
         ClubSection.Information => "Information",
         ClubSection.Squads => "Squads",
@@ -208,7 +208,7 @@ public static class ClubFieldInfo
         ClubSection.Relationships => "Relationships",
         ClubSection.Staff => "Staff",
         _ => ContractLabels.Spaced(section.ToString()),
-    };
+    });
 
     static readonly IReadOnlyList<ClubFieldMeta> Curated =
     [
@@ -380,7 +380,7 @@ public static class ClubFieldInfo
     {
         var meta = For(field);
         if (meta.Options is { Count: > 0 } opts)
-            return opts.TryGetValue(value, out var label) ? label : value.ToString(Inv);
+            return opts.TryGetValue(value, out var label) ? Loc.S(label) : value.ToString(Inv);
         return FormatValue(value, kind ?? meta.DisplayKind);
     }
 

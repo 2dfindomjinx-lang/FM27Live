@@ -83,22 +83,24 @@ internal sealed class CompetitionScreen(IScreenHost host)
     static string RuleLabel(int code, bool? isMinimum)
     {
         string label = CommonRuleLabels.TryGetValue(code, out var fmrte)
-            ? fmrte
-            : CompetitionRuleNames.Name(code) ?? $"Unnamed rule 0x{code:X3}";
-        if (isMinimum == true && !label.StartsWith("Minimum", StringComparison.Ordinal)) label += " (min)";
-        else if (isMinimum == false && !label.StartsWith("Maximum", StringComparison.Ordinal)) label += " (max)";
+            ? Loc.S(fmrte)
+            : CompetitionRuleNames.Name(code) is { } ruleName ? Loc.S(ruleName) : Loc.F("Unnamed rule 0x{0:X3}", code);
+        bool startsMin = CommonRuleLabels.TryGetValue(code, out var raw) ? raw.StartsWith("Minimum", StringComparison.Ordinal) : (CompetitionRuleNames.Name(code)?.StartsWith("Minimum", StringComparison.Ordinal) ?? false);
+        bool startsMax = CommonRuleLabels.TryGetValue(code, out var raw2) ? raw2.StartsWith("Maximum", StringComparison.Ordinal) : (CompetitionRuleNames.Name(code)?.StartsWith("Maximum", StringComparison.Ordinal) ?? false);
+        if (isMinimum == true && !startsMin) label += Loc.S(" (min)");
+        else if (isMinimum == false && !startsMax) label += Loc.S(" (max)");
         return label;
     }
 
     /// <summary>FMRTE's club-type conditions on the conditional Liga Portugal rules; other markers stay raw.</summary>
     static string ConditionLabel(string key) => key switch
     {
-        "74627770" => "Portuguese Club with B Teams",
-        "33326E62" => "Portuguese Club with B Teams (Without U23 Team)",
-        "33327577" => "Portuguese Club with U23 Team (Without B Teams)",
-        "3332626E" => "Portuguese Club with no B or U23 Team",
-        "74627774" => "Clubs With B Teams",
-        _ => $"condition {key}",
+        "74627770" => Loc.S("Portuguese Club with B Teams"),
+        "33326E62" => Loc.S("Portuguese Club with B Teams (Without U23 Team)"),
+        "33327577" => Loc.S("Portuguese Club with U23 Team (Without B Teams)"),
+        "3332626E" => Loc.S("Portuguese Club with no B or U23 Team"),
+        "74627774" => Loc.S("Clubs With B Teams"),
+        _ => Loc.F("condition {0}", key),
     };
 
     /// <summary>Detail rows; anything the reader could not validate reads as unknown. The two byte flags are editable.</summary>
@@ -106,7 +108,7 @@ internal sealed class CompetitionScreen(IScreenHost host)
     {
         Control Flag(byte? current, byte? staged, Action<byte?> set)
         {
-            if (current is not { } value) return Text("Unknown", true);
+            if (current is not { } value) return Text(Loc.S("Unknown"), true);
             var box = new CheckBox { IsChecked = (staged ?? value) != 0, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
             box.IsCheckedChanged += (_, _) =>
             {
@@ -118,20 +120,19 @@ internal sealed class CompetitionScreen(IScreenHost host)
         }
         static TextBlock Text(string value, bool unknown = false) =>
             new() { Text = value, Foreground = unknown ? UiKit.TextSecondary : UiKit.Brush("#E2E8F0"), TextAlignment = TextAlignment.Right };
-        static string YesNo(bool? value) => value is { } v ? (v ? "Yes" : "No") : "Unknown";
         string Position(short? value) =>
-            value is null ? "Unknown" : value < 0 ? "Not available" : value.Value.ToString(Inv);
+            value is null ? Loc.S("Unknown") : value < 0 ? Loc.S("Not available") : value.Value.ToString(Inv);
         return
         [
-            ("Three-Letter Name", (Control)Text(d.ThreeLetterName ?? "Unknown", d.ThreeLetterName is null)),
-            ("Type", Text(d.TypeName ?? "Unknown", d.TypeName is null)),
-            ("Competition Level", Text(d.CompetitionLevel?.ToString(Inv) ?? "Unknown", d.CompetitionLevel is null)),
-            ("Trophy", Text(d.TrophyName ?? "Unknown", d.TrophyName is null)),
-            ("Lowest Official Category", Text(d.LowestOfficialCategoryName ?? "Unknown", d.LowestOfficialCategoryName is null)),
-            ("Continental Position", Text(Position(d.ContinentalPosition), d.ContinentalPosition is null)),
-            ("Last Continental Position", Text(Position(d.LastContinentalPosition), d.LastContinentalPosition is null)),
-            ("Uses Extra Officials", Flag(d.UsesExtraOfficials, state.Draft.UsesExtraOfficials, v => state.Draft = state.Draft with { UsesExtraOfficials = v })),
-            ("Seated Stadiums Only", Flag(d.SeatedStadiumsOnly, state.Draft.SeatedStadiumsOnly, v => state.Draft = state.Draft with { SeatedStadiumsOnly = v })),
+            (Loc.S("Three-Letter Name"), (Control)Text(d.ThreeLetterName ?? Loc.S("Unknown"), d.ThreeLetterName is null)),
+            (Loc.S("Type"), Text(d.TypeName is { } tn ? Loc.S(tn) : Loc.S("Unknown"), d.TypeName is null)),
+            (Loc.S("Competition Level"), Text(d.CompetitionLevel?.ToString(Inv) ?? Loc.S("Unknown"), d.CompetitionLevel is null)),
+            (Loc.S("Trophy"), Text(d.TrophyName ?? Loc.S("Unknown"), d.TrophyName is null)),
+            (Loc.S("Lowest Official Category"), Text(d.LowestOfficialCategoryName is { } locName ? Loc.S(locName) : Loc.S("Unknown"), d.LowestOfficialCategoryName is null)),
+            (Loc.S("Continental Position"), Text(Position(d.ContinentalPosition), d.ContinentalPosition is null)),
+            (Loc.S("Last Continental Position"), Text(Position(d.LastContinentalPosition), d.LastContinentalPosition is null)),
+            (Loc.S("Uses Extra Officials"), Flag(d.UsesExtraOfficials, state.Draft.UsesExtraOfficials, v => state.Draft = state.Draft with { UsesExtraOfficials = v })),
+            (Loc.S("Seated Stadiums Only"), Flag(d.SeatedStadiumsOnly, state.Draft.SeatedStadiumsOnly, v => state.Draft = state.Draft with { SeatedStadiumsOnly = v })),
         ];
     }
 
@@ -144,11 +145,11 @@ internal sealed class CompetitionScreen(IScreenHost host)
 
     protected override void ConfigureColumns(DataGrid grid)
     {
-        grid.Columns.Add(new DataGridTextColumn { Header = "Competition", Binding = new Binding(nameof(CompetitionRow.Name)), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
-        var reputation = new DataGridTextColumn { Header = "Reputation", Binding = new Binding(nameof(CompetitionRow.Reputation)), Width = new DataGridLength(115) };
+        grid.Columns.Add(new DataGridTextColumn { Header = Loc.S("Competition"), Binding = new Binding(nameof(CompetitionRow.Name)), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
+        var reputation = new DataGridTextColumn { Header = Loc.S("Reputation"), Binding = new Binding(nameof(CompetitionRow.Reputation)), Width = new DataGridLength(115) };
         reputation.CellStyleClasses.Add("numeric");
         grid.Columns.Add(reputation);
-        var id = new DataGridTextColumn { Header = "ID", Binding = new Binding(nameof(CompetitionRow.Id)), Width = new DataGridLength(110) };
+        var id = new DataGridTextColumn { Header = Loc.S("ID"), Binding = new Binding(nameof(CompetitionRow.Id)), Width = new DataGridLength(110) };
         id.CellStyleClasses.Add("numeric");
         grid.Columns.Add(id);
     }
@@ -184,8 +185,8 @@ internal sealed class CompetitionScreen(IScreenHost host)
     }
 
     protected override string LoadedMessage(int count) => fallbackUsed
-        ? $"{count:N0} active divisions loaded (full competition list unavailable on this build)"
-        : $"{count:N0} competitions";
+        ? Loc.F("{0:N0} active divisions loaded (full competition list unavailable on this build)", count)
+        : Loc.F("{0:N0} competitions", count);
 
     protected override bool Matches(CompetitionRow row, string q) =>
         Fold(row.Name).Contains(q, StringComparison.Ordinal) || row.Id.ToString(Inv).Contains(q, StringComparison.Ordinal);
@@ -200,8 +201,8 @@ internal sealed class CompetitionScreen(IScreenHost host)
 
     static List<SubstitutionOption> SubstitutionOptions(byte current)
     {
-        var list = Fm27Editor.Core.Competitions.SubstitutionRules.All.Select(x => new SubstitutionOption(x.Value, x.Label)).ToList();
-        if (list.All(o => o.Value != current)) list.Insert(0, new SubstitutionOption(current, $"Value 0x{current:X2}"));
+        var list = Fm27Editor.Core.Competitions.SubstitutionRules.All.Select(x => new SubstitutionOption(x.Value, Loc.S(x.Label))).ToList();
+        if (list.All(o => o.Value != current)) list.Insert(0, new SubstitutionOption(current, Loc.F("Value 0x{0:X2}", current)));
         return list;
     }
 
@@ -311,9 +312,9 @@ internal sealed class CompetitionScreen(IScreenHost host)
                     if (variant.Condition.Length > 0) variantLabel += " — " + ConditionLabel(variant.Condition);
                     var variantBox = Field(variant.Value.ToString(Inv), 116, true);
                     variantBox.IsReadOnly = true;
-                    ToolTip.SetTip(variantBox, variant.Condition.Length > 0
+                    ToolTip.SetTip(variantBox, Loc.S(variant.Condition.Length > 0
                         ? "Read-only: conditional variant; the game keeps more than one value for this rule."
-                        : "Read-only: the game has no single validated value for this rule.");
+                        : "Read-only: the game has no single validated value for this rule."));
                     commonRuleFields.Add((code, variantLabel, null, variantBox));
                 }
                 continue;
@@ -322,7 +323,7 @@ internal sealed class CompetitionScreen(IScreenHost host)
             if (primary is not { } value) continue;
             var readOnly = Field(value.ToString(Inv), 116, true);
             readOnly.IsReadOnly = true;
-            ToolTip.SetTip(readOnly, "Read-only: the game has no single validated value for this rule.");
+            ToolTip.SetTip(readOnly, Loc.S("Read-only: the game has no single validated value for this rule."));
             commonRuleFields.Add((code, label, null, readOnly));
         }
         // A competition with no explicit maximum rule can still carry one in the fallback structure. Keep the old
@@ -334,8 +335,8 @@ internal sealed class CompetitionScreen(IScreenHost host)
             commonRuleFields.Add((0x09, RuleLabel(0x09, false), fallbackMaximum,
                 Field(draft.CommonRules?.GetValueOrDefault(0x09) ?? fallbackMaximum.MaximumSquadSize.ToString(Inv), 116, true)));
         }
-        var varOptions = new List<SubstitutionOption> { new(1, "Referee Review"), new(2, "Remote Review"), new(3, "Referee And/Or Remote Review"), new(4, "Unknown VAR Type"), new(5, "No VAR") };
-        if (varSettings is not null && varOptions.All(o => o.Value != varSettings.Type)) varOptions.Insert(0, new(varSettings.Type, $"Value 0x{varSettings.Type:X2}"));
+        var varOptions = new List<SubstitutionOption> { new(1, Loc.S("Referee Review")), new(2, Loc.S("Remote Review")), new(3, Loc.S("Referee And/Or Remote Review")), new(4, Loc.S("Unknown VAR Type")), new(5, Loc.S("No VAR")) };
+        if (varSettings is not null && varOptions.All(o => o.Value != varSettings.Type)) varOptions.Insert(0, new(varSettings.Type, Loc.F("Value 0x{0:X2}", varSettings.Type)));
         var varType = varSettings is null ? null : new ComboBox { Width = 198, ItemsSource = varOptions, SelectedItem = varOptions.First(o => o.Value == (draft.VarType ?? varSettings.Type)) };
         var varTvOnly = varSettings is null ? null : new CheckBox { IsChecked = draft.VarTvOnly ?? (varSettings.TvOnly != 0) };
         var varEnabled = varSettings is null ? null : new CheckBox { IsChecked = draft.VarEnabled ?? (varSettings.Enabled != 0) };
@@ -390,7 +391,7 @@ internal sealed class CompetitionScreen(IScreenHost host)
             Restage();
             if (classificationEnabled.IsChecked == true && classification is { Amounts.Count: 0 } && standings is { Count: > 0 } &&
                 (classification.Begin == 0 || classification.Capacity - classification.Begin < (ulong)standings.Count * 4))
-                Host.SetStatus("Enabling allocates a prize table outside the game's allocator; keep a backup of the save.");
+                Host.SetStatus(Loc.S("Enabling allocates a prize table outside the game's allocator; keep a backup of the save."));
         };
         foreach (var item in commonRuleFields) item.Box.TextChanged += (_, _) => Restage();
         foreach (var item in standingFields) item.Box.TextChanged += (_, _) => Restage();
@@ -404,7 +405,7 @@ internal sealed class CompetitionScreen(IScreenHost host)
         if (standings is { Count: > 0 })
         {
             badges.Children.Add(UiKit.MetaDot());
-            badges.Children.Add(UiKit.MetaText($"{standings.Count} teams", highlight: true));
+            badges.Children.Add(UiKit.MetaText(Loc.F("{0} teams", standings.Count), highlight: true));
         }
         var repText = new TextBlock
         {
@@ -420,24 +421,24 @@ internal sealed class CompetitionScreen(IScreenHost host)
 
         // Overview
         var overviewLeft = new StackPanel { Spacing = 12 };
-        overviewLeft.Children.Add(CardRows("Competition", [("Reputation", reputation), ("Substitution Rules", subs)]));
+        overviewLeft.Children.Add(CardRows("Competition", [(Loc.S("Reputation"), reputation), (Loc.S("Substitution Rules"), subs)]));
         if (details is not null)
             overviewLeft.Children.Add(CardRows("Details", DetailRows(details, state, changed)));
         if (varSettings is not null)
             overviewLeft.Children.Add(CardRows("VAR Settings", [
-                ("Enable custom VAR settings", varEnabled!), ("VAR", varType!), ("From date", varFromDate!), ("VAR - TV Matches Only", varTvOnly!),
+                (Loc.S("Enable custom VAR settings"), varEnabled!), (Loc.S("VAR"), varType!), (Loc.S("From date"), varFromDate!), (Loc.S("VAR - TV Matches Only"), varTvOnly!),
             ]));
         var colourRows = new List<(string Label, Control Value)>();
         foreach (var (slot, _, _, box) in colourFields)
-            colourRows.Add((slot switch
+            colourRows.Add((Loc.S(slot switch
             {
                 CompetitionColour.Foreground => "Foreground Colour",
                 CompetitionColour.Background => "Background Colour",
                 CompetitionColour.Trim => "Trim Colour",
                 _ => "Winter Ball Colour",
-            }, ColourInputControl.Create(box)));
-        colourRows.Add(("Winter Ball Start Date", start));
-        colourRows.Add(("Winter Ball End Date", end));
+            }), ColourInputControl.Create(box)));
+        colourRows.Add((Loc.S("Winter Ball Start Date"), start));
+        colourRows.Add((Loc.S("Winter Ball End Date"), end));
         var overviewRight = CardRows("Colours & Winter Ball", colourRows);
         var overview = new Grid { ColumnDefinitions = new ColumnDefinitions("*,12,*") };
         Grid.SetColumn(overviewLeft, 0);
@@ -449,9 +450,9 @@ internal sealed class CompetitionScreen(IScreenHost host)
         // Prize Money
         if (prize is not null || classificationEnabled is not null)
         {
-            Border? matchCard = prize is null ? null : CardRows("Match Prize Money", [("Per Win", prizeWin!), ("Per Draw", prizeDraw!), ("Per Defeat", prizeDefeat!)]);
+            Border? matchCard = prize is null ? null : CardRows("Match Prize Money", [(Loc.S("Per Win"), prizeWin!), (Loc.S("Per Draw"), prizeDraw!), (Loc.S("Per Defeat"), prizeDefeat!)]);
             Border? classCard = classificationEnabled is null ? null : CardRows("Classification Prize Money",
-                new[] { ("Enabled", (Control)classificationEnabled) }.Concat(positionFields.Select((box, index) => ($"Position {index + 1}", (Control)box))));
+                new[] { (Loc.S("Enabled"), (Control)classificationEnabled) }.Concat(positionFields.Select((box, index) => (Loc.F("Position {0}", index + 1), (Control)box))));
             Control body;
             if (matchCard is not null && classCard is not null)
             {
@@ -475,7 +476,7 @@ internal sealed class CompetitionScreen(IScreenHost host)
             {
                 RulePresetPlan p;
                 try { p = plan(); }
-                catch (Exception ex) { Host.SetStatus($"Preset: {ex.Message}"); return; }
+                catch (Exception ex) { Host.SetStatus(Loc.F("Preset: {0}", UserMessage.For(ex))); return; }
                 int staged = 0;
                 foreach (var edit in p.Edits)
                 {
@@ -484,14 +485,14 @@ internal sealed class CompetitionScreen(IScreenHost host)
                     box.Text = edit.Value.ToString(Inv);
                     staged++;
                 }
-                var notes = new List<string> { $"Preset staged {staged} rule(s); press Save to apply" };
-                notes.AddRange(p.Skipped.Select(skip => $"{RuleLabel(skip.Code, null)} skipped: {skip.Reason}"));
+                var notes = new List<string> { Loc.F("Preset staged {0} rule(s); press Save to apply", staged) };
+                notes.AddRange(p.Skipped.Select(skip => Loc.F("{0} skipped: {1}", RuleLabel(skip.Code, null), Loc.S(skip.Reason))));
                 Host.SetStatus(string.Join("; ", notes));
             }
             var access = session.CompetitionSquadRules;
-            var nationality = new Button { Content = "Lift nationality limits" };
+            var nationality = new Button { Content = Loc.S("Lift nationality limits") };
             nationality.Click += (_, _) => StagePreset(() => CompetitionRulePresets.LiftNationality(c, access, peers));
-            var loans = new Button { Content = "Lift loan limits" };
+            var loans = new Button { Content = Loc.S("Lift loan limits") };
             loans.Click += (_, _) => StagePreset(() => CompetitionRulePresets.LiftLoans(c, access, peers));
             sections.Add(new("Rule Presets", "Rule Presets",
                 new WrapPanel { Orientation = Orientation.Horizontal, ItemSpacing = 8, LineSpacing = 8, Children = { nationality, loans } }));
@@ -515,7 +516,7 @@ internal sealed class CompetitionScreen(IScreenHost host)
             }
         }
         if (sharedNames.Count > 0)
-            (primaryFields.Count > 0 ? primaryFields : matchFields.Count > 0 ? matchFields : otherFields).Add(("Also Applies To",
+            (primaryFields.Count > 0 ? primaryFields : matchFields.Count > 0 ? matchFields : otherFields).Add((Loc.S("Also Applies To"),
                 new TextBlock { Text = string.Join("\n", sharedNames), Foreground = UiKit.TextSecondary, TextAlignment = TextAlignment.Right }));
         if (primaryFields.Count > 0)
         {
@@ -565,7 +566,7 @@ internal sealed class CompetitionScreen(IScreenHost host)
         string[] headers = ["Pos", "Team", "GP", "W", "D", "L", "GS", "GA", "Pts"];
         for (int col = 0; col < headers.Length; col++)
         {
-            var label = Label(headers[col], "#94A3B8");
+            var label = Label(Loc.S(headers[col]), "#94A3B8");
             label.FontWeight = FontWeight.SemiBold;
             if (col == 0 || col >= 2) label.HorizontalAlignment = HorizontalAlignment.Right;
             Grid.SetColumn(label, col);
@@ -608,19 +609,19 @@ internal sealed class CompetitionScreen(IScreenHost host)
         var session = Host.Backend.Session;
         var writer = session.CompetitionWriter;
 
-        if (d.ClassificationEnabled is not null && d.Positions is { Count: > 0 }) return "Save prize amounts before changing Enabled";
+        if (d.ClassificationEnabled is not null && d.Positions is { Count: > 0 }) return Loc.S("Save prize amounts before changing Enabled");
 
         short? reputation = null;
         if (d.Reputation is { } repText)
         {
             if (!short.TryParse(repText.Trim(), NumberStyles.Integer, Inv, out short value) || value is < 0 or > CompetitionWriter.MaxReputation)
-                return $"Reputation: enter a whole number 0 to {CompetitionWriter.MaxReputation}";
+                return Loc.F("Reputation: enter a whole number 0 to {0}", CompetitionWriter.MaxReputation);
             reputation = value;
         }
         byte? substitution = null;
         if (d.SubstitutionRules is { } subsText)
         {
-            if (!byte.TryParse(subsText.Trim(), NumberStyles.Integer, Inv, out byte value)) return "Substitution rules: enter a value 0 to 255";
+            if (!byte.TryParse(subsText.Trim(), NumberStyles.Integer, Inv, out byte value)) return Loc.S("Substitution rules: enter a value 0 to 255");
             substitution = value;
         }
         var colours = new List<(uint Argb, uint Current, CompetitionColour Slot, string Name)>();
@@ -633,7 +634,7 @@ internal sealed class CompetitionScreen(IScreenHost host)
         })
         {
             if (text is null) continue;
-            if (ParseColour(text) is not { } argb) return $"The {name} colour must be #AARRGGBB";
+            if (ParseColour(text) is not { } argb) return Loc.F("The {0} colour must be #AARRGGBB", Loc.S(name));
             colours.Add((argb, current, slot, name));
         }
         var winterDates = new List<(DateOnly? Target, DateOnly? Current, bool Start, string Name)>();
@@ -646,7 +647,7 @@ internal sealed class CompetitionScreen(IScreenHost host)
             DateOnly? target = null;
             if (text.Trim().Length > 0)
             {
-                if (!DateSetting.TryParse(text.Trim(), out var parsed)) return $"The {name} date must be {DateSetting.Hint} or empty";
+                if (!DateSetting.TryParse(text.Trim(), out var parsed)) return Loc.F("The {0} date must be {1} or empty", Loc.S(name), DateSetting.Hint);
                 target = parsed;
             }
             winterDates.Add((target, current, isStart, name));
@@ -655,19 +656,19 @@ internal sealed class CompetitionScreen(IScreenHost host)
         foreach (var (field, text) in new (CompetitionPrizeField, string?)[] { (CompetitionPrizeField.PerWin, d.PrizeWin), (CompetitionPrizeField.PerDraw, d.PrizeDraw), (CompetitionPrizeField.PerDefeat, d.PrizeDefeat) })
         {
             if (text is null) continue;
-            if (!int.TryParse(text.Trim(), NumberStyles.Integer, Inv, out int value) || value < 0) return $"{field}: enter a non-negative whole number";
+            if (!int.TryParse(text.Trim(), NumberStyles.Integer, Inv, out int value) || value < 0) return Loc.F("{0}: enter a non-negative whole number", Loc.S(field.ToString()));
             prizeEdits.Add((field, value));
         }
         var positionEdits = new List<(int Position, int Value)>();
         foreach (var (position, text) in d.Positions ?? new Dictionary<int, string>())
         {
-            if (!int.TryParse(text.Trim(), NumberStyles.Integer, Inv, out int value) || value < 0) return $"Position {position}: enter a non-negative whole number";
+            if (!int.TryParse(text.Trim(), NumberStyles.Integer, Inv, out int value) || value < 0) return Loc.F("Position {0}: enter a non-negative whole number", position);
             positionEdits.Add((position, value));
         }
         var commonRuleEdits = new List<(int Code, int Value)>();
         foreach (var (code, text) in d.CommonRules ?? new Dictionary<int, string>())
         {
-            if (!int.TryParse(text.Trim(), NumberStyles.Integer, Inv, out int value) || value < 0) return "Squad rule: enter a non-negative whole number";
+            if (!int.TryParse(text.Trim(), NumberStyles.Integer, Inv, out int value) || value < 0) return Loc.S("Squad rule: enter a non-negative whole number");
             commonRuleEdits.Add((code, value));
         }
         var standingEdits = new List<((int ClubId, CompetitionStandingField Field) Key, int Value)>();
@@ -675,13 +676,13 @@ internal sealed class CompetitionScreen(IScreenHost host)
         {
             if (!int.TryParse(text.Trim(), NumberStyles.Integer, Inv, out int value) ||
                 (key.Field == CompetitionStandingField.Points ? value is < short.MinValue or > short.MaxValue : value is < byte.MinValue or > byte.MaxValue))
-                return $"{key.Field}: invalid value";
+                return Loc.F("{0}: invalid value", Loc.S(key.Field.ToString()));
             standingEdits.Add((key, value));
         }
         DateOnly? varFromDate = null;
         if (d.VarFromDate is { } dateText && dateText.Trim().Length > 0)
         {
-            if (!DateSetting.TryParse(dateText.Trim(), out var parsedDate)) return $"VAR date must be {DateSetting.Hint} or empty";
+            if (!DateSetting.TryParse(dateText.Trim(), out var parsedDate)) return Loc.F("VAR date must be {0} or empty", DateSetting.Hint);
             varFromDate = parsedDate;
         }
         var detailWrites = new List<Action<CompetitionDetails>>();
@@ -778,7 +779,7 @@ internal sealed class CompetitionScreen(IScreenHost host)
     {
         Drafts.Remove(record.Address);
         ReloadAndRender(record);
-        Host.SetStatus(steps.Count == 0 ? error.Message : $"Saved {steps.Count} change(s), then: {error.Message}");
+        Host.SetStatus(steps.Count == 0 ? UserMessage.For(error) : Loc.F("Saved {0} change(s), then: {1}", steps.Count, UserMessage.For(error)));
         return true;
     }
 }

@@ -37,6 +37,18 @@ public class FutureTransferCreatorTests
     ulong Allocate(int size) { ulong address = next; next += 0x1000; memory.Map(address, size); return address; }
 
     [Fact]
+    public void Future_transfer_for_an_active_loan_is_refused_without_writing()
+    {
+        // The IGE captures cover immediate moves only; creating a future transfer while on loan is still unmeasured.
+        Assert.True(memory.TryWrite(Player + 0x338, BitConverter.GetBytes(0x60000000UL)));
+        int writes = memory.Writes;
+        var creator = new FutureTransferCreator(memory, profile, Module);
+        var error = Assert.Throws<InvalidOperationException>(() => creator.Prepare(player, Buyer, 1000000, new(2026, 9, 30), new(2027, 1, 1)));
+        Assert.Contains("existing loan", error.Message);
+        Assert.Equal(writes, memory.Writes);
+    }
+
+    [Fact]
     public void CreatesFutureOfferAndReadsItBack()
     {
         var creator = new FutureTransferCreator(memory, profile, Module);

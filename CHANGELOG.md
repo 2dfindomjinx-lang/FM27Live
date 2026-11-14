@@ -18,6 +18,8 @@ Checked on Steam `27.0.1+2503222`; not yet checked on Game Pass.
 - Move to club: the team is chosen in a list next to the club, and the first team is picked by default.
 
 ### App
+- Unticking Move now defaults Transfer Date to the day after the current in-game date.
+
 - Load Game removes stale Development Speed rows whose addresses now belong to different players, and reports the count.
 - Load Game switches Wonderkid Academy off and says so; its settings are kept for when you switch it on again.
 

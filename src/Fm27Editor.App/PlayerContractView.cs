@@ -9,6 +9,19 @@ using Fm27Editor.Core.Transfer;
 
 namespace Fm27Editor.App;
 
+internal static class MoveNowDate
+{
+    public static void Bind(CheckBox moveNow, DateBox date, Func<DateOnly?> gameDate)
+    {
+        moveNow.IsCheckedChanged += (_, _) =>
+        {
+            if (moveNow.IsChecked != false) return;
+            var today = gameDate();
+            date.Text = today is { } day && day < DateOnly.MaxValue ? DateSetting.Format(day.AddDays(1)) : "";
+        };
+    }
+}
+
 public static class ContractYearInput
 {
     public static string Format(int? year) => year is null or 1900 ? "" : year.Value.ToString(CultureInfo.InvariantCulture);
@@ -589,7 +602,8 @@ public sealed partial class MainWindow
         bool canFuture = backend.Session.CanCreateFutureTransfer;
         var moveNow = new CheckBox { Content = "Move now", IsChecked = true };
         var gameDate = backend.Session.ReadGameDate() ?? DateOnly.FromDateTime(DateTime.Today);
-        var futureDate = new DateBox { Text = DateSetting.Format(gameDate.AddMonths(6)), Width = 130, HorizontalAlignment = HorizontalAlignment.Left };
+        var futureDate = new DateBox { Text = "", Width = 130, HorizontalAlignment = HorizontalAlignment.Left };
+        MoveNowDate.Bind(moveNow, futureDate, () => backend.Session.ReadGameDate());
         FutureTransferCreator.Plan? futurePlan = null;
         // A free agent has no contract to carry over: Move now copies the destination's first squad contract (as FMRTE does),
         // and a future transfer needs the weekly wage of the new contract, which the player enters.

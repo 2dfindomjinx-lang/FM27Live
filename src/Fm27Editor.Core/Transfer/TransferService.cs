@@ -79,46 +79,13 @@ public sealed class TransferService(IProcessMemory memory, OffsetProfile profile
             ulong holder = BitConverter.ToUInt64(holderBytes);
             if (holder != 0)
             {
-                var loan = new CurrentLoanReader(memory, profile, moduleBase).Read(player);
-                if (loan is not { Status: CurrentLoanStatus.Present, Contract: { } loanContract, Amounts: { } amounts } ||
-                    loan.BorrowingTeamAddress != fromTeam || contractTeam == fromTeam)
-                    throw new StaleObjectException("The current loan could not be verified");
-                if (buyer.Teams.Any(t => t.Address == fromTeam))
-                    throw new InvalidOperationException("A transfer to the borrowing club has not been verified");
-                var loanBytes = memory.Read(loanContract.Address, LoanCreator.ContractSize);
-                int personOffset = profile.Relations?.PlayerPerson ?? throw new InvalidOperationException("Profile has no person offset");
-                if (BitConverter.ToUInt64(loanBytes, LoanCreator.ContractPerson) != player.Address + (ulong)personOffset)
-                    throw new StaleObjectException("The loan contract belongs to another player");
-                // Steam IGE's no-option sample (Mark Shelton, 14/11/2026). In the Sarr sample, a purchase
-                // option coincided with additional payments, so do not guess how to settle it.
-                if (amounts.AgreedPrice != -1 || amounts.BuyBackFee != -1 ||
-                    loanBytes[LoanCreator.PurchaseAfterMatchesByte] != 0xFE)
-                    throw new InvalidOperationException("This loan's purchase terms have not been verified for an immediate transfer");
-                if (C.Clauses is not { } clauseOffset || clauseOffset < 0 || clauseOffset > loanBytes.Length - 24)
-                    throw new InvalidOperationException("The loan's contract clauses cannot be verified");
-                if (loanBytes.AsSpan(clauseOffset, 24).IndexOfAnyExcept((byte)0) >= 0)
-                    throw new InvalidOperationException("Transfers of loans with contract clauses have not been verified");
-                var holderContents = memory.Read(holder, 8);
-                if (BitConverter.ToUInt64(holderContents) != loanContract.Address)
-                    throw new StaleObjectException("The loan contract changed while planning");
-                guards.Add(new(holder, holderContents, holderContents, "loan contract pointer"));
-                guards.Add(new(loanContract.Address, loanBytes, loanBytes, "loan contract"));
-                var playingTeam = memory.Read(player.Address + (ulong)T.PlayerTeam, 8);
-                var employer = memory.Read(contract.Address + (ulong)C.Team, 8);
-                var seniorTeam = memory.Read(contract.Address + (ulong)seniorTeamOffset, 8);
-                if (BitConverter.ToUInt64(playingTeam) != fromTeam || BitConverter.ToUInt64(employer) != contractTeam ||
-                    BitConverter.ToUInt64(seniorTeam) != contractTeam)
-                    throw new StaleObjectException("The player's teams changed while planning");
-                guards.Add(new(player.Address + (ulong)T.PlayerTeam, playingTeam, [], "playing team"));
-                guards.Add(new(contract.Address + (ulong)C.Team, employer, [], "contract team"));
-                guards.Add(new(contract.Address + (ulong)seniorTeamOffset, seniorTeam, [], "contract senior team"));
-                AddLoanSquadRemoval(writes, guards, contractTeam, player.Address, "parent");
-                var borrowingSquad = GuardLoanSquad(guards, fromTeam, "borrowing");
-                if (Enumerable.Range(0, borrowingSquad.Length / 8).Count(i => BitConverter.ToUInt64(borrowingSquad, i * 8) == player.Address) != 1)
-                    throw new StaleObjectException("The player is not uniquely present in the borrowing squad");
-                var destinationSquad = GuardLoanSquad(guards, to.Address, "destination");
-                if (Enumerable.Range(0, destinationSquad.Length / 8).Any(i => BitConverter.ToUInt64(destinationSquad, i * 8) == player.Address))
+                var loan = LoanTransferSafety.Capture(memory, profile, moduleBase, player, contract.Address, contractTeam, to.Address);
+                if (loan.BorrowingTeam != fromTeam) throw new StaleObjectException("The playing team changed while planning");
+                guards.AddRange(loan.Guards);
+                var destination = LoanTransferSafety.GuardSquad(memory, profile, moduleBase, guards, to.Address, "destination");
+                if (LoanTransferSafety.Count(destination.Items, player.Address) != 0)
                     throw new StaleObjectException("The player is already in the destination squad");
+                AddLoanSquadRemoval(writes, loan.ParentTeam, loan.ParentSquad, player.Address);
                 writes.Add(new(holderSlot, holderBytes, BitConverter.GetBytes(0UL), "loan holder"));
             }
         }
@@ -204,33 +171,15 @@ public sealed class TransferService(IProcessMemory memory, OffsetProfile profile
         }
     }
 
-    byte[] GuardLoanSquad(List<PlannedWrite> guards, ulong team, string name)
+    void AddLoanSquadRemoval(List<PlannedWrite> writes, ulong team, LoanTransferSafety.Squad squad, ulong player)
     {
-        if (memory.ReadUInt64(team) != moduleBase + T.VtableRva)
-            throw new StaleObjectException($"The {name} team changed");
-        var header = memory.Read(team + (ulong)T.Squad, 24);
-        ulong begin = BitConverter.ToUInt64(header, 0), end = BitConverter.ToUInt64(header, 8), cap = BitConverter.ToUInt64(header, 16);
-        if (begin == 0 || end < begin || cap < end || (end - begin) % 8 != 0 || (cap - begin) / 8 > 200)
-            throw new StaleObjectException($"The {name} squad is invalid");
-        var items = memory.Read(begin, checked((int)(end - begin)));
-        guards.Add(new(team, memory.Read(team, 8), [], $"{name} team"));
-        guards.Add(new(team + (ulong)T.Squad, header, [], $"{name} squad header"));
-        guards.Add(new(begin, items, [], $"{name} squad"));
-        return items;
-    }
-
-    void AddLoanSquadRemoval(List<PlannedWrite> writes, List<PlannedWrite> guards, ulong team, ulong player, string name)
-    {
-        var items = GuardLoanSquad(guards, team, name);
-        var matches = Enumerable.Range(0, items.Length / 8).Where(i => BitConverter.ToUInt64(items, i * 8) == player).ToArray();
-        if (matches.Length != 1) throw new StaleObjectException($"The player is not uniquely present in the {name} squad");
-        ulong begin = memory.ReadUInt64(team + (ulong)T.Squad);
-        for (int i = matches[0]; i + 1 < items.Length / 8; i++)
-            writes.Add(new(begin + (ulong)i * 8, items[(i * 8)..(i * 8 + 8)], items[((i + 1) * 8)..((i + 2) * 8)], $"{name} squad shift"));
+        var items = squad.Items;
+        int index = Enumerable.Range(0, items.Length / 8).Single(i => BitConverter.ToUInt64(items, i * 8) == player);
+        for (int i = index; i + 1 < items.Length / 8; i++)
+            writes.Add(new(squad.Begin + (ulong)i * 8, items[(i * 8)..(i * 8 + 8)], items[((i + 1) * 8)..((i + 2) * 8)], "parent squad shift"));
         ulong endAddress = team + (ulong)T.Squad + 8;
-        writes.Add(new(endAddress, BitConverter.GetBytes(begin + (ulong)items.Length), BitConverter.GetBytes(begin + (ulong)items.Length - 8), $"{name} squad end"));
+        writes.Add(new(endAddress, BitConverter.GetBytes(squad.Begin + (ulong)items.Length), BitConverter.GetBytes(squad.Begin + (ulong)items.Length - 8), "parent squad end"));
     }
-
     void AddMoney(List<PlannedWrite> writes, ClubEntry club, int? offset, long delta, string what, bool floorAtZero = false)
     {
         if (offset is not { } o) throw new InvalidOperationException($"Profile has no offset for {what}");

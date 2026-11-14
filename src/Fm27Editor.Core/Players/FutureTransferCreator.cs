@@ -14,7 +14,10 @@ public sealed class FutureTransferCreator(IProcessMemory memory, OffsetProfile p
         ulong Root, int Id, int Serial, byte[] Contract, FutureTransferVectorSnapshot Terms, FutureTransferVectorSnapshot ExtraTerms,
         FutureTransferVectorSnapshot Offers, FutureTransferVectorSnapshot Dates, ulong IdHolder, ulong ContractHolder,
         FutureTransferVectorSnapshot? PlayerIds, FutureTransferVectorSnapshot? PlayerContracts, IReadOnlyList<PlannedWrite> Guards,
-        TransferTerms? OfferTerms = null);
+        TransferTerms? OfferTerms = null)
+    {
+        internal LoanRecallPlan? LoanRecall { get; init; }
+    }
 
     /// <param name="offerTerms">Transfer terms for the offer; null or all zero writes the empty terms object FMRTE writes without "Set transfer terms".</param>
     /// <param name="freeAgentWage">Weekly wage of the new contract, required for a free agent (no contract to copy). FMRTE fills in a
@@ -57,8 +60,16 @@ public sealed class FutureTransferCreator(IProcessMemory memory, OffsetProfile p
             if (BitConverter.ToUInt64(source, 8) != player.Address + (ulong)rel.PlayerPerson)
                 throw new StaleObjectException("Contract belongs to a different person");
         }
+        LoanRecallPlan? recall = null;
         if (fo.CurrentLoanHolder is { } loan && Pointer(player.Address + (ulong)loan, "loan holder") != 0)
-            throw new InvalidOperationException("Creation for an existing loan has not been verified");
+        {
+            if (contract == 0) throw new StaleObjectException("The loaned player has no parent contract");
+            var safety = LoanTransferSafety.Capture(memory, profile, moduleBase, player, contract, seller, buyer);
+            recall = new LoanEditor(memory, profile, moduleBase).PlanRecall(player);
+            if (recall.ParentTeam != safety.ParentTeam || recall.BorrowingTeam != safety.BorrowingTeam || recall.NeedsAllocation)
+                throw new StaleObjectException("The loan squads changed while planning");
+            guards.AddRange(safety.Guards);
+        }
         ulong root = Pointer(moduleBase + po.ListRootRva, "offer root");
         if (root == 0) throw new StaleObjectException("Offer root missing");
         Guard(root, 8, "offer root vtable");
@@ -86,7 +97,7 @@ public sealed class FutureTransferCreator(IProcessMemory memory, OffsetProfile p
         Guard(root + ChangedFlag, 1, "offer changed flag");
         if (offerTerms is not null) TransferTermsLayout.Records(offerTerms);   // rejects negative amounts before anything is allocated
         return new(player, buyer, seller, fee, today, date, root, id, serial, source, terms, extra, offers, dates,
-            ids, links, playerIds, playerContracts, guards, offerTerms);
+            ids, links, playerIds, playerContracts, guards, offerTerms) { LoanRecall = recall };
     }
 
     /// <summary>
@@ -159,7 +170,9 @@ public sealed class FutureTransferCreator(IProcessMemory memory, OffsetProfile p
         PlayerVector(plan.ContractHolder, plan.PlayerContracts, plan.Player.Address + (ulong)fo.PlayerOffers, BitConverter.GetBytes(link));
         publish.Add(new(plan.Root + OfferSerial, BitConverter.GetBytes(plan.Serial), BitConverter.GetBytes(plan.Serial + 1), "offer serial"));
         publish.Add(new(plan.Root + ChangedFlag, memory.Read(plan.Root + ChangedFlag, 1), [1], "offer changed flag"));
-        FutureTransferTransaction.Apply(memory, guards, [.. scratch, .. publish]);
+        // IGE's Coulibaly capture recalled the player immediately while creating the future offer.
+        // Apply both parts in one rollback-capable transaction so a failed offer cannot leave a recall behind.
+        FutureTransferTransaction.Apply(memory, guards, [.. scratch, .. (plan.LoanRecall?.Writes ?? []), .. publish]);
         return plan.Id;
     }
 }

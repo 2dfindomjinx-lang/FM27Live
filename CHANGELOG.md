@@ -5,7 +5,7 @@
 Checked on Steam `27.0.1+2503222`; not yet checked on Game Pass.
 
 ### Transfers
-- **Move now for a player on loan:** supports the measured three-club case without purchase, buy-back or other contract clauses; it removes the player from both old squads and ends the loan. Future transfers and other loan cases remain unavailable pending verification.
+- **Transfer a player on loan:** Move now removes the player from both old squads. A future transfer ends the loan immediately and returns the player to the parent club while the deal waits, as observed in IGE. Both paths support the measured three-club case without purchase, buy-back or other contract clauses; other cases remain unavailable pending verification.
 
 - **Free agents** can be moved:
   - with Move now, the player joins at once on a copy of the destination squad's first contract, as FMRTE does;

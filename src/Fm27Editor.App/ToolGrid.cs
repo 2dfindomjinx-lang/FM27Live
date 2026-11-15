@@ -155,8 +155,9 @@ internal static class ToolGrid
             if (!e.GetCurrentPoint(grid).Properties.IsLeftButtonPressed || e.Source is not Avalonia.Visual source) return;
             if (source.FindAncestorOfType<CheckBox>(includeSelf: true) is not null) return;
             if (source.FindAncestorOfType<DataGridRow>(includeSelf: true)?.DataContext is not T row) return;
+            if (e.KeyModifiers.HasFlag(Avalonia.Input.KeyModifiers.Shift)) return;
             ulong id = key(row);
-            if (e.KeyModifiers.HasFlag(Avalonia.Input.KeyModifiers.Control))
+            if (e.KeyModifiers.HasFlag(Avalonia.Input.KeyModifiers.Control) || e.KeyModifiers.HasFlag(Avalonia.Input.KeyModifiers.Meta))
             {
                 if (!excluded.Remove(id)) excluded.Add(id);
             }
@@ -166,27 +167,115 @@ internal static class ToolGrid
                 foreach (var r in rows()) if (key(r) != id) excluded.Add(key(r));
             }
             Changed();
-        }, Avalonia.Interactivity.RoutingStrategies.Tunnel | Avalonia.Interactivity.RoutingStrategies.Bubble, handledEventsToo: true);
+        }, Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
+
+        grid.SelectionChanged += (_, _) =>
+        {
+            if (grid.SelectedItems.Count <= 1) return;
+            var selected = grid.SelectedItems.OfType<T>().Select(key).ToHashSet();
+            if (selected.Count == 0) return;
+            excluded.Clear();
+            foreach (var r in rows()) if (!selected.Contains(key(r))) excluded.Add(key(r));
+            Changed();
+        };
     }
 
     /// <summary>
-    /// Range selection as in FMRTE's tables: Shift+click selects from the anchor row to the clicked row, and pressing a row then
-    /// dragging selects every row the pointer passes, from that row to the row under the pointer (Ctrl+drag adds the range to
-    /// the selection). Plain clicks and Ctrl+click are left to the grid.
+    /// Range selection like a document: press and hold a row then drag across rows (up or down) to select the whole span,
+    /// or Shift+click from the anchor row to the clicked row (Ctrl/Cmd preserves prior selection).
     /// </summary>
     public static void EnableRangeSelect(DataGrid grid)
     {
         if (grid.SelectionMode != DataGridSelectionMode.Extended) return;
-        object? anchor = null;
-        bool dragging = false, additive = false;
+        object? anchor = null, pressedItem = null, lastTarget = null;
+        bool dragging = false, dragged = false, additive = false;
         object[] before = [];
-        object? RowItem(Avalonia.Input.PointerEventArgs e) =>
-            e.Source is Avalonia.Visual v && v.FindAncestorOfType<DataGridColumnHeader>(includeSelf: true) is null
-                ? v.FindAncestorOfType<DataGridRow>(includeSelf: true)?.DataContext : null;
+
+        static bool IsAdditive(Avalonia.Input.KeyModifiers modifiers) =>
+            modifiers.HasFlag(Avalonia.Input.KeyModifiers.Control) || modifiers.HasFlag(Avalonia.Input.KeyModifiers.Meta);
+
+        List<object> OrderedItems() =>
+            (grid.CollectionView as System.Collections.IEnumerable ?? grid.ItemsSource)?.Cast<object>().ToList() ?? [];
+
+        static object? RowFromSource(Avalonia.Input.PointerEventArgs e)
+        {
+            if (e.Source is not Avalonia.Visual v) return null;
+            if (v.FindAncestorOfType<DataGridColumnHeader>(includeSelf: true) is not null) return null;
+            if (v.FindAncestorOfType<ScrollBar>(includeSelf: true) is not null) return null;
+            if (v.FindAncestorOfType<CheckBox>(includeSelf: true) is not null) return null;
+            return v.FindAncestorOfType<DataGridRow>(includeSelf: true)?.DataContext;
+        }
+
+        object? RowAtPointer(Avalonia.Input.PointerEventArgs e)
+        {
+            var pt = e.GetPosition(grid);
+            double headerBottom = 0;
+            foreach (var h in grid.GetVisualDescendants().OfType<DataGridColumnHeader>())
+            {
+                if (!h.IsVisible || h.Bounds.Height <= 0) continue;
+                if (h.TranslatePoint(default, grid) is { } hp)
+                    headerBottom = Math.Max(headerBottom, hp.Y + h.Bounds.Height);
+            }
+
+            if (pt.Y >= headerBottom)
+            {
+                foreach (var v in grid.GetVisualsAt(pt))
+                {
+                    if (v.FindAncestorOfType<DataGridColumnHeader>(includeSelf: true) is not null) continue;
+                    if (v.FindAncestorOfType<DataGridRow>(includeSelf: true) is { IsVisible: true, DataContext: { } dc })
+                        return dc;
+                }
+            }
+
+            // Realized visible rows sorted top-to-bottom cover drags across cell gaps, scrollbars, and above/below viewport.
+            var visibleRows = grid.GetVisualDescendants()
+                .OfType<DataGridRow>()
+                .Select(r => (Row: r, Pos: r.IsVisible && r.Bounds.Height > 0 && r.DataContext is not null
+                    ? r.TranslatePoint(default, grid) : null))
+                .Where(x => x.Pos is { } p && p.Y + x.Row.Bounds.Height > headerBottom)
+                .Select(x => (Item: x.Row.DataContext!, Top: x.Pos!.Value.Y, Bottom: x.Pos!.Value.Y + x.Row.Bounds.Height))
+                .OrderBy(x => x.Top)
+                .ToList();
+
+            if (visibleRows.Count == 0) return RowFromSource(e);
+
+            foreach (var row in visibleRows)
+                if (pt.Y >= row.Top && pt.Y < row.Bottom)
+                    return row.Item;
+
+            if (pt.Y < visibleRows[0].Top)
+            {
+                var items = OrderedItems();
+                int idx = items.IndexOf(visibleRows[0].Item);
+                if (idx > 0)
+                {
+                    var prev = items[idx - 1];
+                    grid.ScrollIntoView(prev, null);
+                    return prev;
+                }
+                return visibleRows[0].Item;
+            }
+
+            if (pt.Y >= visibleRows[^1].Bottom)
+            {
+                var items = OrderedItems();
+                int idx = items.IndexOf(visibleRows[^1].Item);
+                if (idx >= 0 && idx + 1 < items.Count)
+                {
+                    var next = items[idx + 1];
+                    grid.ScrollIntoView(next, null);
+                    return next;
+                }
+                return visibleRows[^1].Item;
+            }
+
+            return null;
+        }
+
         void SelectRange(object from, object to)
         {
-            if (grid.ItemsSource is not System.Collections.IEnumerable source) return;
-            var items = source.Cast<object>().ToList();
+            if (grid.SelectionMode != DataGridSelectionMode.Extended) return;
+            var items = OrderedItems();
             int a = items.IndexOf(from), b = items.IndexOf(to);
             if (a < 0 || b < 0) return;
             grid.SelectedItems.Clear();
@@ -194,30 +283,61 @@ internal static class ToolGrid
             for (int i = Math.Min(a, b); i <= Math.Max(a, b); i++)
                 if (!grid.SelectedItems.Contains(items[i])) grid.SelectedItems.Add(items[i]);
         }
+
         grid.AddHandler(InputElement.PointerPressedEvent, (object? _, Avalonia.Input.PointerPressedEventArgs e) =>
         {
-            if (!e.GetCurrentPoint(grid).Properties.IsLeftButtonPressed || RowItem(e) is not { } item) return;
+            if (grid.SelectionMode != DataGridSelectionMode.Extended) return;
+            if (!e.GetCurrentPoint(grid).Properties.IsLeftButtonPressed || RowFromSource(e) is not { } item) return;
+            pressedItem = item;
+            lastTarget = null;
+            dragged = false;
+            dragging = e.ClickCount == 1;
+            additive = IsAdditive(e.KeyModifiers);
+            before = additive ? grid.SelectedItems.Cast<object>().ToArray() : [];
             if (e.KeyModifiers.HasFlag(Avalonia.Input.KeyModifiers.Shift) && anchor is not null)
             {
-                additive = e.KeyModifiers.HasFlag(Avalonia.Input.KeyModifiers.Control);
-                before = additive ? grid.SelectedItems.Cast<object>().ToArray() : [];
                 SelectRange(anchor, item);
+                lastTarget = item;
                 e.Handled = true;
                 return;
             }
             anchor = item;
-            additive = e.KeyModifiers.HasFlag(Avalonia.Input.KeyModifiers.Control);
-            before = additive ? grid.SelectedItems.Cast<object>().ToArray() : [];
-            dragging = e.ClickCount == 1;
         }, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+
         grid.AddHandler(InputElement.PointerMovedEvent, (object? _, Avalonia.Input.PointerEventArgs e) =>
         {
-            if (!dragging || anchor is null || !e.GetCurrentPoint(grid).Properties.IsLeftButtonPressed) { dragging = false; return; }
-            if (RowItem(e) is not { } item || ReferenceEquals(item, anchor) && grid.SelectedItems.Count <= 1) return;
-            SelectRange(anchor, item);
+            if (grid.SelectionMode != DataGridSelectionMode.Extended || !dragging || pressedItem is null || !e.GetCurrentPoint(grid).Properties.IsLeftButtonPressed)
+            {
+                dragging = false;
+                dragged = false;
+                pressedItem = null;
+                lastTarget = null;
+                return;
+            }
+            if (RowAtPointer(e) is not { } item) return;
+            if (!dragged)
+            {
+                if (ReferenceEquals(item, pressedItem)) return;
+                dragged = true;
+                anchor = pressedItem;
+            }
+            if (ReferenceEquals(item, lastTarget))
+            {
+                e.Handled = true;
+                return;
+            }
+            lastTarget = item;
+            SelectRange(anchor!, item);
+            e.Handled = true;
         }, Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
-        grid.AddHandler(InputElement.PointerReleasedEvent, (object? _, Avalonia.Input.PointerReleasedEventArgs _) => dragging = false,
-            Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
+
+        grid.AddHandler(InputElement.PointerReleasedEvent, (object? _, Avalonia.Input.PointerReleasedEventArgs _) =>
+        {
+            dragging = false;
+            dragged = false;
+            pressedItem = null;
+            lastTarget = null;
+        }, Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
     }
 
     /// <summary>

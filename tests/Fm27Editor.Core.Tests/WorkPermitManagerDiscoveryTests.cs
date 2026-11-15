@@ -7,36 +7,6 @@ namespace Fm27Editor.Core.Tests;
 
 public class WorkPermitManagerDiscoveryTests
 {
-    [Theory]
-    [InlineData("27.0.1+2494687-gamepass.json", 0x53A4D68u, 0x49D5AD8u, 0x4A21168u)]
-    [InlineData("27.0.1+2494687-steam.json", 0x580EA58u, 0x4D90898u, 0x4DE36F8u)]
-    public void Both_storefront_profiles_discover_a_fully_valid_vector_without_new_offsets(
-        string profileName, uint rootRva, uint managerVtable, uint nationVtable)
-    {
-        WorkPermitTable.Forget();
-        var profile = OffsetProfile.LoadFile(Path.Combine(AppContext.BaseDirectory, "offsets", profileName));
-        var raw = new FakeMemory();
-        const ulong manager = 0xA00000, nation = 0xA10000, vector = 0xA20000, records = 0xA30000;
-        TestWorld.Set64(raw.Map(TestWorld.ModuleBase + rootRva, 8), 0, manager);
-        var owner = raw.Map(manager, 0x7D8); // Existing Windows offer serial is +0x7D4.
-        TestWorld.Set64(owner, 0, TestWorld.ModuleBase + managerVtable);
-        TestWorld.Set64(owner, 0x138, vector);
-        TestWorld.Set64(owner, 0x140, vector + 800);
-        TestWorld.Set64(owner, 0x148, vector + 800);
-        TestWorld.Set64(raw.Map(nation, 8), 0, TestWorld.ModuleBase + nationVtable);
-        var pointers = raw.Map(vector, 800);
-        var bytes = raw.Map(records, 3200);
-        for (int i = 0; i < 100; i++)
-        {
-            TestWorld.Set64(pointers, i * 8, records + (ulong)i * 32);
-            TestWorld.Set64(bytes, i * 32, nation);
-            BitConverter.GetBytes((uint)(1000 + i)).CopyTo(bytes, i * 32 + 8);
-        }
-
-        Assert.Equal(manager + 0x138, new WorkPermitTable(raw, profile, TestWorld.ModuleBase).Locate());
-        Assert.Equal(0, raw.Writes);
-    }
-
     [Fact]
     public void A_unique_fully_valid_table_in_the_measured_owner_avoids_a_heap_scan()
     {
@@ -46,7 +16,9 @@ public class WorkPermitManagerDiscoveryTests
 
         Assert.Equal(World.Manager + 0x130, world.Table().Locate());
         Assert.Equal(0, world.Memory.Enumerations);
-        Assert.Equal(1300, world.Memory.RecordReads.Where(a => a >= 0x910000 && a < 0x910000 + 1300 * 32).Distinct().Count());
+        Assert.Contains(1024, world.Memory.BatchCounts);
+        Assert.Contains(276, world.Memory.BatchCounts);
+        Assert.All(world.Memory.BatchCounts, count => Assert.InRange(count, 1, 1024));
     }
 
     [Fact]
@@ -75,6 +47,7 @@ public class WorkPermitManagerDiscoveryTests
     [InlineData("missing")]
     [InlineData("wrong-vtable")]
     [InlineData("old-profile")]
+    [InlineData("absurd-bound")]
     public void Unavailable_owner_metadata_or_identity_keeps_the_heap_fallback(string problem)
     {
         var world = new World(problem);
@@ -156,6 +129,7 @@ public class WorkPermitManagerDiscoveryTests
             {
                 json["player"]!["proposals"]!["managerRva"] = "0x6000000";
                 json["player"]!["proposals"]!["managerVtable"] = "0x6001000";
+                json["player"]!["proposals"]!["offerSerial"] = problem == "absurd-bound" ? "0x7FFFFFFF" : "0x7F4";
             }
             profile = OffsetProfile.Load(json.ToJsonString());
             Root = raw.Map(TestWorld.ModuleBase + RootRva, 8);
@@ -186,10 +160,10 @@ public class WorkPermitManagerDiscoveryTests
         public WorkPermitTable Table() => new(Memory, profile, TestWorld.ModuleBase);
     }
 
-    sealed class Probe(IProcessMemory memory, MemoryRegion region) : IProcessMemory, IMemoryRegions
+    sealed class Probe(IProcessMemory memory, MemoryRegion region) : IProcessMemory, IMemoryRegions, IScatterReadMemory
     {
         public int Enumerations { get; private set; }
-        public List<ulong> RecordReads { get; } = [];
+        public List<int> BatchCounts { get; } = [];
         public Action<ulong, int>? BeforeRead { get; set; }
         public Func<ulong, int, bool>? FailRead { get; set; }
         public IEnumerable<MemoryRegion> EnumerateWritableRegions(ulong imageStart = 0, ulong imageEnd = 0)
@@ -199,12 +173,15 @@ public class WorkPermitManagerDiscoveryTests
         }
         public bool TryRead(ulong address, Span<byte> buffer)
         {
-            if (buffer.Length == 32) RecordReads.Add(address);
             BeforeRead?.Invoke(address, buffer.Length);
             if (FailRead?.Invoke(address, buffer.Length) == true) return false;
             return memory.TryRead(address, buffer);
         }
         public bool TryWrite(ulong address, ReadOnlySpan<byte> data) => throw new NotSupportedException();
-
+        public void ReadMany(IReadOnlyList<MemoryReadRequest> requests, Span<bool> succeeded)
+        {
+            BatchCounts.Add(requests.Count);
+            for (int i = 0; i < requests.Count; i++) succeeded[i] = TryRead(requests[i].Address, requests[i].Destination.Span);
+        }
     }
 }

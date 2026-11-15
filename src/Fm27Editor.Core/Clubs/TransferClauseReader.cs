@@ -151,7 +151,7 @@ public sealed class TransferClauseReader(IProcessMemory memory, OffsetProfile pr
         {
             if (_scanned is not null) return _scanned;
             var found = new List<ulong>();
-            if (memory is WindowsProcessMemory windows)
+            if (memory is IMemoryRegions regions)
             {
                 var sell = moduleBase + t.SellOnVtableRva;
                 ulong? appearance = t.AppearanceFeeVtableRva is { } a ? moduleBase + a : null;
@@ -159,7 +159,7 @@ public sealed class TransferClauseReader(IProcessMemory memory, OffsetProfile pr
                 // Reading the game's writable memory is I/O bound (~4 GB, ~200 MB/s on one thread), so the one-off
                 // scan reads regions in parallel; matches are rare, so workers collect locally and merge once.
                 var hits = new List<ulong>();
-                Parallel.ForEach(windows.EnumerateWritableRegions().Where(r => !r.IsModuleData),
+                Parallel.ForEach(regions.EnumerateWritableRegions().Where(r => !r.IsModuleData),
                     new ParallelOptions { MaxDegreeOfParallelism = Math.Clamp(Environment.ProcessorCount, 2, 8) }, region =>
                 {
                     var buffer = new byte[1 << 22];

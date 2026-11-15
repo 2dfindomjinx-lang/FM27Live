@@ -1,4 +1,5 @@
 using Fm27Editor.Core.Memory;
+using Fm27Editor.Core.Presets;
 
 namespace Fm27Editor.Core.ForceAccept;
 
@@ -12,30 +13,30 @@ static class CodePage
 {
     const uint PageExecuteReadWrite = 0x40;
 
-    /// <summary>Writes one patch to a code page. A memory that is not a live Windows process writes directly.</summary>
+    /// <summary>Writes one patch to a code page. A memory that cannot patch code pages writes directly.</summary>
     /// <exception cref="MemoryAccessException">The write did not land.</exception>
     public static void Write(IProcessMemory memory, ulong address, byte[] bytes)
     {
-        if (memory is not WindowsProcessMemory windows)
+        if (memory is not ICodePatchHost host)
         {
             if (!memory.TryWrite(address, bytes))
                 throw new MemoryAccessException($"Cannot write {bytes.Length} bytes at 0x{address:X}");
             return;
         }
 
-        uint previous = windows.Protect(address, bytes.Length, PageExecuteReadWrite);
+        uint previous = host.Protect(address, bytes.Length, PageExecuteReadWrite);
         bool ok;
         try
         {
-            ok = windows.TryWrite(address, bytes);
+            ok = memory.TryWrite(address, bytes);
         }
         finally
         {
-            windows.Protect(address, bytes.Length, previous);
+            host.Protect(address, bytes.Length, previous);
         }
         if (!ok)
             throw new MemoryAccessException($"Cannot write {bytes.Length} bytes at 0x{address:X}");
-        windows.FlushInstructionCache(address, bytes.Length);
+        host.FlushCode(address, bytes.Length);
     }
 
     /// <summary>

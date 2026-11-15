@@ -49,6 +49,8 @@ public sealed record StadiumOffsets(
     public int AltFlags { get; init; } = -1;
     public IReadOnlyDictionary<StadiumFlag, byte> AltFlagBits { get; init; } = new Dictionary<StadiumFlag, byte>();
 
+    /// <summary>Bytes between consecutive stadium records in the build's database table; 0 when the list is a pointer vector.</summary>
+    public int RecordStride { get; init; }
     /// <summary>Int. Length / Width (+0x9C, +0x9E, int16, 0.1 m; FFFF FFFF when FMRTE's box is unticked) and Seat Colour (+0x78, bytes B, G, R, A); -1 when unmapped.</summary>
     public int IntLength { get; init; } = -1;
     public int IntWidth { get; init; } = -1;
@@ -70,6 +72,7 @@ public sealed record StadiumOffsets(
             IntLength = e.TryGetProperty("intLength", out _) ? Hex(e, "intLength") : -1,
             IntWidth = e.TryGetProperty("intWidth", out _) ? Hex(e, "intWidth") : -1,
             SeatColour = e.TryGetProperty("seatColour", out _) ? Hex(e, "seatColour") : -1,
+            RecordStride = e.TryGetProperty("recordStride", out _) ? Hex(e, "recordStride") : 0,
             AltFlagBits = e.TryGetProperty("altFlagBits", out var ab)
                 ? ab.EnumerateObject().ToDictionary(p => Enum.Parse<StadiumFlag>(p.Name), p => (byte)Hex(ab, p.Name)) : new Dictionary<StadiumFlag, byte>(),
         };
@@ -87,6 +90,7 @@ public sealed record StadiumOffsets(
         if (IntLength >= 0) H("intLength", IntLength);
         if (IntWidth >= 0) H("intWidth", IntWidth);
         if (SeatColour >= 0) H("seatColour", SeatColour);
+        if (RecordStride > 0) H("recordStride", RecordStride);
         if (AltFlags >= 0)
         {
             H("altFlags", AltFlags);
@@ -137,6 +141,12 @@ public sealed class StadiumRepository(IProcessMemory memory, OffsetProfile profi
         }
         catch (MemoryAccessException) { }
         if (result.Count > 1) return result;
+        // The Mac build keeps no vector of stadium pointers: the whole database table is one contiguous run of
+        // 0xC0-byte records (`stadium.recordStride`). Find one stadium through a nation's national stadium and
+        // expand that run in both directions; a run is only accepted when every record carries the stadium vtable.
+        var chunk = LoadChunks(reader);
+        if (chunk.Count > result.Count) result = chunk;
+        if (result.Count > 1) return result;
         // The configured slot is stale (Game Pass moves it): look in the neighbouring slots for the real list.
         var found = PointerListFinder.Find(memory, moduleBase, (uint)s.ListRootRva, moduleBase + s.VtableRva, MaxStadiums);
         var rescued = new List<StadiumRecord>(found.Count);
@@ -146,6 +156,58 @@ public sealed class StadiumRepository(IProcessMemory memory, OffsetProfile profi
         if (result.Count == 0) throw new MemoryAccessException("Stadium list looks invalid; is a save loaded?");
         return result;
     }
+
+    int Stride => S.RecordStride > 0 ? S.RecordStride : 0xC0;
+
+    List<StadiumRecord> LoadChunks(PlayerReader reader)
+    {
+        var s = S;
+        var anchors = new List<ulong>();
+        if (profile.Nation is { Stadium: { } stadiumOffset })
+            try
+            {
+                foreach (var nation in new Fm27Editor.Core.Nations.NationRepository(memory, profile, moduleBase).LoadAll())
+                    if (memory.TryRead(nation.Address + (ulong)stadiumOffset, new byte[8].AsSpan()) &&
+                        IsStadium(memory.ReadUInt64(nation.Address + (ulong)stadiumOffset), out ulong stadium))
+                        anchors.Add(stadium);
+            }
+            catch (MemoryAccessException) { }
+        if (anchors.Count == 0) return [];
+        var result = new List<StadiumRecord>();
+        var ranges = new List<(ulong Start, ulong End)>();
+        foreach (ulong anchor in anchors)
+        {
+            // National stadiums usually point into the same table. Skip an accepted record before walking back
+            // through that table again: otherwise every nation repeats thousands of process reads.
+            if (ranges.Any(r => anchor >= r.Start && anchor < r.End && (anchor - r.Start) % (ulong)Stride == 0)) continue;
+            ulong start = anchor;
+            while (start >= (ulong)Stride && IsStadium(start - (ulong)Stride, out _)) start -= (ulong)Stride;
+            if (ranges.Any(r => start >= r.Start && anchor < r.End)) continue;
+            var run = new List<StadiumRecord>();
+            ulong at = start;
+            while (run.Count < MaxStadiums && Decode(at, reader) is { } record)
+            {
+                run.Add(record);
+                at += (ulong)Stride;
+            }
+            if (run.Count > 1)
+            {
+                ranges.Add((start, at));
+                result.AddRange(run);
+            }
+        }
+        return result;
+    }
+
+    bool IsStadium(ulong address, out ulong stadium)
+    {
+        stadium = 0;
+        Span<byte> b = stackalloc byte[8];
+        if (address == 0 || !memory.TryRead(address, b) || BitConverter.ToUInt64(b) != moduleBase + S.VtableRva) return false;
+        stadium = address;
+        return true;
+    }
+
 
     /// <summary>Where the stadium stands: the city object its location pointer (<c>stadium +0x60</c>) leads to, 0 when unset.</summary>
     public const int LocationOffset = 0x60;

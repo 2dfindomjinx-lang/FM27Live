@@ -285,57 +285,60 @@ internal sealed class CompetitionScreen(IScreenHost host)
         var positionFields = classification?.Amounts.Select((value, index) => Field(draft.Positions?.GetValueOrDefault(index + 1) ?? value.ToString(Inv), 132, true)).ToArray() ?? [];
         var classificationEnabled = classification is null ? null : new CheckBox { IsChecked = draft.ClassificationEnabled ?? (classification.Amounts.Count > 0) };
         var commonRuleFields = new List<(int Code, string Label, CompetitionSquadRules? Snapshot, TextBox Box)>();
-        var ruleCodes = session.CompetitionSquadRules.RuleCodes(c).ToArray();
-        if (ruleCodes.Length == 0) ruleCodes = CommonRuleLabels.Keys.ToArray();
-        var variantsByCode = session.CompetitionSquadRules.ReadVariants(c)
-            .GroupBy(variant => variant.Code).ToDictionary(group => group.Key, group => group.ToArray());
-        foreach (int code in ruleCodes)
+        if (session.Profile.Competition?.SquadRulesContainerVtableRva is not null)
         {
-            CompetitionSquadRules? snapshot;
-            if (pending && state.CommonRules.TryGetValue(code, out var staged)) snapshot = staged;
-            else
+            var ruleCodes = session.CompetitionSquadRules.RuleCodes(c).ToArray();
+            if (ruleCodes.Length == 0) ruleCodes = CommonRuleLabels.Keys.ToArray();
+            var variantsByCode = session.CompetitionSquadRules.ReadVariants(c)
+                .GroupBy(variant => variant.Code).ToDictionary(group => group.Key, group => group.ToArray());
+            foreach (int code in ruleCodes)
             {
-                snapshot = session.CompetitionSquadRules.ReadRule(c, code, null, peers);
-                if (snapshot is not null) state.CommonRules[code] = snapshot; else state.CommonRules.Remove(code);
-            }
-            string label = RuleLabel(code, snapshot?.IsMinimum);
-            if (snapshot is not null)
-            {
-                commonRuleFields.Add((code, label, snapshot, Field(draft.CommonRules?.GetValueOrDefault(code) ?? snapshot.MaximumSquadSize.ToString(Inv), 116, true)));
-                continue;
-            }
-            // The game can hold several records with the same code (club-type or stage conditions).
-            // Show each one with its condition instead of silently picking the first.
-            if (variantsByCode.TryGetValue(code, out var variants) && variants.Length > 0)
-            {
-                foreach (var variant in variants)
+                CompetitionSquadRules? snapshot;
+                if (pending && state.CommonRules.TryGetValue(code, out var staged)) snapshot = staged;
+                else
                 {
-                    string variantLabel = RuleLabel(code, variant.IsMinimum);
-                    if (variant.Condition.Length > 0) variantLabel += " — " + ConditionLabel(variant.Condition);
-                    var variantBox = Field(variant.Value.ToString(Inv), 116, true);
-                    variantBox.IsReadOnly = true;
-                    ToolTip.SetTip(variantBox, Loc.S(variant.Condition.Length > 0
-                        ? "Read-only: conditional variant; the game keeps more than one value for this rule."
-                        : "Read-only: the game has no single validated value for this rule."));
-                    commonRuleFields.Add((code, variantLabel, null, variantBox));
+                    snapshot = session.CompetitionSquadRules.ReadRule(c, code, null, peers);
+                    if (snapshot is not null) state.CommonRules[code] = snapshot; else state.CommonRules.Remove(code);
                 }
-                continue;
+                string label = RuleLabel(code, snapshot?.IsMinimum);
+                if (snapshot is not null)
+                {
+                    commonRuleFields.Add((code, label, snapshot, Field(draft.CommonRules?.GetValueOrDefault(code) ?? snapshot.MaximumSquadSize.ToString(Inv), 116, true)));
+                    continue;
+                }
+                // The game can hold several records with the same code (club-type or stage conditions).
+                // Show each one with its condition instead of silently picking the first.
+                if (variantsByCode.TryGetValue(code, out var variants) && variants.Length > 0)
+                {
+                    foreach (var variant in variants)
+                    {
+                        string variantLabel = RuleLabel(code, variant.IsMinimum);
+                        if (variant.Condition.Length > 0) variantLabel += " — " + ConditionLabel(variant.Condition);
+                        var variantBox = Field(variant.Value.ToString(Inv), 116, true);
+                        variantBox.IsReadOnly = true;
+                        ToolTip.SetTip(variantBox, Loc.S(variant.Condition.Length > 0
+                            ? "Read-only: conditional variant; the game keeps more than one value for this rule."
+                            : "Read-only: the game has no single validated value for this rule."));
+                        commonRuleFields.Add((code, variantLabel, null, variantBox));
+                    }
+                    continue;
+                }
+                var primary = session.CompetitionSquadRules.ReadPrimaryValue(c, code);
+                if (primary is not { } value) continue;
+                var readOnly = Field(value.ToString(Inv), 116, true);
+                readOnly.IsReadOnly = true;
+                ToolTip.SetTip(readOnly, Loc.S("Read-only: the game has no single validated value for this rule."));
+                commonRuleFields.Add((code, label, null, readOnly));
             }
-            var primary = session.CompetitionSquadRules.ReadPrimaryValue(c, code);
-            if (primary is not { } value) continue;
-            var readOnly = Field(value.ToString(Inv), 116, true);
-            readOnly.IsReadOnly = true;
-            ToolTip.SetTip(readOnly, Loc.S("Read-only: the game has no single validated value for this rule."));
-            commonRuleFields.Add((code, label, null, readOnly));
-        }
-        // A competition with no explicit maximum rule can still carry one in the fallback structure. Keep the old
-        // "Maximum squad size" field for those, rather than silently dropping it from the generic list.
-        if (commonRuleFields.All(item => item.Code != 0x09) &&
-            session.CompetitionSquadRules.Read(c, peers) is { } fallbackMaximum)
-        {
-            state.CommonRules[0x09] = fallbackMaximum;
-            commonRuleFields.Add((0x09, RuleLabel(0x09, false), fallbackMaximum,
-                Field(draft.CommonRules?.GetValueOrDefault(0x09) ?? fallbackMaximum.MaximumSquadSize.ToString(Inv), 116, true)));
+            // A competition with no explicit maximum rule can still carry one in the fallback structure. Keep the old
+            // "Maximum squad size" field for those, rather than silently dropping it from the generic list.
+            if (commonRuleFields.All(item => item.Code != 0x09) &&
+                session.CompetitionSquadRules.Read(c, peers) is { } fallbackMaximum)
+            {
+                state.CommonRules[0x09] = fallbackMaximum;
+                commonRuleFields.Add((0x09, RuleLabel(0x09, false), fallbackMaximum,
+                    Field(draft.CommonRules?.GetValueOrDefault(0x09) ?? fallbackMaximum.MaximumSquadSize.ToString(Inv), 116, true)));
+            }
         }
         var varOptions = new List<SubstitutionOption> { new(1, Loc.S("Referee Review")), new(2, Loc.S("Remote Review")), new(3, Loc.S("Referee And/Or Remote Review")), new(4, Loc.S("Unknown VAR Type")), new(5, Loc.S("No VAR")) };
         if (varSettings is not null && varOptions.All(o => o.Value != varSettings.Type)) varOptions.Insert(0, new(varSettings.Type, Loc.F("Value 0x{0:X2}", varSettings.Type)));

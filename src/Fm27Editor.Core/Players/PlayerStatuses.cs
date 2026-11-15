@@ -163,16 +163,26 @@ public sealed class PlayerStatusReader(IProcessMemory memory, OffsetProfile prof
     internal string? PersonName(ulong person, RelationOffsets o)
     {
         if (!Q(person, out ulong vt) || !IsPersonVtable(vt, o)) return null;
-        string? Entry(int at) => Q(person + (ulong)at, out ulong e) && e != 0 ? StringAt(e) : null;
-        if (Entry(o.PersonCommonName) is { Length: > 0 } common) return common;
-        var parts = new[] { Entry(o.PersonFirstName), Entry(o.PersonLastName) }.Where(s => !string.IsNullOrEmpty(s)).ToArray();
-        return parts.Length > 0 ? string.Join(' ', parts) : StringAt(person + (ulong)o.PersonName);
+        string? ReadAt(ulong baseAddress)
+        {
+            string? Entry(int at) => Q(baseAddress + (ulong)at, out ulong e) && e != 0 ? StringAt(e) : null;
+            if (Entry(o.PersonCommonName) is { Length: > 0 } common) return common;
+            var parts = new[] { Entry(o.PersonFirstName), Entry(o.PersonLastName) }.Where(s => !string.IsNullOrEmpty(s)).ToArray();
+            return parts.Length > 0 ? string.Join(' ', parts) : StringAt(baseAddress + (ulong)o.PersonName);
+        }
+        if (profile.Fields.FullName is { } fullName)
+        {
+            long delta = (long)(fullName - o.PlayerPerson) - o.PersonName;
+            if (delta != 0 && (long)person + delta > 0x10000 && ReadAt((ulong)((long)person + delta)) is { Length: > 0 } shifted)
+                return shifted;
+        }
+        return ReadAt(person);
     }
 
     /// <summary>Player persons and every staff class carry their own person vtable; a person target can be any of them.</summary>
     bool IsPersonVtable(ulong vt, RelationOffsets o) =>
         vt == moduleBase + o.PersonVtable || vt == moduleBase + o.StaffPersonVtable ||
-        (profile.Staff?.Kinds.Any(k => vt == moduleBase + k.PersonVtableRva) ?? false);
+        (profile.Staff?.Kinds.Any(k => vt == moduleBase + k.PersonVtableRva || vt == moduleBase + k.StaffVtableRva) ?? false);
 
     ClubInfo? TeamClub(ulong team)
     {

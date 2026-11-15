@@ -180,15 +180,28 @@ static class SteamWrites
                 Expect(Again().Value == offer.Value, "offer value restored");
             });
 
-        Step("preset heal", () => s.Heal(player));
-        Step("preset inspire", () => s.Inspire(player));
-        Step("preset team cohesion", () => s.SetTeamCohesion(player, 100));
-        Step("preset register for UEFA", () => { s.RegisterForUefa(player); });
-        Step("preset register for domestic", () => { s.RegisterForDomestic(player); });
-        Step("preset trained at club", () => { s.TrainedAtCurrentClub(player); });
-        Step("preset trained in nation", () => { s.TrainedInCurrentNation(player); });
-        Step("preset remove int. withdrawal", () => { s.RemoveInternationalWithdrawal(player); });
-        Step("preset tactical understanding", () => s.TacticalUnderstanding(player));
+        void GuardPreset(string name, Action<PlayerRecord> action) => Step(name, () =>
+        {
+            var before = s.Players.Reload(player.Address) ?? throw new InvalidOperationException("player missing before " + name);
+            action(before);
+            var after = s.Players.Reload(player.Address) ?? throw new InvalidOperationException("player missing after " + name);
+            Expect(after.CurrentAbility == before.CurrentAbility, $"{name}: CurrentAbility changed ({before.CurrentAbility} -> {after.CurrentAbility})");
+            Expect(after.PotentialAbility == before.PotentialAbility, $"{name}: PotentialAbility changed ({before.PotentialAbility} -> {after.PotentialAbility})");
+            Expect(after.HomeReputation == before.HomeReputation, $"{name}: HomeReputation changed ({before.HomeReputation} -> {after.HomeReputation})");
+            Expect(after.CurrentReputation == before.CurrentReputation, $"{name}: CurrentReputation changed ({before.CurrentReputation} -> {after.CurrentReputation})");
+            Expect(after.WorldReputation == before.WorldReputation, $"{name}: WorldReputation changed ({before.WorldReputation} -> {after.WorldReputation})");
+            Expect(after.FirstName == before.FirstName && after.LastName == before.LastName, $"{name}: Name changed");
+        });
+
+        GuardPreset("preset heal", p => s.Heal(p));
+        GuardPreset("preset inspire", p => s.Inspire(p));
+        GuardPreset("preset team cohesion", p => s.SetTeamCohesion(p, 100));
+        GuardPreset("preset register for UEFA", p => { s.RegisterForUefa(p); });
+        GuardPreset("preset register for domestic", p => { s.RegisterForDomestic(p); });
+        GuardPreset("preset trained at club", p => { s.TrainedAtCurrentClub(p); });
+        GuardPreset("preset trained in nation", p => { s.TrainedInCurrentNation(p); });
+        GuardPreset("preset remove int. withdrawal", p => { s.RemoveInternationalWithdrawal(p); });
+        GuardPreset("preset tactical understanding", p => s.TacticalUnderstanding(p));
         Step("squad preset: players without registration", () => { _ = s.PlayersWithoutRegistration(club.FirstTeam!.Address, RegistrationKind.Uefa); });
 
         Console.WriteLine(failed == 0 ? "all steps passed" : $"{failed} step(s) failed");

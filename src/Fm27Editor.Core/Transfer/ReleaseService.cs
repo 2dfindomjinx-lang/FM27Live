@@ -139,8 +139,7 @@ public sealed class ReleaseService(IProcessMemory memory, OffsetProfile profile,
         var managers = new List<ManagedClubSnapshot>();
         foreach (var manager in people)
         {
-            if (!S.Kinds.Contains(manager.Kind) || memory.ReadUInt64(manager.Address) != moduleBase + manager.Kind.PersonVtableRva ||
-                memory.ReadUInt64(manager.StaffAddress) != moduleBase + manager.Kind.StaffVtableRva ||
+            if (!S.Kinds.Contains(manager.Kind) || !StaffIdentity.IsCurrent(manager, memory, moduleBase, S) ||
                 BitConverter.ToInt32(memory.Read(manager.Address + (ulong)S.Id, 4)) != manager.Id)
                 throw new StaleObjectException("Human manager changed");
             ulong contract = memory.ReadUInt64(manager.Address + (ulong)S.Job), club = 0;

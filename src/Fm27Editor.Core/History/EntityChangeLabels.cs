@@ -8,19 +8,9 @@ namespace Fm27Editor.Core.History;
 /// <summary>Names the bytes of a club or competition for the edit history, from the profile's own offsets.</summary>
 public static class EntityChangeLabels
 {
-    public static Func<ulong, int, ChangeLabel?> ForReferee(ulong referee)
+    public static Func<ulong, int, ChangeLabel?> ForReferee(ulong referee, OfficialsOffsets? offsets = null)
     {
-        var fields = new (int Offset, string Name)[]
-        {
-            (RefereeDirectory.CurrentAbility, "Current Ability"), (RefereeDirectory.PotentialAbility, "Potential Ability"),
-            (RefereeDirectory.Reputation, "Reputation"), (RefereeDirectory.AllowingFlow, "Allowing Flow"),
-            (RefereeDirectory.Discipline, "Discipline"), (RefereeDirectory.ImportantMatches, "Important Matches"),
-            (RefereeDirectory.Pressure, "Pressure"), (RefereeDirectory.Refereeing, "Refereeing"),
-            (RefereeDirectory.RunningLine, "Running Line"), (RefereeDirectory.TimeKeeping, "Time Keeping"),
-            (RefereeDirectory.EliteList, "Elite List"), (RefereeDirectory.Continental, "Continental"),
-            (RefereeDirectory.EuropeanCategory, "European Category"),
-        };
-        var map = fields.ToDictionary(x => referee + (ulong)x.Offset, x => new ChangeLabel(x.Name));
+        var map = RefereeDirectory.FieldOffsets(offsets).ToDictionary(x => referee + (ulong)x.Offset, x => new ChangeLabel(x.Name));
         return (address, _) => map.GetValueOrDefault(address);
     }
     /// <summary>

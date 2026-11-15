@@ -9,10 +9,41 @@ public interface IProcessMemory
     bool TryWrite(ulong address, ReadOnlySpan<byte> data);
 }
 
-/// <summary>Optional enumeration of writable regions for read-only discovery; callers must not infer unmapped bytes from omissions.</summary>
+/// <summary>Optional bounded pipelining of independent read-only requests. Each destination must hold 1–32 bytes;
+/// <c>succeeded</c> must have exactly one flag per request, including requests for duplicate addresses.</summary>
+public interface IScatterReadMemory
+{
+    void ReadMany(IReadOnlyList<MemoryReadRequest> requests, Span<bool> succeeded);
+}
+
+public readonly record struct MemoryReadRequest(ulong Address, Memory<byte> Destination);
+
+/// <summary>Optional capability: a memory whose committed writable pages can be enumerated for a heap scan.</summary>
 public interface IMemoryRegions
 {
+    /// <summary>Committed regions that are writable data: private heap pages and, inside
+    /// [imageStart, imageEnd), writable image pages (a module's static data).</summary>
     IEnumerable<MemoryRegion> EnumerateWritableRegions(ulong imageStart = 0, ulong imageEnd = 0);
+}
+
+/// <summary>Optional capability: a memory that can hand out fresh blocks inside the process.</summary>
+public interface IRemoteAllocator
+{
+    /// <summary>False when the process was opened read-only.</summary>
+    bool CanWrite { get; }
+
+    /// <summary>Fresh zeroed read/write memory inside the process.</summary>
+    ulong Allocate(int bytes);
+}
+
+/// <summary>Optional capability: tells a listener about writes and fresh blocks, so an edit history can follow them.</summary>
+public interface IMemoryWriteObserver
+{
+    /// <summary>Called after every successful write with the address, the bytes that were there and the bytes written.</summary>
+    Action<ulong, byte[], byte[]>? OnWrite { get; set; }
+
+    /// <summary>Called with the address and size of each fresh block.</summary>
+    Action<ulong, int>? OnAllocate { get; set; }
 }
 
 public static class ProcessMemoryExtensions

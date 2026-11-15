@@ -34,10 +34,10 @@ public sealed class CompetitionNameIndex(IProcessMemory memory, OffsetProfile pr
     Dictionary<int, string> Scan()
     {
         var found = new Dictionary<int, string>();
-        if (memory is not WindowsProcessMemory windows || profile.Competition?.VtableRva is not { } vtableRva) return found;
+        if (memory is not IMemoryRegions regions || profile.Competition?.VtableRva is not { } vtableRva) return found;
         ulong wanted = moduleBase + vtableRva;
         var buffer = new byte[1 << 22];
-        foreach (var region in windows.EnumerateWritableRegions())
+        foreach (var region in regions.EnumerateWritableRegions())
         {
             if (region.IsModuleData) continue;
             for (ulong offset = 0; offset + 8 <= region.Size; offset += (ulong)buffer.Length)

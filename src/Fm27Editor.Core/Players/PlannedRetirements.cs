@@ -82,7 +82,7 @@ public sealed class PlannedRetirements(IProcessMemory memory, OffsetProfile prof
             !profile.PlayerVtableRvas.Contains(player.VtableRva) ||
             BitConverter.ToInt32(memory.Read(player.Address + (ulong)offset, 4)) != player.Id)
             throw new StaleObjectException("Player changed since it was read");
-        return BitConverter.ToUInt32(memory.Read(player.Address + 0x290, 4));
+        return BitConverter.ToUInt32(memory.Read(player.Address + (ulong)WorkPermitTable.PersonIndexFor(profile), 4));
     }
 
     static (ulong Begin, int Count) Header(byte[] bytes, int width)

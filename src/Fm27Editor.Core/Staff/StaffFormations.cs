@@ -22,9 +22,7 @@ public sealed class StaffFormations(IProcessMemory memory, OffsetProfile profile
     int Offset => profile.Staff?.Formations ?? throw new InvalidOperationException("Staff formations are unavailable for this build");
     void RequireStaff(StaffRecord staff)
     {
-        if (staff.Address != staff.StaffAddress + (ulong)staff.Kind.StaffPart ||
-            memory.ReadUInt64(staff.Address) != moduleBase + staff.Kind.PersonVtableRva ||
-            memory.ReadUInt64(staff.StaffAddress) != moduleBase + staff.Kind.StaffVtableRva)
+        if (!StaffIdentity.IsCurrent(staff, memory, moduleBase, profile.Staff ?? throw new InvalidOperationException("Staff profile is unavailable")))
             throw new StaleObjectException("Staff record changed");
     }
     public byte[] Read(StaffRecord staff)

@@ -41,9 +41,7 @@ public sealed class StaffTendencies(IProcessMemory memory, OffsetProfile profile
     int HolderOffset => profile.Staff?.TendenciesHolder ?? throw new InvalidOperationException("Staff tendencies are unavailable for this build");
     void RequireStaff(StaffRecord s)
     {
-        if (s.Address != s.StaffAddress + (ulong)s.Kind.StaffPart ||
-            memory.ReadUInt64(s.Address) != moduleBase + s.Kind.PersonVtableRva ||
-            memory.ReadUInt64(s.StaffAddress) != moduleBase + s.Kind.StaffVtableRva)
+        if (!StaffIdentity.IsCurrent(s, memory, moduleBase, profile.Staff ?? throw new InvalidOperationException("Staff profile is unavailable")))
             throw new StaleObjectException("Staff record changed");
     }
     public IReadOnlyList<StaffTendency> Read(StaffRecord s)

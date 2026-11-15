@@ -49,14 +49,18 @@ public sealed class NationRepository(IProcessMemory memory, OffsetProfile profil
         try
         {
             ulong root = memory.ReadUInt64(moduleBase + rva);
-            ulong begin = root == 0 ? 0 : memory.ReadUInt64(root + (ulong)off), end = root == 0 ? 0 : memory.ReadUInt64(root + (ulong)off + 8);
+            // Some builds (Mac 27.0.1) keep the vector behind one more pointer inside the holder (listObjectOffset).
+            ulong holder = root == 0 ? 0 : n.ListObjectOffset is { } objectOffset ? memory.ReadUInt64(root + (ulong)objectOffset) : root;
+            ulong begin = holder == 0 ? 0 : memory.ReadUInt64(holder + (ulong)off), end = holder == 0 ? 0 : memory.ReadUInt64(holder + (ulong)off + 8);
             if (begin != 0 && end >= begin && (end - begin) % 8 == 0 && (end - begin) / 8 <= MaxNations)
             {
                 var raw = memory.Read(begin, (int)(end - begin));
                 var pointers = new ulong[raw.Length / 8];
                 Buffer.BlockCopy(raw, 0, pointers, 0, raw.Length);
                 var list = ReadPointers(pointers);
-                if (list.Count > 0) return list;
+                // A stale slot can lead to a vector of unrelated objects; accept only a list where nearly every
+                // pointer is a nation, so a single accidental nation cannot masquerade as the list.
+                if (list.Count > 0 && list.Count * 2 >= pointers.Length) return list;
             }
         }
         catch (MemoryAccessException) { }
@@ -77,7 +81,14 @@ public sealed class NationRepository(IProcessMemory memory, OffsetProfile profil
             if ((long)configuredRva + delta < 0) continue;
             if (!memory.TryRead(moduleBase + (ulong)((long)configuredRva + delta), pointer)) continue;
             ulong holder = BitConverter.ToUInt64(pointer);
-            if (holder == 0 || !memory.TryRead(holder, holderBytes)) continue;
+            if (holder == 0) continue;
+            if (N.ListObjectOffset is { } objectOffset)
+            {
+                if (!memory.TryRead(holder + (ulong)objectOffset, pointer)) continue;
+                holder = BitConverter.ToUInt64(pointer);
+                if (holder == 0) continue;
+            }
+            if (!memory.TryRead(holder, holderBytes)) continue;
             for (int off = 0; off + 24 <= holderBytes.Length; off += 8)
             {
                 ulong begin = BitConverter.ToUInt64(holderBytes, off), end = BitConverter.ToUInt64(holderBytes, off + 8), cap = BitConverter.ToUInt64(holderBytes, off + 16);

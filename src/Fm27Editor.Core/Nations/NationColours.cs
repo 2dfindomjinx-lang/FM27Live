@@ -30,10 +30,12 @@ public sealed class NationColourAccess(IProcessMemory memory, OffsetProfile prof
 {
     public const int TeamPointer = 0x108, DetailPointer = 0xB0, Foreground = 0xA0, Background = 0xA8;
 
+    int TeamOffset => profile.Nation?.Preferences?.Team ?? profile.Nation?.Teams?.Pointer ?? TeamPointer;
+
     public NationColours? Read(ulong nation)
     {
         if (!IsNation(nation)) return null;
-        ulong team = memory.ReadUInt64(nation + TeamPointer);
+        ulong team = memory.ReadUInt64(nation + (ulong)TeamOffset);
         if (!IsTeam(team)) return null;
         ulong detail = memory.ReadUInt64(team + DetailPointer);
         if (detail == 0) return null;
@@ -45,7 +47,7 @@ public sealed class NationColourAccess(IProcessMemory memory, OffsetProfile prof
     public void Set(ulong nation, NationColours snapshot, bool background, uint bgra)
     {
         if (!IsNation(nation)) throw new StaleObjectException("The nation changed since it was read");
-        ulong team = memory.ReadUInt64(nation + TeamPointer);
+        ulong team = memory.ReadUInt64(nation + (ulong)TeamOffset);
         if (team != snapshot.Team || !IsTeam(team))
             throw new StaleObjectException("The national team changed since it was read");
         ulong detail = memory.ReadUInt64(team + DetailPointer);

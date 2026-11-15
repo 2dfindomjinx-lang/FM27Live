@@ -22,8 +22,9 @@ public sealed class NationEuroCoefficients(IProcessMemory memory, OffsetProfile 
         if (!IsNation(nationAddress)) return [];
         ulong team = memory.ReadUInt64(nationAddress + (ulong)l.Team);
         if (team == 0 || memory.ReadUInt64(team) != moduleBase + l.TeamVtable) return [];
-        ulong begin = memory.ReadUInt64(team + Vector), end = memory.ReadUInt64(team + Vector + 8),
-            capacity = memory.ReadUInt64(team + Vector + 16);
+        int vector = l.EuroCoefficients;
+        ulong begin = memory.ReadUInt64(team + (ulong)vector), end = memory.ReadUInt64(team + (ulong)vector + 8),
+            capacity = memory.ReadUInt64(team + (ulong)vector + 16);
         if (begin == 0 || end < begin || capacity < end || (end - begin) % 4 != 0
             || (capacity - begin) % 4 != 0 || (end - begin) / 4 > 32) return [];
         int count = (int)(end - begin) / 4;

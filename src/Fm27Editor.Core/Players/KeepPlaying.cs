@@ -26,7 +26,7 @@ public sealed class KeepPlayingWriter(IProcessMemory memory, OffsetProfile profi
             new(state.Manager, BitConverter.GetBytes(moduleBase + reader.ManagerVtable), "retirement manager"),
             new(state.Manager + 0x30, state.ListHeader, "retirement list header"),
             new(state.Manager + 0x90, state.IndexHeader, "retirement index header"),
-            new(player.Address + 0x290, BitConverter.GetBytes(person), "player person id"),
+            new(player.Address + (ulong)WorkPermitTable.PersonIndexFor(profile), BitConverter.GetBytes(person), "player person id"),
         };
         if (state.Pointers.Length > 0)
         {

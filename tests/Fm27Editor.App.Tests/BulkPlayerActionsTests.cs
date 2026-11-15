@@ -1,4 +1,9 @@
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Headless;
+using Avalonia.Input;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
 using Fm27Editor.Core.History;
 using Fm27Editor.Core.Players;
 
@@ -125,6 +130,81 @@ public sealed class BulkPlayerActionsTests
             grid.SelectedItem = r2;
             var fallback = MainWindow.SelectedPlayersFrom(grid, item => (item as RetiringPlayer)?.Player);
             Assert.Equal([0x2000UL], fallback.Select(p => p.Address));
+        });
+    }
+
+    [Fact]
+    public void ToolGrid_drag_selects_range_even_when_pointer_is_captured_by_start_row_and_syncs_ticks()
+    {
+        AvaloniaTestThread.Run(() =>
+        {
+            var r0 = Player(0x1000, "Row 0");
+            var r1 = Player(0x2000, "Row 1");
+            var r2 = Player(0x3000, "Row 2");
+            var r3 = Player(0x4000, "Row 3");
+            PlayerRecord[] rows = [r0, r1, r2, r3];
+
+            var grid = ToolGrid.Create();
+            var excluded = new HashSet<ulong>();
+            int tickChanges = 0;
+            ToolGrid.AddTick<PlayerRecord>(grid, excluded, r => r.Address, () => rows, () => tickChanges++);
+            grid.Columns.Add(ToolGrid.Text<PlayerRecord>("Name", r => r.DisplayName, 160, "Name"));
+            ToolGrid.SetItems(grid, rows);
+
+            var window = new Window { Width = 400, Height = 300, Content = grid };
+            window.Show();
+            try
+            {
+                Dispatcher.UIThread.RunJobs();
+                var realized = grid.GetVisualDescendants()
+                    .OfType<DataGridRow>()
+                    .Where(r => r.IsVisible && r.DataContext is PlayerRecord)
+                    .OrderBy(r => r.Index)
+                    .ToList();
+                Assert.True(realized.Count >= 4);
+
+                Point CenterInWindow(DataGridRow r) => r.TranslatePoint(new Point(120, r.Bounds.Height / 2), window)!.Value;
+                var p0 = CenterInWindow(realized[0]);
+                var p1 = CenterInWindow(realized[1]);
+                var p2 = CenterInWindow(realized[2]);
+
+                var startVisual = realized[0].GetVisualDescendants().OfType<TextBlock>().First();
+                var pointer = new Avalonia.Input.Pointer(Avalonia.Input.Pointer.GetNextFreeId(), PointerType.Mouse, true);
+                var downProps = new PointerPointProperties(RawInputModifiers.LeftMouseButton, PointerUpdateKind.LeftButtonPressed);
+                var moveProps = new PointerPointProperties(RawInputModifiers.LeftMouseButton, PointerUpdateKind.Other);
+                var upProps = new PointerPointProperties(RawInputModifiers.None, PointerUpdateKind.LeftButtonReleased);
+
+                // Keep e.Source stuck on row 0 (simulating pointer capture) while moving across rows 1 and 2.
+                startVisual.RaiseEvent(new PointerPressedEventArgs(startVisual, pointer, window, p0, 1, downProps, KeyModifiers.None, 1));
+                startVisual.RaiseEvent(new PointerEventArgs(InputElement.PointerMovedEvent, startVisual, pointer, window, p1, 2, moveProps, KeyModifiers.None));
+                startVisual.RaiseEvent(new PointerEventArgs(InputElement.PointerMovedEvent, startVisual, pointer, window, p2, 3, moveProps, KeyModifiers.None));
+                startVisual.RaiseEvent(new PointerReleasedEventArgs(startVisual, pointer, window, p2, 4, upProps, KeyModifiers.None, MouseButton.Left));
+
+                Assert.Equal([0x1000UL, 0x2000UL, 0x3000UL], grid.SelectedItems.OfType<PlayerRecord>().Select(p => p.Address));
+                Assert.True(tickChanges > 0);
+                Assert.DoesNotContain(0x1000UL, excluded);
+                Assert.DoesNotContain(0x2000UL, excluded);
+                Assert.DoesNotContain(0x3000UL, excluded);
+                Assert.Contains(0x4000UL, excluded);
+
+                // Dragging back up to row 1 shrinks the selected span to [r0, r1].
+                startVisual.RaiseEvent(new PointerPressedEventArgs(startVisual, pointer, window, p0, 5, downProps, KeyModifiers.None, 1));
+                startVisual.RaiseEvent(new PointerEventArgs(InputElement.PointerMovedEvent, startVisual, pointer, window, p2, 6, moveProps, KeyModifiers.None));
+                startVisual.RaiseEvent(new PointerEventArgs(InputElement.PointerMovedEvent, startVisual, pointer, window, p1, 7, moveProps, KeyModifiers.None));
+                startVisual.RaiseEvent(new PointerReleasedEventArgs(startVisual, pointer, window, p1, 8, upProps, KeyModifiers.None, MouseButton.Left));
+                Assert.Equal([0x1000UL, 0x2000UL], grid.SelectedItems.OfType<PlayerRecord>().Select(p => p.Address));
+
+                if (!OperatingSystem.IsWindows())
+                {
+                    // End-to-end headless input through Avalonia's real pointer-capture pipeline.
+                    window.MouseDown(p0, MouseButton.Left, RawInputModifiers.None);
+                    window.MouseMove(p1, RawInputModifiers.LeftMouseButton);
+                    window.MouseMove(p2, RawInputModifiers.LeftMouseButton);
+                    window.MouseUp(p2, MouseButton.Left, RawInputModifiers.None);
+                    Assert.Equal([0x1000UL, 0x2000UL, 0x3000UL], grid.SelectedItems.OfType<PlayerRecord>().Select(p => p.Address));
+                }
+            }
+            finally { window.Close(); }
         });
     }
 }

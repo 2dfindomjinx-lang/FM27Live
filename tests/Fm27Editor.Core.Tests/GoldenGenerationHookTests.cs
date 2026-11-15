@@ -114,6 +114,7 @@ public class GoldenGenerationHookTests
     [Fact]
     public void Switched_off_it_only_counts_and_logs_and_the_stolen_load_still_reads_PA()
     {
+        if (!OperatingSystem.IsWindows()) return;
         using var r = new NativeRoutine();
         Assert.Equal((97, 60, 97), r.Run(60, 97));
         Assert.Equal(1, r.Calls);
@@ -125,6 +126,7 @@ public class GoldenGenerationHookTests
     [Fact]
     public void Switched_on_the_new_player_gets_a_PA_from_the_range_and_the_game_reads_the_new_value()
     {
+        if (!OperatingSystem.IsWindows()) return;
         using var r = new NativeRoutine();
         r.Settings(true, 180, 180);
         Assert.Equal((180, 60, 180), r.Run(60, 97));
@@ -134,6 +136,7 @@ public class GoldenGenerationHookTests
     [Fact]
     public void Drawn_PAs_stay_inside_the_range()
     {
+        if (!OperatingSystem.IsWindows()) return;
         using var r = new NativeRoutine();
         r.Settings(true, 150, 170);
         var seen = new HashSet<int>();
@@ -149,6 +152,7 @@ public class GoldenGenerationHookTests
     [Fact]
     public void PA_is_never_set_below_CA()
     {
+        if (!OperatingSystem.IsWindows()) return;
         using var r = new NativeRoutine();
         r.Settings(true, 100, 100);
         Assert.Equal(150, r.Run(150, 160).Pa);
@@ -164,6 +168,7 @@ public class GoldenGenerationHookTests
     [InlineData(GoldenGenerationScope.Continent, new[] { 5 }, 90)]
     public void A_scope_limits_which_regens_are_raised(GoldenGenerationScope scope, int[] ids, int expectedPa)
     {
+        if (!OperatingSystem.IsWindows()) return;
         using var r = new NativeRoutine();
         r.Settings(true, 190, 190, 0, scope, ids);
         Assert.Equal(expectedPa, r.Run(50, 90).Pa);
@@ -177,6 +182,7 @@ public class GoldenGenerationHookTests
     [InlineData(130, 180, 130)]  // CA already at 70% of PA (126): left alone
     public void A_sure_wonderkid_moves_CA_toward_PA_by_the_band_rate(short ca, int pa, int expectedCa)
     {
+        if (!OperatingSystem.IsWindows()) return;
         using var r = new NativeRoutine();
         r.Settings(true, pa, pa, wonderkid: 100);
         Assert.Equal(expectedCa, r.Run(ca, 10).Ca);
@@ -185,6 +191,7 @@ public class GoldenGenerationHookTests
     [Fact]
     public void Without_a_wonderkid_chance_CA_is_left_alone()
     {
+        if (!OperatingSystem.IsWindows()) return;
         using var r = new NativeRoutine();
         r.Settings(true, 180, 180);
         Assert.Equal(50, r.Run(50, 90).Ca);

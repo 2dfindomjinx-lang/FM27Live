@@ -49,7 +49,7 @@ public sealed partial class MainWindow
         string PersonName(int index) => index < 0 ? "" : PersonNames().TryGetValue((uint)index, out var n) ? n : Loc.F("Person {0}", index);
         // The person who made the promise is usually a manager, but the game also makes some on a player's own behalf (Bruno Fernandes shows himself).
         string ManagerName(ulong person) => Staff().FirstOrDefault(s => s.Address == person)?.DisplayName
-            ?? AllPlayers().FirstOrDefault(p => p.Address + (ulong)(session.Profile.Relations?.PlayerPerson ?? 0x288) == person)?.DisplayName ?? "";
+            ?? AllPlayers().FirstOrDefault(p => PersonAddressOf(session, p) == person)?.DisplayName ?? "";
 
         bool Pending(PromiseEditor e)
         {
@@ -166,7 +166,7 @@ public sealed partial class MainWindow
             if (manager == 0 || team == 0) { status.Text = Loc.F("{0} has no club manager to make the promise", player.DisplayName); return; }
             if (session.ReadGameDate() is not { } today) { status.Text = Loc.S("The game date could not be read"); return; }
             var values = new PromiseValues(1, today, today.AddDays(91), -1, 0);
-            Change(() => store.Add(owner, manager, team, values, session.Process.Allocate),
+            Change(() => store.Add(owner, manager, team, values, ((Fm27Editor.Core.Memory.IRemoteAllocator)session.Memory).Allocate),
                 Loc.S("Added a promise. Its record lives outside the game's allocator; keep a backup of the save. Continue in FM to see updates."));
         };
         panel.Children.Add(add);
@@ -204,10 +204,13 @@ public sealed partial class MainWindow
         using var reads = new BulkReadScope(session.Memory);
         var store = new PromiseStore(reads.Memory, session.Profile, session.ModuleBase);
         var names = new Dictionary<uint, string>();
-        foreach (var p in AllPlayers()) names[p.PersonIndex is { } index ? (uint)index : store.PersonIndex(p.Address + (ulong)(session.Profile.Relations?.PlayerPerson ?? 0x288))] = $"{p.DisplayName} ({p.ClubName})";
-        foreach (var s in backend.Data?.Staff ?? (unifiedStaff.Count > 0 ? unifiedStaff : unifiedStaff = session.Staff.LoadAll())) names[s.PersonIndex is { } index ? (uint)index : store.PersonIndex(s.Address)] = $"{s.DisplayName} ({s.Club?.DisplayName})";
+        foreach (var p in AllPlayers()) names[p.PersonIndex is { } pix ? (uint)pix : store.PersonIndex(PersonAddressOf(session, p))] = $"{p.DisplayName} ({p.ClubName})";
+        foreach (var s in backend.Data?.Staff ?? (unifiedStaff.Count > 0 ? unifiedStaff : unifiedStaff = session.Staff.LoadAll())) names[s.PersonIndex is { } pix ? (uint)pix : store.PersonIndex(s.Address)] = $"{s.DisplayName} ({s.Club?.DisplayName})";
         return personNames = names;
     }
+
+    static ulong PersonAddressOf(Fm27Editor.Core.Game.GameSession session, PlayerRecord player) =>
+        player.Address + (ulong)WorkPermitTable.PersonPartFor(session.Profile);
 
     static string Day(DateOnly? d) => DateSetting.Format(d);
 

@@ -12,7 +12,7 @@ namespace Fm27Editor.Core.Players;
 /// </summary>
 public sealed class FutureTransferRemover(IProcessMemory memory, OffsetProfile profile, ulong moduleBase)
 {
-    const int ChangedFlag = 0x50, MaxOffers = 100_000, MaxPlayerOffers = 100;
+    const int MaxOffers = 100_000, MaxPlayerOffers = 100;
 
     public sealed record Plan(PlayerRecord Player, FutureTransfer Transfer, IReadOnlyList<PlannedWrite> Guards, IReadOnlyList<PlannedWrite> Writes);
 
@@ -60,7 +60,7 @@ public sealed class FutureTransferRemover(IProcessMemory memory, OffsetProfile p
         writes.AddRange(ids.RemoveAt(memory, ids.IndexOf(IsId)));
         writes.AddRange(links.RemoveAt(memory, links.IndexOf(IsLink)));
         foreach (var v in new[] { offers, dates, ids, links }) guards.AddRange(v.Guards);
-        writes.Add(new(root + ChangedFlag, memory.Read(root + ChangedFlag, 1), [1], "offer changed flag"));
+        if (po.ChangedFlag is { } cf) writes.Add(new(root + (ulong)cf, memory.Read(root + (ulong)cf, 1), [1], "offer changed flag"));
         return new(player, transfer, guards, writes);
     }
 

@@ -36,7 +36,7 @@ internal sealed class RefereeScreen(IScreenHost host)
     protected override RefereeRecord RecordOf(RefereeRow row) => row.Referee;
     protected override ulong AddressOf(RefereeRecord r) => r.Address;
     protected override string NameOf(RefereeRecord r) => r.DisplayName;
-    protected override Func<ulong, int, ChangeLabel?>? LabelsOf(RefereeRecord r) => EntityChangeLabels.ForReferee(r.Address);
+    protected override Func<ulong, int, ChangeLabel?>? LabelsOf(RefereeRecord r) => EntityChangeLabels.ForReferee(r.Address, Host.Backend.Session.Profile.Officials);
     protected override Dictionary<RefereeField, string> NewDraft() => [];
     protected override bool HasChanges(RefereeRecord r, Dictionary<RefereeField, string> d) => d.Count != 0;
     protected override RefereeRecord? Reload(RefereeRecord r) => Host.Backend.Session.Referees.Read(r.Address);

@@ -27,24 +27,58 @@ sealed class GraphicsCatalog
     static string SettingsPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Fm27Editor", "graphics.json");
     public string? Folder { get; private set; }
 
+    static IEnumerable<string> DefaultCandidateFolders()
+    {
+        var docs = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+        yield return Path.Combine(docs, "Sports Interactive", "Football Manager 2027", "graphics");
+        yield return Path.Combine(docs, "Sports Interactive", "Football Manager 27", "graphics");
+        if (OperatingSystem.IsMacOS())
+        {
+            var appSupport = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Library", "Application Support");
+            yield return Path.Combine(appSupport, "Sports Interactive", "Football Manager 2027", "graphics");
+            yield return Path.Combine(appSupport, "Sports Interactive", "Football Manager 27", "graphics");
+        }
+    }
+
+    static string? ExistingStartDirectory()
+    {
+        foreach (var candidate in DefaultCandidateFolders())
+            for (var dir = candidate; !string.IsNullOrEmpty(dir); dir = Path.GetDirectoryName(dir))
+                if (Directory.Exists(dir)) return dir;
+        return null;
+    }
+
     public GraphicsCatalog()
     {
         try { if (File.Exists(SettingsPath)) Folder = JsonSerializer.Deserialize<string>(File.ReadAllText(SettingsPath)); } catch (Exception) { }
         if (string.IsNullOrWhiteSpace(Folder))
         {
-            var defaultFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Sports Interactive", "Football Manager 27", "graphics");
-            try
+            foreach (var defaultFolder in DefaultCandidateFolders())
             {
-                if (Directory.Exists(defaultFolder) && Directory.EnumerateFileSystemEntries(defaultFolder).Any())
-                    Folder = defaultFolder;
+                try
+                {
+                    if (Directory.Exists(defaultFolder) && Directory.EnumerateFileSystemEntries(defaultFolder).Any())
+                    {
+                        Folder = defaultFolder;
+                        break;
+                    }
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
             }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
         }
     }
 
     public async Task<bool> ChooseAsync(Window owner)
     {
-        var folders = await owner.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions { Title = Loc.S("Graphics folder"), AllowMultiple = false });
+        IStorageFolder? startLocation = null;
+        if (ExistingStartDirectory() is { } startPath)
+            startLocation = await owner.StorageProvider.TryGetFolderFromPathAsync(startPath);
+        var folders = await owner.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        {
+            Title = Loc.S("Graphics folder"),
+            AllowMultiple = false,
+            SuggestedStartLocation = startLocation,
+        });
         var path = folders.FirstOrDefault()?.TryGetLocalPath();
         if (string.IsNullOrEmpty(path)) return false;
         Folder = Path.GetFullPath(path);

@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 namespace Fm27Editor.Core.Memory;
 
 /// <summary>ReadProcessMemory / WriteProcessMemory on an opened process handle.</summary>
-public sealed partial class WindowsProcessMemory : IProcessMemory, IMemoryRegions, IDisposable
+public sealed partial class WindowsProcessMemory : IProcessMemory, IMemoryRegions, IRemoteAllocator, IMemoryWriteObserver, IDisposable
 {
     const uint QueryInformation = 0x0400, VmRead = 0x0010, VmWrite = 0x0020, VmOperation = 0x0008;
 

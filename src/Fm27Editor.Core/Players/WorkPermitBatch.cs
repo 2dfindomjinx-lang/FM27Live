@@ -58,7 +58,7 @@ public static class WorkPermitBatch
             try
             {
                 RequirePlayer(memory, profile, moduleBase, p);
-                person = PersonIndex(memory, p);
+                person = PersonIndex(memory, profile, p);
             }
             catch (Exception ex) { skipped.Add(new(p.Address, SafeName(p), $"unreadable: {ex.Message}")); continue; }
             if (snapshot.Has(nation, person))
@@ -114,7 +114,7 @@ public static class WorkPermitBatch
             try
             {
                 RequirePlayer(memory, profile, moduleBase, p);
-                person = PersonIndex(memory, p);
+                person = PersonIndex(memory, profile, p);
             }
             catch (Exception ex) { Skip(p, $"player changed since plan: {ex.Message}"); Report(); continue; }
             if (plan.ExpectedPersons is not { } baseline || !baseline.TryGetValue(p.Address, out int was))
@@ -212,9 +212,9 @@ public static class WorkPermitBatch
             throw new InvalidOperationException("Player changed since it was read");
     }
 
-    static int PersonIndex(IProcessMemory memory, PlayerRecord player)
+    static int PersonIndex(IProcessMemory memory, OffsetProfile profile, PlayerRecord player)
     {
-        try { return BitConverter.ToInt32(memory.Read(player.Address + (ulong)WorkPermitTable.PersonIndexOffset, 4)); }
+        try { return BitConverter.ToInt32(memory.Read(player.Address + (ulong)WorkPermitTable.PersonIndexFor(profile), 4)); }
         catch (MemoryAccessException ex) { throw new InvalidOperationException("Player is no longer readable", ex); }
     }
 

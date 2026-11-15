@@ -32,9 +32,10 @@ public sealed class StaffOffsets
     /// <summary>8 bytes, <see cref="StaffPersonality"/> order.</summary>
     public required int Personality { get; init; }
     public required int DateOfBirth { get; init; }
-    /// <summary>Pointer to the job record: +JobPerson back to the person part, +JobTeam team, int16 +JobCode.</summary>
+    /// <summary>Pointer to the job record: +JobPerson back to the person part (+JobPersonAnchor when anchored below PERSONE), +JobTeam team, int16 +JobCode.</summary>
     public required int Job { get; init; }
     public required int JobPerson { get; init; }
+    public int JobPersonAnchor { get; init; }
     public required int JobTeam { get; init; }
     public required int JobCode { get; init; }
 
@@ -74,6 +75,7 @@ public sealed class StaffOffsets
         if (missing.Count > 0) throw new FormatException($"staff attributes missing: {string.Join(", ", missing)}");
         var kinds = e.GetProperty("kinds").EnumerateArray().Select(k => new StaffKind(
             (uint)Hex(k, "personVtable"), (uint)Hex(k, "staffVtable"), Hex(k, "staffPart"),
+            k.TryGetProperty("personAnchor", out _) ? Hex(k, "personAnchor") : (int?)null,
             k.TryGetProperty("manager", out var m) && m.GetBoolean())).ToList();
         var mgr = e.GetProperty("managerAttributes").EnumerateObject()
             .ToDictionary(p => Enum.Parse<ManagerAttribute>(p.Name), p => Hex(e.GetProperty("managerAttributes"), p.Name));
@@ -96,6 +98,7 @@ public sealed class StaffOffsets
             ContractRolling = e.TryGetProperty("contractRolling", out _) ? Hex(e, "contractRolling") : null,
             PersonDetails = e.TryGetProperty("personDetails", out var pd) ? new StaffPersonDetails(
                 (uint)Hex(pd, "personVtable"), Hex(pd, "caps"), Hex(pd, "goals"), Hex(pd, "license"), Hex(pd, "roles")) : null,
+            JobPersonAnchor = e.TryGetProperty("jobPersonAnchor", out _) ? Hex(e, "jobPersonAnchor") : 0,
             ContractRollingMask = e.TryGetProperty("contractRollingMask", out _) ? Hex(e, "contractRollingMask") : null,
         };
     }
@@ -116,6 +119,7 @@ public sealed class StaffOffsets
         if (Formations is { } fo) H("formations", fo);
         if (ContractRolling is { } cr) H("contractRolling", cr);
         if (ContractRollingMask is { } crm) H("contractRollingMask", crm);
+        if (JobPersonAnchor != 0) H("jobPersonAnchor", JobPersonAnchor);
         H("personListRootRva", PersonListRootRva); H("personListOffset", PersonListOffset);
         if (DirectStaffVector) w.WriteBoolean("directStaffVector", true);
         w.WriteStartArray("kinds");
@@ -123,6 +127,7 @@ public sealed class StaffOffsets
         {
             w.WriteStartObject();
             H("personVtable", k.PersonVtableRva); H("staffVtable", k.StaffVtableRva); H("staffPart", k.StaffPart);
+            if (k.PersonAnchor is { } anchor) H("personAnchor", anchor);
             if (k.Manager) w.WriteBoolean("manager", true);
             w.WriteEndObject();
         }
@@ -186,7 +191,21 @@ public enum StaffAttribute
 }
 
 /// <summary>One staff object class: vtables of its person and staff parts, and how far below the person part the staff part is.</summary>
-public sealed record StaffKind(uint PersonVtableRva, uint StaffVtableRva, int StaffPart, bool Manager);
+/// <summary>
+/// One staff class: <paramref name="StaffPart"/> is how far the staff part sits below the vector entry,
+/// <paramref name="PersonAnchor"/> how far the person part sits above it. On builds whose vector holds staff objects
+/// (<see cref="StaffOffsets.DirectStaffVector"/>) the entry carries the staff vtable and the person fields start at
+/// entry + PersonAnchor (0 for ordinary staff, 0x340 for human managers on the Mac build).
+/// </summary>
+public sealed record StaffKind(uint PersonVtableRva, uint StaffVtableRva, int StaffPart, int? PersonAnchor, bool Manager)
+{
+    /// <summary>Distance from a direct vector entry (a staff object) to its person part: PersonAnchor when the profile
+    /// names one (Mac), otherwise StaffPart (Game Pass, where the person part sits StaffPart bytes above the entry).</summary>
+    public int DirectPersonDelta => PersonAnchor ?? StaffPart;
+
+    /// <summary>Distance from the staff part to the person part used by the person-vector builds.</summary>
+    public int PersonVectorPersonDelta => StaffPart + (PersonAnchor ?? 0);
+}
 
 /// <summary>Human-manager attributes, FMRTE 27 order. Staff-part bytes run in reverse (Media Handling last).</summary>
 public enum ManagerAttribute

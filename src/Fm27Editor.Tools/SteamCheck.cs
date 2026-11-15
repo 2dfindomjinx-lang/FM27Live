@@ -154,7 +154,7 @@ static class SteamCheck
             if (!s.Memory.TryRead(target, bytes)) return false;
             ulong vt = BitConverter.ToUInt64(bytes) - s.ModuleBase;
             return vt == rel.PersonVtable || vt == rel.StaffPersonVtable ||
-                (s.Profile.Staff?.Kinds.Any(k => vt == k.PersonVtableRva) ?? false);
+                (s.Profile.Staff?.Kinds.Any(k => vt == k.PersonVtableRva || vt == k.StaffVtableRva) ?? false);
         }
         var knownRows = relationshipRows.Where(r => !string.IsNullOrWhiteSpace(r.Name) || KnownPersonTarget(r.Target)).ToList();
         int blankNames = knownRows.Count(r => string.IsNullOrWhiteSpace(r.Name));
@@ -163,6 +163,24 @@ static class SteamCheck
         string relationshipLine = $"{(blankNames == 0 ? "ok   " : "NAMES")} {"club relationship target names",-36} {knownRows.Count - blankNames}/{knownRows.Count}" +
             (unknownTargets > 0 ? $" ({unknownTargets} retired/official targets have no name reader)" : "");
         Report.Add(relationshipLine); Console.WriteLine(relationshipLine); Console.Out.Flush();
+
+        if (Only.Length == 0 || "player field sanity".Contains(Only, StringComparison.OrdinalIgnoreCase))
+        {
+            int checkedPlayers = 0, condEqCa = 0, badMorale = 0, badNatInfo = 0;
+            foreach (var p in players)
+            {
+                checkedPlayers++;
+                var f = s.PlayerFields.ReadAll(p);
+                if (f.TryGetValue(PlayerField.Condition, out var cond) && cond == p.CurrentAbility) condEqCa++;
+                if (f.TryGetValue(PlayerField.Morale, out var morale) && (morale < 0 || morale > 20)) badMorale++;
+                if (f.TryGetValue(PlayerField.NationalityInfo, out var natInfo) && natInfo != 0 && (natInfo < 80 || natInfo > 90)) badNatInfo++;
+            }
+            bool suspicious = condEqCa > Math.Max(10, checkedPlayers / 4) || badMorale > 0 || badNatInfo > 0;
+            if (suspicious) failures++;
+            string sanityLine = $"{(suspicious ? "ANOM " : "ok   ")} {"player field sanity",-36} {checkedPlayers} checked" +
+                $" (cond==CA:{condEqCa}, badMorale:{badMorale}, badNatInfo:{badNatInfo})";
+            Report.Add(sanityLine); Console.WriteLine(sanityLine); Console.Out.Flush();
+        }
 
         Console.WriteLine($"{Report.Count} features, {failures} empty or failing");
         return failures == 0 ? 0 : 1;

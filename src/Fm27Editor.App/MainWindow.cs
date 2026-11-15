@@ -840,6 +840,14 @@ public sealed partial class MainWindow : Window
             ConnectionStatus.UnsupportedBuild => Brush("#F59E0B"),
             _ => Brush("#64748B")
         };
+        UpdateProfileCapabilities();
+    }
+
+    void UpdateProfileCapabilities()
+    {
+        bool connected = backend.State.Status == ConnectionStatus.Connected;
+        SetModuleVisible("Referees", !connected || backend.Session.Profile.Officials is not null);
+        if (clubSectionList.ItemsSource is not null) RefreshClubSectionRail();
     }
 
     /// <summary>What the user is editing right now; a write nobody grouped by name goes to this in the history.</summary>
@@ -873,6 +881,7 @@ public sealed partial class MainWindow : Window
             captainUndo.Clear();
             lastFreezeError = null;
             UpdateConnectionBadge();
+            UpdateProfileCapabilities();
             connection.Text = Loc.S(backend.State.Message);
             if (backend.State.Status == ConnectionStatus.Connected)
             {

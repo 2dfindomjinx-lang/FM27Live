@@ -1,3 +1,5 @@
+using System.Buffers.Binary;
+using Fm27Editor.Core.CodeGen;
 using Fm27Editor.Core.Memory;
 using Fm27Editor.Core.Offsets;
 using Fm27Editor.Core.Players;
@@ -42,13 +44,46 @@ public sealed record GoldenGenerationState(ulong Site, ulong Cave, long Calls, l
 public sealed class GoldenGenerationHook(IProcessMemory memory, ICodePatchHost? host, OffsetProfile profile, ulong moduleBase, int moduleSize)
 {
     public const int MaxIds = 32, RingSize = 64;
+
+    /// <summary>PA is 1-200 in the game; a draw is capped here exactly as the game's own repair caps it.</summary>
+    public const int MaxPa = 200;
     internal const int MagicOffset = 0x00, CallsOffset = 0x08, RaisedOffset = 0x10, OriginalOffset = 0x18, SiteOffset = 0x20,
         EnabledOffset = 0x28, MinPaOffset = 0x2A, RangeOffset = 0x2C, WonderkidOffset = 0x2E, NationCountOffset = 0x30,
         ScopeOffset = 0x2F, RingIndexOffset = 0x38, WonderkidCountOffset = 0x3C, CodeOffset = 0x40, NationsOffset = 0x300, RingOffset = 0x400,
         RecordSize = 0x200, StackWords = 56;
     public const int BlockSize = 0x10000;
+
+    /// <summary>
+    /// The mutable part of the block (magic, settings, nation list, ring): never executed, so a W^X host keeps it
+    /// read/write. The routine writes the ring and the counters on every pass. ARM64 puts it below <see cref="CodePage"/>
+    /// so only the code page is ever made read/execute; x86-64 keeps the original interleaved layout.
+    /// </summary>
+    const int DataSize = 0xC000;
+
+    /// <summary>Where the ARM64 routine starts: 48 KB (three 16 KB pages) above the block base, leaving the whole block 64 KB.</summary>
+    const int CodePage = 0xC000;
+
+    /// <summary>The smallest page an ARM64 host can protect (16 KB on Apple Silicon), also the ARM64 code slot.</summary>
+    const int Arm64PageSize = 0x4000;
+
+    static int CodeBaseOf(bool arm64) => arm64 ? CodePage : CodeOffset;
+    static int BlockBytesOf(bool arm64) => arm64 ? CodePage + Arm64PageSize : BlockSize;
+
+    ulong CodeBase => (ulong)CodeBaseOf(profile.IsArm64);
+    int BlockBytes => BlockBytesOf(profile.IsArm64);
+
+    /// <summary>How many bytes the routine may use: up to the nation list on x86-64, the whole page on ARM64.</summary>
+    int CodeSlot => profile.IsArm64 ? Arm64PageSize : NationsOffset - (int)CodeBase;
+
+    /// <summary>Makes the routine's slot executable (the whole page on ARM64, where the block reserves one).</summary>
+    void CommitRoutine(ulong cave) => host!.CommitExecutable(cave + CodeBase, CodeSlot);
+
     internal static readonly byte[] Magic = "FM27GLD3"u8.ToArray();
-    internal const int StolenLength = 7;
+    internal const int StolenLengthX64 = 7, StolenLengthArm64 = 8;
+
+    /// <summary>Bytes the jump replaces: seven on x86-64 (<c>movsx eax, word [rsi+PA]; mov ecx, 9</c>); on ARM64 the two
+    /// whole instructions <c>ldrsh w?, [x20+PA]</c> and <c>cmp w?, #0xb3</c>.</summary>
+    int StolenLength => profile.IsArm64 ? StolenLengthArm64 : StolenLengthX64;
     const uint PageExecuteReadWrite = 0x40;
     const uint CaSentinel = 0x11223344, PaSentinel = 0x55667788, ContinentSentinel = 0x33445566;
 
@@ -63,14 +98,106 @@ public sealed class GoldenGenerationHook(IProcessMemory memory, ICodePatchHost? 
         return [.. p];
     }
 
+    /// <summary>
+    /// The ARM64 site inside <c>regeneration_manager</c>: <c>ldrsh w?, [x20+PA]; cmp w?, #0xb3; b.le; mov w?, #9</c> —
+    /// the top PA-bucket check before attribute generation. <c>x20</c> is <c>ACTUAL_PLAYER</c> and <c>x19</c> is the
+    /// youth-candidate record (matching <c>rsi</c>/<c>rdi</c> on x86-64). The two stolen words are re-run after setting
+    /// <c>PA</c> and <c>CA</c>, so the following <c>b.le</c> sees the boosted PA and downstream attribute generation uses
+    /// the boosted CA/PA.
+    /// </summary>
+    Arm64Word[] Arm64Pattern() =>
+    [
+        new(0x79C00000u | ((uint)(Fields.PotentialAbility / 2) << 10) | (20u << 5) | 8u, BaseRegisterOnly),  // ldrsh w?, [x20+PA]
+        new(0x7102CD1Fu, 0xFFFFFC1Fu),                                                                       // cmp w?, #0xb3
+        new(0x5400000Du, 0xFF00001Fu),                                                                       // b.le
+        new(0x52800128u, 0xFFFFFFE0u),                                                                       // mov w?, #9
+    ];
+
+    PlayerFieldOffsets Fields => profile.Fields;
+
+    TeamOffsets Team => profile.Team ?? throw new InvalidOperationException("The profile has no team offsets");
+    ClubOffsets Club => profile.Club ?? throw new InvalidOperationException("The profile has no club offsets");
+
+    static bool Arm64IsBranchWord(uint word) => (word & 0xFC000000) == 0x14000000;
+
+    /// <summary>
+    /// Register-consistency and patched-block check for the ARM64 site. Unpatched, all three PA-bucket instructions
+    /// (<c>ldrsh</c>, <c>cmp</c>, <c>mov #9</c>) must use the same <c>w?</c> register. Patched, the first two words
+    /// are a <c>B</c> and <c>NOP</c>, so the stolen instructions are read back from the block's header and checked for
+    /// this hook's <c>FM27GLD</c> magic, this exact site, and matching registers with <c>words[3]</c>. A block that
+    /// cannot be read is accepted, since nothing can be said about it.
+    /// </summary>
+    bool Accept(uint[] words, ulong at)
+    {
+        uint movReg = words[3] & 0x1Fu;
+        if (!Arm64IsBranchWord(words[0]))
+        {
+            uint loadReg = words[0] & 0x1Fu;
+            uint cmpReg = (words[1] >> 5) & 0x1Fu;
+            return loadReg == cmpReg && loadReg == movReg;
+        }
+        ulong routine = at + (ulong)((long)((int)(words[0] << 6) >> 6) * 4);
+        var head = new byte[Math.Max(SiteOffset + sizeof(ulong), OriginalOffset + StolenLengthArm64)];
+        if (!memory.TryRead(routine - CodeBase, head)) return true;
+        if (!head.AsSpan(MagicOffset, Magic.Length - 1).SequenceEqual(Magic.AsSpan(0, Magic.Length - 1))) return false;
+        if (BitConverter.ToUInt64(head, SiteOffset) != at) return false;
+        var pattern = Arm64Pattern();
+        uint orig0 = BinaryPrimitives.ReadUInt32LittleEndian(head.AsSpan(OriginalOffset));
+        uint orig1 = BinaryPrimitives.ReadUInt32LittleEndian(head.AsSpan(OriginalOffset + 4));
+        if (!pattern[0].Matches(orig0) || !pattern[1].Matches(orig1)) return false;
+        uint origLoadReg = orig0 & 0x1Fu;
+        uint origCmpReg = (orig1 >> 5) & 0x1Fu;
+        return origLoadReg == origCmpReg && origLoadReg == movReg;
+    }
+
+    /// <summary>Everything but the destination register, so a rebuild may renumber where a load writes.</summary>
+    const uint BaseRegisterOnly = 0xFFFF_FFE0;
+
+    /// <summary>The bytes the site must hold before patching, in the profile's instruction set.</summary>
+    byte[] OriginalBytes() => profile.IsArm64
+        ? Arm64Pattern().SelectMany(w => BitConverter.GetBytes(w.Value)).ToArray()
+        : OriginalPattern(profile).AsSpan(0, StolenLengthX64).ToArray();
+
+    /// <summary>
+    /// True when the stolen bytes still are the site's original code: whole bytes on x86-64, and on ARM64 the masked
+    /// words only, since a register number or a branch distance may legitimately differ from the recorded pattern.
+    /// </summary>
+    bool SiteHolds(ReadOnlySpan<byte> at)
+    {
+        if (!profile.IsArm64) return at.SequenceEqual(OriginalBytes());
+        var pattern = Arm64Pattern();
+        for (int i = 0; i < StolenLengthArm64 / 4; i++)
+            if (!pattern[i].Matches(BinaryPrimitives.ReadUInt32LittleEndian(at[(i * 4)..]))) return false;
+        return true;
+    }
+
+    bool IsPatched(ReadOnlySpan<byte> at) =>
+        profile.IsArm64 ? at.Length >= 4 && Arm64IsBranchWord(BinaryPrimitives.ReadUInt32LittleEndian(at)) : at[0] == 0xE9;
+
+    /// <summary>The cave a jump at <paramref name="site"/> points into.</summary>
+    ulong CaveOf(ulong site, ReadOnlySpan<byte> at) => profile.IsArm64
+        ? site + (ulong)((long)((int)(BinaryPrimitives.ReadUInt32LittleEndian(at) << 6) >> 6) * 4) - CodeBase
+        : site + 5 + (ulong)(long)BitConverter.ToInt32(at[1..]) - CodeBase;
+
     static bool IsPatchedSite(ReadOnlySpan<byte> at, byte[] original) =>
         at.Length >= original.Length && at[0] == 0xE9 && at[5] == 0x90 && at[6] == 0x90
-        && at[StolenLength..original.Length].SequenceEqual(original.AsSpan(StolenLength));
+        && at[7..original.Length].SequenceEqual(original.AsSpan(7));
+
+    /// <summary>The ARM64 form of <see cref="IsPatchedSite"/>: a <c>B</c> and a NOP where the two stolen loads were.</summary>
+    static bool IsPatchedSiteArm64(ReadOnlySpan<byte> at, byte[] original) =>
+        at.Length >= original.Length && Arm64IsBranchWord(BinaryPrimitives.ReadUInt32LittleEndian(at))
+        && BinaryPrimitives.ReadUInt32LittleEndian(at[4..]) == 0xD503201F
+        && at[8..original.Length].SequenceEqual(original.AsSpan(8));
 
     /// <summary>The site: the one place in the module's code holding <see cref="OriginalPattern"/>, patched or not.</summary>
     public ulong FindSite()
     {
         if (site is { } known) return known;
+        if (profile.IsArm64)
+            // A patched site starts with the B and the NOP that replaced the two stolen loads, so the match resumes at
+            // the third word.
+            return (site = Arm64SiteFinder.Find(memory, moduleBase, (ulong)moduleSize, Feature,
+                Arm64Pattern(), Arm64IsBranchWord, patchedFrom: 2, Accept)).Value;
         var original = OriginalPattern(profile);
         var hits = new List<ulong>();
         foreach (var (start, size) in CodeSections())
@@ -94,12 +221,18 @@ public sealed class GoldenGenerationHook(IProcessMemory memory, ICodePatchHost? 
             }
             if (hits.Count > 1) break;
         }
-        if (hits.Count == 0) throw new InvalidOperationException("Golden Generation: the regen code was not found in this build");
-        if (hits.Count > 1) throw new InvalidOperationException("Golden Generation: the regen code is not unique in this build");
+        if (hits.Count == 0) throw new InvalidOperationException($"{Feature}: the regen code was not found in this build");
+        if (hits.Count > 1) throw new InvalidOperationException($"{Feature}: the regen code is not unique in this build");
         return (site = hits[0]).Value;
     }
 
-    IEnumerable<(ulong Start, ulong Size)> CodeSections()
+    const string Feature = "Golden Generation";
+
+    IEnumerable<(ulong Start, ulong Size)> CodeSections() => profile.IsArm64
+        ? Arm64SiteFinder.CodeSections(memory, moduleBase, (ulong)moduleSize)
+        : PeCodeSections();
+
+    IEnumerable<(ulong Start, ulong Size)> PeCodeSections()
     {
         int peOffset = BitConverter.ToInt32(memory.Read(moduleBase + 0x3C, 4));
         var header = memory.Read(moduleBase + (ulong)peOffset, 24);
@@ -119,8 +252,8 @@ public sealed class GoldenGenerationHook(IProcessMemory memory, ICodePatchHost? 
     {
         ulong at = FindSite();
         var bytes = memory.Read(at, StolenLength);
-        if (bytes[0] != 0xE9) return null;
-        ulong cave = at + 5 + (ulong)(long)BitConverter.ToInt32(bytes, 1) - CodeOffset;
+        if (!IsPatched(bytes)) return null;
+        ulong cave = CaveOf(at, bytes);
         var head = memory.Read(cave, RingOffset + RingSize * RecordSize);
         if (IsOlderRoutine(head, at)) return null;     // an earlier editor version's hook: Install replaces it
         if (!head.AsSpan(MagicOffset, Magic.Length).SequenceEqual(Magic) || BitConverter.ToUInt64(head, SiteOffset) != at)
@@ -154,8 +287,8 @@ public sealed class GoldenGenerationHook(IProcessMemory memory, ICodePatchHost? 
     void RemoveOlderRoutine(ulong at)
     {
         var bytes = memory.Read(at, StolenLength);
-        if (bytes[0] != 0xE9 || host is null) return;
-        ulong cave = at + 5 + (ulong)(long)BitConverter.ToInt32(bytes, 1) - CodeOffset;
+        if (!IsPatched(bytes) || host is null) return;
+        ulong cave = CaveOf(at, bytes);
         var head = memory.Read(cave, CodeOffset);
         if (!IsOlderRoutine(head, at)) return;
         var original = head.AsSpan(OriginalOffset, StolenLength).ToArray();
@@ -176,13 +309,14 @@ public sealed class GoldenGenerationHook(IProcessMemory memory, ICodePatchHost? 
         ulong at = FindSite();
         RemoveOlderRoutine(at);
         var original = memory.Read(at, StolenLength);
-        if (!original.AsSpan().SequenceEqual(OriginalPattern(profile).AsSpan(0, StolenLength)))
+        if (!SiteHolds(original))
             throw new StaleObjectException("The regen code changed while it was being read");
-        ulong cave = host.AllocateNear(at, BlockSize);
+        ulong cave = host.AllocateNear(at, BlockBytes);
         var block = BuildBlock(cave, at, original, profile);
         Put(cave, block);
         host.FlushCode(cave, block.Length);
-        var patch = BuildPatch(at, cave + CodeOffset);
+        CommitRoutine(cave);
+        var patch = PatchBytes(at, cave + CodeBase);
         using (host.Pause())
         {
             if (!memory.Read(at, StolenLength).AsSpan().SequenceEqual(original))
@@ -235,18 +369,18 @@ public sealed class GoldenGenerationHook(IProcessMemory memory, ICodePatchHost? 
         if (scope == GoldenGenerationScope.All && ids.Count > 0) throw new ArgumentException("A list needs a club, nation or continent scope", nameof(ids));
         if (scope != GoldenGenerationScope.All && ids.Count == 0) throw new ArgumentException("Choose at least one club, nation or continent", nameof(ids));
         var state = Install();
-        Put(state.Cave + EnabledOffset, [0]);
+        PutBlock(state.Cave + EnabledOffset, [0]);
         var settings = new byte[6];
         BitConverter.GetBytes((short)minPa).CopyTo(settings, 0);
         BitConverter.GetBytes((ushort)(maxPa - minPa + 1)).CopyTo(settings, 2);
         settings[4] = (byte)wonderkidChance;
         settings[5] = (byte)scope;
-        Put(state.Cave + MinPaOffset, settings);
+        PutBlock(state.Cave + MinPaOffset, settings);
         var list = new byte[MaxIds * 4];
         for (int i = 0; i < ids.Count; i++) BitConverter.GetBytes(ids[i]).CopyTo(list, i * 4);
-        Put(state.Cave + NationsOffset, list);
-        Put(state.Cave + NationCountOffset, BitConverter.GetBytes(ids.Count));
-        if (enabled) Put(state.Cave + EnabledOffset, [1]);
+        PutBlock(state.Cave + NationsOffset, list);
+        PutBlock(state.Cave + NationCountOffset, BitConverter.GetBytes(ids.Count));
+        if (enabled) PutBlock(state.Cave + EnabledOffset, [1]);
         return Read()!;
     }
 
@@ -256,30 +390,53 @@ public sealed class GoldenGenerationHook(IProcessMemory memory, ICodePatchHost? 
             throw new MemoryAccessException($"Could not write 0x{address:X}");
     }
 
+    /// <summary>Writes into the block, which is read/execute once installed; see the note on the accelerate routine's
+    /// counterpart. The switches bracket the single write and the code is flushed afterwards.</summary>
+    void PutBlock(ulong address, byte[] bytes)
+    {
+        if (host is null) { Put(address, bytes); return; }
+        uint previous = host.Protect(address, bytes.Length, PageExecuteReadWrite);
+        try { Put(address, bytes); }
+        finally { host.Protect(address, bytes.Length, previous); }
+        host.FlushCode(address, bytes.Length);
+    }
+
     /// <summary><c>jmp rel32</c> and two nops over the seven stolen bytes.</summary>
     public static byte[] BuildPatch(ulong from, ulong to)
     {
         long delta = (long)to - (long)(from + 5);
         if (delta is < int.MinValue or > int.MaxValue) throw new InvalidOperationException("The routine is out of reach of a rel32 jump");
-        var patch = new byte[StolenLength];
+        var patch = new byte[StolenLengthX64];
         patch[0] = 0xE9;
         BitConverter.GetBytes((int)delta).CopyTo(patch, 1);
         patch[5] = patch[6] = 0x90;
         return patch;
     }
 
+    /// <summary>The jump for the profile's instruction set: a <c>B</c> and a NOP on ARM64, a rel32 jump on x86-64.</summary>
+    byte[] PatchBytes(ulong from, ulong to) => profile.IsArm64
+        ? Arm64CodePatch.BuildPatch(from, to, StolenLengthArm64)
+        : BuildPatch(from, to);
+
     /// <summary>The whole block: header (switched off, range 1), routine, empty nation list and ring.</summary>
     public static byte[] BuildBlock(ulong cave, ulong site, byte[] stolen, OffsetProfile profile)
     {
-        if (stolen.Length != StolenLength) throw new ArgumentException("Seven stolen bytes are expected", nameof(stolen));
-        var block = new byte[BlockSize];
+        bool arm64 = profile.IsArm64;
+        int stolenLength = arm64 ? StolenLengthArm64 : StolenLengthX64;
+        if (stolen.Length != stolenLength) throw new ArgumentException($"{stolenLength} stolen bytes are expected", nameof(stolen));
+        int codeBase = CodeBaseOf(arm64);
+        int slot = arm64 ? Arm64PageSize : NationsOffset - CodeOffset;
+        var block = new byte[BlockBytesOf(arm64)];
         Magic.CopyTo(block, MagicOffset);
         stolen.CopyTo(block, OriginalOffset);
         BitConverter.GetBytes(site).CopyTo(block, SiteOffset);
         BitConverter.GetBytes((ushort)1).CopyTo(block, RangeOffset);
-        var code = BuildRoutine(cave + CodeOffset, cave, site + StolenLength, stolen, profile);
-        if (code.Length > NationsOffset - CodeOffset) throw new InvalidOperationException("The routine does not fit its slot");
-        code.CopyTo(block, CodeOffset);
+        var code = arm64
+            ? BuildRoutineArm64(cave + (ulong)codeBase, cave, site + StolenLengthArm64, stolen, profile)
+            : BuildRoutine(cave + (ulong)codeBase, cave, site + StolenLengthX64, stolen, profile);
+        if (code.Length > slot)
+            throw new InvalidOperationException($"The routine does not fit its slot ({code.Length} > {slot} bytes)");
+        code.CopyTo(block, codeBase);
         return block;
     }
 
@@ -317,6 +474,191 @@ public sealed class GoldenGenerationHook(IProcessMemory memory, ICodePatchHost? 
         code.Add(0xE9);                                                                               // jmp back
         code.AddRange(BitConverter.GetBytes(checked((int)((long)resume - (long)(at + (ulong)code.Count + 4)))));
         return [.. code];
+    }
+
+    /// <summary>
+    /// The ARM64 routine, the counterpart of <see cref="Body"/>: <c>x20</c> is the new <c>ACTUAL_PLAYER</c> and
+    /// <c>x19</c> is the youth-candidate record. It records the pass in the ring, then (when switched on and the
+    /// candidate's club/nation/continent is in the id list) draws a PA in the range, lifts PA to his CA if need be, caps
+    /// it at 200 and stores it; with the wonderkid chance it also lifts CA towards the new PA. The two stolen words
+    /// (<c>ldrsh w?, [x20+PA]; cmp w?, #0xb3</c>) are re-run afterwards, so the game's <c>b.le</c> sees the new PA.
+    /// </summary>
+    /// <remarks>
+    /// The registers the game has live at the site are never written: everything the routine uses is saved on the stack
+    /// (x0-x7 and the flags) and restored before the stolen instructions. Scope ids come from the youth-candidate
+    /// record (<c>club</c> / <c>basedNation</c>, falling back to <c>club-&gt;nation</c>), because <c>ACTUAL_PLAYER.Team</c>
+    /// is zeroed earlier in <c>regeneration_manager</c>; <c>rdtsc</c> has no ARM64 form, so random draws use the virtual
+    /// counter.
+    /// </remarks>
+    internal static byte[] BuildRoutineArm64(ulong at, ulong cave, ulong resume, byte[] stolen, OffsetProfile profile)
+    {
+        var club = profile.Club ?? throw new InvalidOperationException("The profile has no club offsets");
+        int ca = profile.Fields.CurrentAbility, pa = profile.Fields.PotentialAbility;
+        int clubNation = club.Nation ?? throw new InvalidOperationException("The profile has no club nation offset");
+        int continent = profile.Nation?.Continent ?? throw new InvalidOperationException("The profile has no nation continent offset");
+        int recordClub = profile.YouthCandidates?.Club ?? 0x78;
+        int recordNation = profile.YouthCandidates?.BasedNation ?? 0x68;
+
+        var a = new Arm64Assembler(at);
+        a.StpPre(A64.X0, A64.X1, A64.SP, -0x50);                       // save the scratch registers and the flags
+        a.Stp(A64.X2, A64.X3, A64.SP, 0x10);
+        a.Stp(A64.X4, A64.X5, A64.SP, 0x20);
+        a.Stp(A64.X6, A64.X7, A64.SP, 0x30);
+        a.MrsNzcv(A64.X0);
+        a.StrImm(A64.X0, A64.SP, 0x40);
+        a.Adrp(A64.X0, cave);                                          // x0 = [block]
+        a.AddImm(A64.X0, A64.X0, (int)(cave & 0xFFF));
+        a.LdrImm(A64.X1, A64.X0, CallsOffset);
+        a.AddImm(A64.X1, A64.X1, 1);
+        a.StrImm(A64.X1, A64.X0, CallsOffset);                         // inc qword [block+Calls]
+        a.LdrWord(A64.X1, A64.X0, RingIndexOffset);
+        a.AndLowBits(A64.X1, A64.X1, 6);                               // RingSize is 64
+        a.AddImm(A64.X2, A64.X0, RingOffset);
+        a.AddRegLsl(A64.X2, A64.X2, A64.X1, 9);                        // record = ring[RingIndex & 63], 0x200 bytes each
+        a.StrImm(A64.X20, A64.X2, 0x00);                               // ACTUAL_PLAYER (matching rsi on x86-64)
+        a.StrImm(A64.X19, A64.X2, 0x08);                               // YouthCandidate (matching rdi on x86-64)
+        a.StrImm(A64.X21, A64.X2, 0x10);
+        a.StrImm(A64.X22, A64.X2, 0x18);
+        a.StrImm(A64.X23, A64.X2, 0x20);
+        a.StrImm(A64.X24, A64.X2, 0x28);
+        a.StrImm(A64.X25, A64.X2, 0x30);
+        a.Movz(A64.X3, 0);
+        a.Cbz64(A64.X19, "noClub");
+        a.LdrImm(A64.X3, A64.X19, recordClub);                         // record[7] = [x19+club]
+        a.Label("noClub");
+        a.StrImm(A64.X3, A64.X2, 0x38);
+        a.AddImm(A64.X4, A64.SP, 0x50);                                // the game's stack, from its own top
+        a.AddImm(A64.X5, A64.X2, 0x40);
+        a.Movz(A64.X6, StackWords);
+        a.Label("copy");
+        a.LdrImm(A64.X7, A64.X4, 0);
+        a.StrImm(A64.X7, A64.X5, 0);
+        a.AddImm(A64.X4, A64.X4, 8);
+        a.AddImm(A64.X5, A64.X5, 8);
+        a.SubImm32(A64.X6, A64.X6, 1);
+        a.Cbz(A64.X6, "copied");
+        a.B("copy");
+        a.Label("copied");
+        a.AddImm(A64.X1, A64.X1, 1);
+        a.StrWord(A64.X1, A64.X0, RingIndexOffset);                    // inc dword [block+RingIndex]
+        a.Ldrb(A64.X1, A64.X0, EnabledOffset);
+        a.Cbz(A64.X1, "done");
+        a.LdrWord(A64.X1, A64.X0, NationCountOffset);
+        a.Cbz(A64.X1, "drawn");                                        // no list: every regen
+        a.Cbz64(A64.X19, "done");
+        a.Ldrb(A64.X2, A64.X0, ScopeOffset);
+        a.CmpImm32(A64.X2, (int)GoldenGenerationScope.Club);
+        a.BCond(A64.Eq, "club");
+        a.CmpImm32(A64.X2, (int)GoldenGenerationScope.Continent);
+        a.BCond(A64.Eq, "continent");
+        a.Label("scopeNation");                                        // Nation (falls here from the compares)
+        a.LdrImm(A64.X3, A64.X19, recordNation);
+        a.Cbz64(A64.X3, "nationFromClub");
+        a.B("haveId");
+        a.Label("nationFromClub");
+        a.LdrImm(A64.X3, A64.X19, recordClub);
+        a.Cbz64(A64.X3, "done");
+        a.LdrImm(A64.X3, A64.X3, clubNation);
+        a.B("haveId");
+        a.Label("club");
+        a.LdrImm(A64.X3, A64.X19, recordClub);
+        a.B("haveId");
+        a.Label("continent");
+        a.LdrImm(A64.X3, A64.X19, recordNation);
+        a.Cbz64(A64.X3, "continentFromClub");
+        a.B("haveNationForContinent");
+        a.Label("continentFromClub");
+        a.LdrImm(A64.X3, A64.X19, recordClub);
+        a.Cbz64(A64.X3, "done");
+        a.LdrImm(A64.X3, A64.X3, clubNation);
+        a.Label("haveNationForContinent");
+        a.Cbz64(A64.X3, "done");
+        a.LdrImm(A64.X3, A64.X3, continent);
+        a.Label("haveId");
+        a.Cbz64(A64.X3, "done");
+        a.LdrWord(A64.X3, A64.X3, 0xC);                                // the object's unique id
+        a.AddImm(A64.X4, A64.X0, NationsOffset);
+        a.Label("scan");
+        a.LdrWord(A64.X5, A64.X4, 0);
+        a.CmpReg(A64.X3, A64.X5);
+        a.BCond(A64.Eq, "drawn");
+        a.AddImm(A64.X4, A64.X4, 4);
+        a.SubImm32(A64.X1, A64.X1, 1);
+        a.Cbz(A64.X1, "done");
+        a.B("scan");
+        a.Label("drawn");
+        a.Ldrh(A64.X2, A64.X0, RangeOffset);
+        a.Cbz(A64.X2, "done");
+        a.MrsVirtualCount(A64.X4);
+        a.Udiv32(A64.X5, A64.X4, A64.X2);                              // rnd / range
+        a.Mul32(A64.X5, A64.X5, A64.X2);
+        a.SubReg32(A64.X4, A64.X4, A64.X5);                            // rnd % range
+        a.Ldrh(A64.X5, A64.X0, MinPaOffset);
+        a.AddReg32(A64.X4, A64.X4, A64.X5);                            // draw = min + rnd % range
+        a.CmpImm32(A64.X4, MaxPa);
+        a.BCond(A64.Le, "capped");
+        a.Movz(A64.X4, MaxPa);
+        a.Label("capped");
+        a.Ldrsh(A64.X6, A64.X20, ca);
+        a.CmpReg(A64.X6, A64.X4);
+        a.BCond(A64.Le, "storePa");                                    // CA at or below the draw: keep the draw
+        a.MovReg(A64.X4, A64.X6);
+        a.Label("storePa");
+        a.Strh(A64.X4, A64.X20, pa);
+        a.LdrImm(A64.X5, A64.X0, RaisedOffset);
+        a.AddImm(A64.X5, A64.X5, 1);
+        a.StrImm(A64.X5, A64.X0, RaisedOffset);                        // inc qword [block+Raised]
+        a.Ldrb(A64.X5, A64.X0, WonderkidOffset);
+        a.Cbz(A64.X5, "done");
+        a.MrsVirtualCount(A64.X4);
+        a.Movz(A64.X7, 100);
+        a.Udiv32(A64.X6, A64.X4, A64.X7);
+        a.Mul32(A64.X6, A64.X6, A64.X7);
+        a.SubReg32(A64.X4, A64.X4, A64.X6);                            // rnd % 100
+        a.CmpReg(A64.X4, A64.X5);
+        a.BCond(A64.Hs, "done");                                       // chance missed
+        a.Ldrsh(A64.X6, A64.X20, pa);
+        a.Ldrsh(A64.X7, A64.X20, ca);
+        a.Movz(A64.X4, 70);
+        a.Mul32(A64.X4, A64.X6, A64.X4);
+        a.Movz(A64.X5, 100);
+        a.Udiv32(A64.X4, A64.X4, A64.X5);
+        a.CmpReg(A64.X7, A64.X4);
+        a.BCond(A64.Ge, "done");                                       // CA at 70% of PA already
+        a.Movz(A64.X4, 30);
+        a.CmpImm32(A64.X6, 120);
+        a.BCond(A64.Lt, "part");
+        a.Movz(A64.X4, 40);
+        a.CmpImm32(A64.X6, 150);
+        a.BCond(A64.Lt, "part");
+        a.Movz(A64.X4, 55);
+        a.CmpImm32(A64.X6, 180);
+        a.BCond(A64.Lt, "part");
+        a.Movz(A64.X4, 70);
+        a.Label("part");
+        a.SubReg32(A64.X5, A64.X6, A64.X7);                            // PA - CA
+        a.Mul32(A64.X5, A64.X5, A64.X4);
+        a.Movz(A64.X4, 100);
+        a.Udiv32(A64.X5, A64.X5, A64.X4);
+        a.AddReg32(A64.X5, A64.X5, A64.X7);                            // CA + gap * pct / 100
+        a.CmpReg(A64.X5, A64.X6);
+        a.BCond(A64.Le, "storeCa");
+        a.MovReg(A64.X5, A64.X6);
+        a.Label("storeCa");
+        a.Strh(A64.X5, A64.X20, ca);
+        a.LdrWord(A64.X5, A64.X0, WonderkidCountOffset);
+        a.AddImm(A64.X5, A64.X5, 1);
+        a.StrWord(A64.X5, A64.X0, WonderkidCountOffset);               // inc dword [block+Wonderkids]
+        a.Label("done");
+        a.LdrImm(A64.X0, A64.SP, 0x40);                                // restore everything, the flags last
+        a.MsrNzcv(A64.X0);
+        a.Ldp(A64.X6, A64.X7, A64.SP, 0x30);
+        a.Ldp(A64.X4, A64.X5, A64.SP, 0x20);
+        a.Ldp(A64.X2, A64.X3, A64.SP, 0x10);
+        a.LdpPost(A64.X0, A64.X1, A64.SP, 0x50);
+        a.Emit(stolen);                                                // ldrsh w?, [x20+PA]; cmp w?, #0xb3
+        a.B(resume);
+        return a.Build();
     }
 
     static void Replace(byte[] body, uint sentinel, uint value, int expected)

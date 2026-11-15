@@ -8,6 +8,7 @@ public class RemoteCrtAllocatorTests
     [Fact]
     public void AllocatedMemoryIsZeroedWritableAndOwnedByCrt()
     {
+        if (!OperatingSystem.IsWindows()) return;
         using var memory = new WindowsProcessMemory(Environment.ProcessId, writable: true);
         ulong address = RemoteCrtAllocator.Allocate(memory, 64);
         try

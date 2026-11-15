@@ -118,7 +118,7 @@ public sealed class GenderFilterTests
     [Fact]
     public void StaffFilter_filters_person_gender_while_allowing_female_staff_at_mens_club()
     {
-        var kind = new StaffKind(0, 0, 0, false);
+        var kind = new StaffKind(0, 0, 0, 0, false);
         StaffRecord Person(ulong id, Gender gender, string club, Gender clubGender) => new()
         {
             Address = id,
@@ -171,9 +171,9 @@ public sealed class GenderFilterTests
             var staffAttrs = new byte[Enum.GetValues<StaffAttribute>().Length];
             var staffPanel = new StaffFilterPanel(
             [
-                new StaffRecord { Address = 1, StaffAddress = 2, Id = 1, FirstName = "Alex", Gender = Gender.Men, Club = new ClubInfo(10, "Man Utd", "Man Utd", Gender.Men), Attributes = staffAttrs, Personality = new byte[8], Kind = new StaffKind(0, 0, 0, false) },
-                new StaffRecord { Address = 3, StaffAddress = 4, Id = 2, FirstName = "Jane", Gender = Gender.Women, Club = new ClubInfo(10, "Man Utd", "Man Utd", Gender.Men), Attributes = staffAttrs, Personality = new byte[8], Kind = new StaffKind(0, 0, 0, false) },
-                new StaffRecord { Address = 5, StaffAddress = 6, Id = 3, FirstName = "Sam", Gender = Gender.Men, Club = new ClubInfo(20, "Arsenal", "Arsenal", Gender.Women), Attributes = staffAttrs, Personality = new byte[8], Kind = new StaffKind(0, 0, 0, false) },
+                new StaffRecord { Address = 1, StaffAddress = 2, Id = 1, FirstName = "Alex", Gender = Gender.Men, Club = new ClubInfo(10, "Man Utd", "Man Utd", Gender.Men), Attributes = staffAttrs, Personality = new byte[8], Kind = new StaffKind(0, 0, 0, 0, false) },
+                new StaffRecord { Address = 3, StaffAddress = 4, Id = 2, FirstName = "Jane", Gender = Gender.Women, Club = new ClubInfo(10, "Man Utd", "Man Utd", Gender.Men), Attributes = staffAttrs, Personality = new byte[8], Kind = new StaffKind(0, 0, 0, 0, false) },
+                new StaffRecord { Address = 5, StaffAddress = 6, Id = 3, FirstName = "Sam", Gender = Gender.Men, Club = new ClubInfo(20, "Arsenal", "Arsenal", Gender.Women), Attributes = staffAttrs, Personality = new byte[8], Kind = new StaffKind(0, 0, 0, 0, false) },
             ], new DateOnly(2026, 11, 10));
             Assert.Equal(Gender.Men, staffPanel.Criteria()?.Gender);
             Assert.Equal(1, staffPanel.FilterCount());

@@ -1,5 +1,6 @@
 using Fm27Editor.Core.Memory;
 using Fm27Editor.Core.Offsets;
+using Fm27Editor.Core.Presets;
 
 namespace Fm27Editor.Core.Clubs;
 
@@ -45,14 +46,14 @@ public sealed class RegistrationUnlock(IProcessMemory memory, OffsetProfile prof
     public void Install()
     {
         if (IsInstalled) return;
-        if (memory is not WindowsProcessMemory windows || !windows.CanWrite)
+        if (memory is not ICodePatchHost host || memory is not IRemoteAllocator { CanWrite: true })
             throw new InvalidOperationException("Registration unlock needs a writable game process");
         var current = memory.Read(Target, StolenBytes.Length);
         if (!current.AsSpan().SequenceEqual(StolenBytes))
             throw new InvalidOperationException(
                 $"build {profile.Build} does not carry the registration prologue at 0x{Target:X}");
 
-        ulong allocated = windows.AllocateNear(Target, PageSize);
+        ulong allocated = host.AllocateNear(Target, PageSize);
         try
         {
             var stub = BuildStub(allocated, StolenBytes, Target + (ulong)StolenBytes.Length);
@@ -62,7 +63,7 @@ public sealed class RegistrationUnlock(IProcessMemory memory, OffsetProfile prof
                 throw new MemoryAccessException("trampoline read-back failed");
 
             var patch = BuildPatch(Target, allocated + StubOffset);
-            uint previous = windows.Protect(Target, 16, PageExecuteReadWrite);
+            uint previous = host.Protect(Target, 16, PageExecuteReadWrite);
             try
             {
                 if (!memory.TryWrite(Target, patch))
@@ -70,7 +71,7 @@ public sealed class RegistrationUnlock(IProcessMemory memory, OffsetProfile prof
             }
             finally
             {
-                windows.Protect(Target, 16, previous);
+                host.Protect(Target, 16, previous);
             }
             if (!memory.Read(Target, patch.Length).AsSpan().SequenceEqual(patch))
                 throw new MemoryAccessException("registration patch read-back failed");
@@ -80,7 +81,7 @@ public sealed class RegistrationUnlock(IProcessMemory memory, OffsetProfile prof
         }
         catch
         {
-            windows.Free(allocated);
+            host.Free(allocated);
             throw;
         }
     }
@@ -88,12 +89,12 @@ public sealed class RegistrationUnlock(IProcessMemory memory, OffsetProfile prof
     public void Uninstall()
     {
         if (!IsInstalled) return;
-        if (memory is WindowsProcessMemory windows && original is not null)
+        if (memory is ICodePatchHost host && original is not null)
         {
-            uint previous = windows.Protect(Target, 16, PageExecuteReadWrite);
+            uint previous = host.Protect(Target, 16, PageExecuteReadWrite);
             try { memory.TryWrite(Target, original); }
-            finally { windows.Protect(Target, 16, previous); }
-            windows.Free(page);
+            finally { host.Protect(Target, 16, previous); }
+            host.Free(page);
         }
         original = null;
         page = 0;

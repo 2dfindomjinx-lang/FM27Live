@@ -109,7 +109,7 @@ public sealed partial class RelationshipWriter
         return kind switch
         {
             RelationTargetKind.Person => vt == moduleBase + o.PersonVtable || vt == moduleBase + o.StaffPersonVtable
-                || (profile.Staff?.Kinds.Any(k => vt == moduleBase + k.PersonVtableRva) ?? false),
+                || (profile.Staff?.Kinds.Any(k => vt == moduleBase + k.PersonVtableRva || vt == moduleBase + k.StaffVtableRva) ?? false),
             RelationTargetKind.Club => profile.Club is { } club && vt == moduleBase + club.ClubVtableRva,
             RelationTargetKind.Team => profile.Team is { } team && vt == moduleBase + team.VtableRva,
             RelationTargetKind.Nation => profile.Nation is { } nation && vt == moduleBase + nation.VtableRva,

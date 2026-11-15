@@ -107,7 +107,7 @@ public sealed partial class MainWindow
     {
         menu.Items.Clear();
         bool connected = backend.State.Status == ConnectionStatus.Connected;
-        bool writable = connected && backend.Session.Process.CanWrite;
+        bool writable = connected && backend.Session.CanWrite;
 
         var header = new MenuItem { Header = Loc.F("Actions ({0:N0} selected)", targets.Count), IsEnabled = false };
         menu.Items.Add(header);
@@ -246,7 +246,7 @@ public sealed partial class MainWindow
     void ExecuteGridBulk(string actionKey, IReadOnlyList<PlayerRecord> targets, Func<PlayerRecord, bool> op, Action? onAfter)
     {
         if (backend.State.Status != ConnectionStatus.Connected) { status.Text = Loc.S("Load game first"); return; }
-        if (!backend.Session.Process.CanWrite) { status.Text = Loc.S("Editor is attached read-only"); return; }
+        if (!backend.Session.CanWrite) { status.Text = Loc.S("Editor is attached read-only"); return; }
         string label = Loc.S(actionKey);
         var report = RunBulk(backend.Edits, targets, label, op, RegisterPlayerLabels);
         FinishBulkUi(label, targets, report, reloadGameData: report.Changed > 0, onAfter);
@@ -289,7 +289,7 @@ public sealed partial class MainWindow
 
     async Task ApplyBulkDevelopmentSpeedAsync(IReadOnlyList<PlayerRecord> targets, double multiplier, Action? onAfter)
     {
-        if (backend.State.Status != ConnectionStatus.Connected || !backend.Session.Process.CanWrite) return;
+        if (backend.State.Status != ConnectionStatus.Connected || !backend.Session.CanWrite) return;
         var accel = backend.Session.AcceleratedDevelopment;
         if (multiplier > 0) await Task.Run(() => accel.Install());
         string title = $"{Loc.S("Development Speed")} {(multiplier <= 0 ? Loc.S("Normal (1x)") : $"{multiplier.ToString("0.#", CultureInfo.InvariantCulture)}x")}";

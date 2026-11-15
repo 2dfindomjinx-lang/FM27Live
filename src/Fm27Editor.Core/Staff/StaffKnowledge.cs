@@ -15,10 +15,7 @@ public sealed class StaffKnowledge(IProcessMemory memory, OffsetProfile profile,
 
     void RequireStaff(StaffRecord staff)
     {
-        if (staff.Address != staff.StaffAddress + (ulong)staff.Kind.StaffPart ||
-            memory.ReadUInt64(staff.Address) != moduleBase + staff.Kind.PersonVtableRva ||
-            memory.ReadUInt64(staff.StaffAddress) != moduleBase + staff.Kind.StaffVtableRva)
-            throw new StaleObjectException("Staff record changed");
+        if (!StaffIdentity.IsCurrent(staff, memory, moduleBase, S)) throw new StaleObjectException("Staff record changed");
     }
 
     public IReadOnlyList<StaffKnowledgeRow> Read(StaffRecord staff, IReadOnlyList<Nations.NationRecord>? nations = null)

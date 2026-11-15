@@ -117,4 +117,45 @@ public class KeepPlayingTests
         Assert.Throws<StaleObjectException>(() => writer.Replan(second));
         Assert.Equal(writes, memory.Writes);
     }
+
+    [Theory]
+    [InlineData("27.0.1+2503222-mac")]
+    [InlineData("27.0.0+2492889-touch-mac")]
+    public void Reads_person_index_from_profile_player_person_offset_on_mac(string buildName)
+    {
+        var macProfile = GameSession.BuiltInProfiles().Single(p => p.Build == buildName);
+        var macMemory = new FakeMemory();
+        TestWorld.Set64(macMemory.Map(Module + macProfile.RetirementManagerRva!.Value, 8), 0, Manager);
+        var manager = macMemory.Map(Manager, 0xA8);
+        TestWorld.Set64(manager, 0, Module + macProfile.RetirementManagerVtable!.Value);
+        Vector(manager, 0x30, Pointers, 1, 8);
+        Vector(manager, 0x90, Index, 1, 16);
+        TestWorld.Set64(macMemory.Map(Pointers, 8), 0, Entry2);
+        IndexEntry(macMemory.Map(Index, 16), 0, 1759, Entry2);
+        Convert.FromHexString("DF0600001E0800004F01E807B500EB074E01E80700000500").CopyTo(macMemory.Map(Entry2, 24), 0);
+
+        int idOffset = macProfile.Fields.Id!.Value;
+        int personIndexOffset = WorkPermitTable.PersonIndexFor(macProfile);
+        int traitsOffset = macProfile.PreferredMoves!.Value + 6;
+        int playerSize = Math.Max(macProfile.PlayerObjectSize, traitsOffset + 1);
+        var playerBytes = macMemory.Map(Ronaldo, playerSize);
+        TestWorld.Set64(playerBytes, 0, Module + macProfile.PlayerVtableRvas[0]);
+        BitConverter.GetBytes(1759u).CopyTo(playerBytes, personIndexOffset);
+        BitConverter.GetBytes(735216).CopyTo(playerBytes, idOffset);
+        playerBytes[traitsOffset] = 0;
+
+        var player = new PlayerRepository(macMemory, macProfile, Module).Reload(Ronaldo)!;
+        var reader = new PlannedRetirements(macMemory, macProfile, Module);
+        var writer = new KeepPlayingWriter(macMemory, macProfile, Module);
+
+        Assert.Equal(1759u, reader.PersonId(player));
+        var plan = writer.Plan(player);
+        writer.Apply(plan);
+        Assert.False(reader.ReadAll().ContainsKey(1759u));
+        Assert.Equal(2, macMemory.Read(Ronaldo + (ulong)traitsOffset, 1)[0]);
+
+        writer.Undo(plan);
+        Assert.True(reader.ReadAll().ContainsKey(1759u));
+        Assert.Equal(0, macMemory.Read(Ronaldo + (ulong)traitsOffset, 1)[0]);
+    }
 }

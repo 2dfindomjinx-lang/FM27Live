@@ -126,9 +126,9 @@ public sealed class FlightRecorder : IDisposable
         catch (UnauthorizedAccessException) { }
     }
 
-    // A drive path (C:\a\b) or a network path (\server\share\a), up to the end of the line or the next character a path cannot hold.
+    // A drive path (C:\a\b), network path (\server\share\a), or POSIX absolute path (/Users/a/b), up to the end of the line or the next character a path cannot hold.
     static readonly System.Text.RegularExpressions.Regex AbsolutePath = new(
-        @"(?:[A-Za-z]:|\\\\[^\\/\s]+\\[^\\/\s]+)(?:[\\/][^\\/:*?""<>|\r\n]*)+",
+        @"(?:[A-Za-z]:|\\\\[^\\/\s]+\\[^\\/\s]+)(?:[\\/][^\\/:*?""<>|\r\n]*)+|(?<=[\s""'(]|^)/(?:[^\\/\s:*?""<>|\r\n]+[\\/])+[^\\/\s:*?""<>|\r\n]+",
         System.Text.RegularExpressions.RegexOptions.Compiled);
 
     /// <summary>Keeps only the last name of a path.</summary>

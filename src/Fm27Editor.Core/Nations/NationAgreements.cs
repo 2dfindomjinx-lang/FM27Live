@@ -35,31 +35,44 @@ public sealed class NationAgreements(IProcessMemory memory, OffsetProfile profil
         var holderBytes = new byte[0x810];
         Span<byte> pointer = stackalloc byte[8];
         List<AgreementRegion> best = [];
+        var visited = new HashSet<ulong>();
         for (long delta = -0x20; delta <= 0x20; delta += 8)
         {
             if ((long)rootRva + delta < 0 || !memory.TryRead(moduleBase + (ulong)((long)rootRva + delta), pointer)) continue;
             ulong holder = BitConverter.ToUInt64(pointer);
-            if (holder == 0 || !memory.TryRead(holder, holderBytes)) continue;
-            for (int at = 0; at + 24 <= holderBytes.Length; at += 8)
-            {
-                ulong begin = BitConverter.ToUInt64(holderBytes, at), end = BitConverter.ToUInt64(holderBytes, at + 8), capacity = BitConverter.ToUInt64(holderBytes, at + 16);
-                if (begin == 0 || end <= begin || capacity < end || (end - begin) % 8 != 0) continue;
-                ulong count = (end - begin) / 8;
-                if (count <= (ulong)best.Count || count > 64) continue;
-                var bytes = new byte[(int)count * 8];
-                if (!memory.TryRead(begin, bytes)) continue;
-                var regions = new List<AgreementRegion>();
-                for (int i = 0; i < (int)count; i++)
-                {
-                    if (ReadRegion(BitConverter.ToUInt64(bytes, i * 8)) is not { } region) break;
-                    regions.Add(region);
-                }
-                if (regions.Count == (int)count && regions.Select(r => r.Id).Distinct().Count() == regions.Count) best = regions;
-            }
+            if (holder == 0) continue;
+            if (visited.Add(holder)) best = RegionsInHolder(holder, holderBytes, best);
+            // Use the same measured indirection as the nation's list, while retaining the original holder too.
+            if (profile.Nation.ListObjectOffset is not { } childOffset ||
+                !memory.TryRead(holder + (ulong)childOffset, pointer)) continue;
+            ulong child = BitConverter.ToUInt64(pointer);
+            if (child != 0 && visited.Add(child)) best = RegionsInHolder(child, holderBytes, best);
         }
         // 27.0.1+ keeps the region catalogue only in the database table (no vector next to the nation list),
         // so fall back to every heap object of the region class, keyed by its ID.
         return _regions = best.Count > 0 ? best.OrderBy(r => r.Id).ToList() : ScannedRegions(regionVtable);
+    }
+
+    List<AgreementRegion> RegionsInHolder(ulong holder, byte[] holderBytes, List<AgreementRegion> best)
+    {
+        if (!memory.TryRead(holder, holderBytes)) return best;
+        for (int at = 0; at + 24 <= holderBytes.Length; at += 8)
+        {
+            ulong begin = BitConverter.ToUInt64(holderBytes, at), end = BitConverter.ToUInt64(holderBytes, at + 8), capacity = BitConverter.ToUInt64(holderBytes, at + 16);
+            if (begin == 0 || end <= begin || capacity < end || (end - begin) % 8 != 0) continue;
+            ulong count = (end - begin) / 8;
+            if (count <= (ulong)best.Count || count > 64) continue;
+            var bytes = new byte[(int)count * 8];
+            if (!memory.TryRead(begin, bytes)) continue;
+            var regions = new List<AgreementRegion>();
+            for (int i = 0; i < (int)count; i++)
+            {
+                if (ReadRegion(BitConverter.ToUInt64(bytes, i * 8)) is not { } region) break;
+                regions.Add(region);
+            }
+            if (regions.Count == (int)count && regions.Select(r => r.Id).Distinct().Count() == regions.Count) best = regions;
+        }
+        return best;
     }
 
     List<AgreementRegion> ScannedRegions(uint regionVtable)

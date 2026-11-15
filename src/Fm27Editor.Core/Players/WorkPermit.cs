@@ -66,6 +66,12 @@ public sealed class WorkPermitTable(IProcessMemory memory, OffsetProfile profile
     public const byte HasPermitBit = 0x04;
     static ulong? header;
 
+    public static int PersonPartFor(OffsetProfile profile) => profile.Relations?.PlayerPerson ?? 0x288;
+    public static int PersonIndexFor(OffsetProfile profile) => PersonPartFor(profile) + 8;
+    public static int FlagsFor(OffsetProfile profile) => PersonPartFor(profile) + 0x18;
+    int PersonIndex => PersonIndexFor(profile);
+    int Flags => FlagsFor(profile);
+
     NationOffsets N => profile.Nation ?? throw new InvalidOperationException("Profile has no nation offsets");
 
     /// <summary>Forgets the located header (a new save moves it).</summary>
@@ -93,14 +99,14 @@ public sealed class WorkPermitTable(IProcessMemory memory, OffsetProfile profile
     ulong? FindInTransferManager()
     {
         if (profile.Proposals is not { ManagerRva: { } root, ManagerVtable: { } vtable } o ||
-            FutureTransferCreator.OfferSerial < 24 || FutureTransferCreator.OfferSerial > 4092) return null;
+            o.OfferSerial < 24 || o.OfferSerial > 4092) return null;
         // The measured offer-serial field bounds a known part of TRANSFER_MANAGER. Discover the permit vector
         // structurally inside that owner instead of assuming a build-specific offset or scanning the whole heap.
         Span<byte> pointer = stackalloc byte[8];
         if (!memory.TryRead(moduleBase + root, pointer)) return null;
         ulong manager = BitConverter.ToUInt64(pointer);
         if (manager == 0) return null;
-        var owner = new byte[FutureTransferCreator.OfferSerial + 4];
+        var owner = new byte[o.OfferSerial + 4];
         if (!memory.TryRead(manager, owner) || BitConverter.ToUInt64(owner) != moduleBase + vtable) return null;
         int found = -1;
         try
@@ -133,7 +139,7 @@ public sealed class WorkPermitTable(IProcessMemory memory, OffsetProfile profile
         var pointers = new byte[count * 8];
         if (!memory.TryRead(begin, pointers)) return null;
         var recordBytes = new byte[CandidateBatchSize * RecordSize];
-        var addresses = new ulong[CandidateBatchSize];
+        var requests = new List<MemoryReadRequest>(CandidateBatchSize);
         var succeeded = new bool[CandidateBatchSize];
         var nations = new HashSet<ulong>();
         Span<byte> vtable = stackalloc byte[8];
@@ -142,13 +148,15 @@ public sealed class WorkPermitTable(IProcessMemory memory, OffsetProfile profile
         for (int start = 0; start < count; start += CandidateBatchSize)
         {
             int take = Math.Min(CandidateBatchSize, count - start);
+            requests.Clear();
             for (int i = 0; i < take; i++)
             {
                 ulong record = BitConverter.ToUInt64(pointers, (start + i) * 8);
                 if (record == 0) return false;
-                addresses[i] = record;
+                requests.Add(new(record, recordBytes.AsMemory(i * RecordSize, RecordSize)));
             }
-            for (int i = 0; i < take; i++) succeeded[i] = memory.TryRead(addresses[i], recordBytes.AsSpan(i * RecordSize, RecordSize));
+            if (memory is IScatterReadMemory scatter) scatter.ReadMany(requests, succeeded.AsSpan(0, take));
+            else for (int i = 0; i < take; i++) succeeded[i] = memory.TryRead(requests[i].Address, requests[i].Destination.Span);
             for (int i = 0; i < take; i++)
             {
                 if (!succeeded[i]) { unreadable = true; continue; }
@@ -181,6 +189,8 @@ public sealed class WorkPermitTable(IProcessMemory memory, OffsetProfile profile
         using var candidates = new BulkReadScope(memory, pageCount: 4096, failedPageHintCount: 16384);
         var checkedNations = new HashSet<ulong>();
         var buffer = new byte[1 << 22];
+        var pending = new List<PermitCandidate>(CandidateBatchSize);
+        var firstSamples = new FirstSampleBatch(memory, moduleBase + N.VtableRva, checkedNations);
         foreach (var region in mapped.Where(r => !r.IsModuleData))
             for (ulong offset = 0; offset < region.Size; offset += (ulong)buffer.Length - 32)
             {
@@ -193,16 +203,88 @@ public sealed class WorkPermitTable(IProcessMemory memory, OffsetProfile profile
                     int count = (int)((e - b) / 8);
                     // The scan already holds the header. A shorter/tied vector cannot replace the first largest
                     // valid table, so neither it nor a duplicate of that vector needs remote validation again.
-                    if (count <= bestCount || !ValidCandidate(candidates.Memory, b, count, checkedNations)) continue;
-                    best = region.Start + offset + (ulong)i;
-                    bestCount = count;
-                    bestVector = (b, e, c);
+                    if (count <= bestCount) continue;
+                    ulong at = region.Start + offset + (ulong)i;
+                    pending.Add(new(at, b, e, c, count));
+                    if (pending.Count == CandidateBatchSize) ValidatePending();
                 }
             }
+        ValidatePending();
         return (best, bestVector.Begin, bestVector.End, bestVector.Capacity);
+
+        void ValidatePending()
+        {
+            if (pending.Count == 0) return;
+            var plausible = firstSamples.Validate(pending);
+            for (int i = 0; i < pending.Count; i++)
+            {
+                var candidate = pending[i];
+                if (!plausible[i] || candidate.Count <= bestCount ||
+                    !ValidCandidate(candidates.Memory, candidate.Begin, candidate.Count, checkedNations)) continue;
+                best = candidate.Address;
+                bestCount = candidate.Count;
+                bestVector = (candidate.Begin, candidate.End, candidate.Capacity);
+            }
+            pending.Clear();
+        }
     }
 
+    readonly record struct PermitCandidate(ulong Address, ulong Begin, ulong End, ulong Capacity, int Count);
+
     const int CandidateBatchSize = 1024;
+
+    /// <summary>Rejects bad first samples in bounded stages; survivors still pass the original seven-sample check.</summary>
+    sealed class FirstSampleBatch(IProcessMemory memory, ulong nationVtable, HashSet<ulong> checkedNations)
+    {
+        readonly byte[] bytes = new byte[CandidateBatchSize * RecordSize];
+        readonly bool[] valid = new bool[CandidateBatchSize], succeeded = new bool[CandidateBatchSize];
+        readonly int[] groups = new int[CandidateBatchSize];
+        readonly ulong[] addresses = new ulong[CandidateBatchSize];
+        readonly List<MemoryReadRequest> requests = new(CandidateBatchSize);
+        readonly Dictionary<ulong, int> unique = new(CandidateBatchSize);
+
+        internal bool[] Validate(IReadOnlyList<PermitCandidate> candidates)
+        {
+            Array.Fill(valid, true, 0, candidates.Count);
+            if (memory is not IScatterReadMemory scatter)
+                return valid; // Local/Windows reads already benefit from the cached seven-sample validator.
+            for (int stage = 0; stage < 3; stage++)
+            {
+                requests.Clear();
+                unique.Clear();
+                int length = stage == 1 ? RecordSize : 8;
+                for (int i = 0; i < candidates.Count; i++)
+                {
+                    groups[i] = -1;
+                    if (!valid[i]) continue;
+                    ulong address = stage == 0 ? candidates[i].Begin : BitConverter.ToUInt64(bytes, i * RecordSize);
+                    addresses[i] = address;
+                    if (address == 0) { valid[i] = false; continue; }
+                    if (stage == 2 && checkedNations.Contains(address)) continue;
+                    if (!unique.TryGetValue(address, out int group))
+                    {
+                        group = requests.Count;
+                        unique.Add(address, group);
+                        requests.Add(new(address, bytes.AsMemory(i * RecordSize, length)));
+                    }
+                    groups[i] = group;
+                }
+                // All input addresses are captured before the first response overwrites a pointer buffer.
+                scatter.ReadMany(requests, succeeded.AsSpan(0, requests.Count));
+                for (int i = 0; i < candidates.Count; i++)
+                {
+                    if (!valid[i] || groups[i] < 0) continue; // A known-good nation already passed this stage.
+                    int group = groups[i];
+                    if (!succeeded[group]) { valid[i] = false; continue; }
+                    requests[group].Destination.Span.CopyTo(bytes.AsSpan(i * RecordSize, length));
+                    if (stage != 2) continue;
+                    if (BitConverter.ToUInt64(bytes, i * RecordSize) != nationVtable) valid[i] = false;
+                    else checkedNations.Add(addresses[i]);
+                }
+            }
+            return valid;
+        }
+    }
 
     bool ValidCandidate(IProcessMemory candidateMemory, ulong begin, int total, HashSet<ulong> checkedNations)
     {
@@ -269,7 +351,7 @@ public sealed class WorkPermitTable(IProcessMemory memory, OffsetProfile profile
     {
         ulong at = Locate();
         ulong b = memory.ReadUInt64(at), e = memory.ReadUInt64(at + 8);
-        uint person = BitConverter.ToUInt32(memory.Read(player.Address + PersonIndexOffset, 4));
+        uint person = BitConverter.ToUInt32(memory.Read(player.Address + (ulong)PersonIndex, 4));
         var pointers = memory.Read(b, (int)(e - b));
         var result = new List<WorkPermitGrant>();
         // The table is kept sorted by person index (the game's own order; Add inserts in place), so the player's records are
@@ -312,7 +394,7 @@ public sealed class WorkPermitTable(IProcessMemory memory, OffsetProfile profile
         RequirePlayer(player);
         ulong at = Locate();
         ulong b = memory.ReadUInt64(at), e = memory.ReadUInt64(at + 8), c = memory.ReadUInt64(at + 16);
-        uint person = BitConverter.ToUInt32(memory.Read(player.Address + PersonIndexOffset, 4));
+        uint person = BitConverter.ToUInt32(memory.Read(player.Address + (ulong)PersonIndex, 4));
         var pointers = memory.Read(b, (int)(e - b));
         int position = FirstAbove(pointers, person);
         var record = new byte[RecordSize];
@@ -356,7 +438,7 @@ public sealed class WorkPermitTable(IProcessMemory memory, OffsetProfile profile
         for (int i = 0; i < pointers.Length; i += 8) if (BitConverter.ToUInt64(pointers, i) == grant.Record) { index = i / 8; break; }
         if (index < 0) throw new StaleObjectException("The work permit is no longer in the table");
         var record = memory.Read(grant.Record, RecordSize);
-        if (BitConverter.ToUInt32(record, 8) != BitConverter.ToUInt32(memory.Read(player.Address + PersonIndexOffset, 4)))
+        if (BitConverter.ToUInt32(record, 8) != BitConverter.ToUInt32(memory.Read(player.Address + (ulong)PersonIndex, 4)))
             throw new StaleObjectException("The work permit belongs to another player");
         if (grant.Snapshot.Length != RecordSize * 2 || !record.AsSpan().SequenceEqual(Convert.FromHexString(grant.Snapshot)))
             throw new StaleObjectException("The work permit changed since it was read");
@@ -376,7 +458,7 @@ public sealed class WorkPermitTable(IProcessMemory memory, OffsetProfile profile
         RequireMember(grant.Record);
         var record = memory.Read(grant.Record, RecordSize);
         if (BitConverter.ToUInt16(record, 0x16) != 1 || BitConverter.ToUInt64(record) != grant.Nation ||
-            BitConverter.ToUInt32(record, 8) != BitConverter.ToUInt32(memory.Read(player.Address + PersonIndexOffset, 4)))
+            BitConverter.ToUInt32(record, 8) != BitConverter.ToUInt32(memory.Read(player.Address + (ulong)PersonIndex, 4)))
             throw new StaleObjectException("The work permit changed since it was read");
         ulong main = Locate(), review = main + 0x60;
         ulong b = memory.ReadUInt64(review), e = memory.ReadUInt64(review + 8);
@@ -399,7 +481,7 @@ public sealed class WorkPermitTable(IProcessMemory memory, OffsetProfile profile
         RequireMember(grant.Record);
         var record = memory.Read(grant.Record, RecordSize);
         if (grant.Snapshot.Length != RecordSize * 2 || !record.AsSpan().SequenceEqual(Convert.FromHexString(grant.Snapshot)) ||
-            BitConverter.ToUInt32(record, 8) != BitConverter.ToUInt32(memory.Read(player.Address + PersonIndexOffset, 4)))
+            BitConverter.ToUInt32(record, 8) != BitConverter.ToUInt32(memory.Read(player.Address + (ulong)PersonIndex, 4)))
             throw new StaleObjectException("The work permit changed since it was read");
         Put(grant.Record + 0x10, BitConverter.GetBytes((ushort)year));
     }
@@ -418,7 +500,7 @@ public sealed class WorkPermitTable(IProcessMemory memory, OffsetProfile profile
 
     void SetFlag(PlayerRecord player, bool on)
     {
-        ulong at = player.Address + FlagsOffset;
+        ulong at = player.Address + (ulong)Flags;
         byte current = memory.Read(at, 1)[0];
         byte next = (byte)(on ? current | HasPermitBit : current & ~HasPermitBit);
         if (next != current) Put(at, [next]);

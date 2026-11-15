@@ -16,7 +16,7 @@ public sealed record CompletedTransferPlan(ulong Player, ulong Person, ulong Buy
 /// </summary>
 public sealed class CompletedTransferRecord(IProcessMemory memory, OffsetProfile profile, ulong moduleBase)
 {
-    const int OfferSerial = 0x7D4, MaxOffers = 100_000, MaxPersonOffers = 100, AuxSize = 0x60;
+    const int MaxOffers = 100_000, MaxPersonOffers = 100, AuxSize = 0x60;
 
     public CompletedTransferPlan Plan(ulong player, ulong buyerTeam, ulong sellerTeam, int fee, DateOnly today)
     {
@@ -29,7 +29,7 @@ public sealed class CompletedTransferRecord(IProcessMemory memory, OffsetProfile
         ulong Pointer(ulong at, string what) => BitConverter.ToUInt64(Guard(at, 8, what));
         ulong root = Pointer(moduleBase + po.ListRootRva, "offer root");
         if (root == 0) throw new StaleObjectException("Offer root missing");
-        int serial = BitConverter.ToInt32(Guard(root + OfferSerial, 4, "offer serial"));
+        int serial = BitConverter.ToInt32(Guard(root + (ulong)po.OfferSerial, 4, "offer serial"));
         var offers = FutureTransferVectorSnapshot.Capture(memory, root + (ulong)po.ListOffset, 8, MaxOffers);
         guards.AddRange(offers.Guards);
         int slot = offers.IndexOf(x => BitConverter.ToUInt64(x) == 0);
@@ -85,7 +85,7 @@ public sealed class CompletedTransferRecord(IProcessMemory memory, OffsetProfile
         Vector(plan.Player + (ulong)fo.PlayerOffers, plan.Links, BitConverter.GetBytes(linkAddress));
         ulong slotAddress = memory.ReadUInt64(plan.Root + (ulong)po.ListOffset) + (ulong)plan.OfferId * 8;
         publish.Add(new(slotAddress, new byte[8], BitConverter.GetBytes(address), "offer slot"));
-        publish.Add(new(plan.Root + OfferSerial, BitConverter.GetBytes(plan.Serial), BitConverter.GetBytes(plan.Serial + 1), "offer serial"));
+        publish.Add(new(plan.Root + (ulong)po.OfferSerial, BitConverter.GetBytes(plan.Serial), BitConverter.GetBytes(plan.Serial + 1), "offer serial"));
         FutureTransferTransaction.Apply(memory, guards, [.. scratch, .. publish]);
     }
 }

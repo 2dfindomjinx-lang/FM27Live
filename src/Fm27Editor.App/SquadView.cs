@@ -134,14 +134,6 @@ public sealed partial class MainWindow
 
         var squadGrid = ToolGrid.Create();
         squadGrid.ItemsSource = squadRows;
-        squadGrid.PointerMoved += (_, e) =>
-        {
-            if (!e.KeyModifiers.HasFlag(KeyModifiers.Control) || !e.GetCurrentPoint(squadGrid).Properties.IsLeftButtonPressed)
-                return;
-            var row = squadGrid.GetVisualsAt(e.GetPosition(squadGrid)).OfType<DataGridRow>().FirstOrDefault();
-            if (row?.DataContext is SquadPlayerRow item && !squadGrid.SelectedItems.Contains(item))
-                squadGrid.SelectedItems.Add(item);
-        };
 
         Control Header(string text, string tooltip, HorizontalAlignment align = HorizontalAlignment.Center) => ToolGrid.Header(text, tooltip, align);
         DataGridTemplateColumn NumCol(string title, Func<SquadPlayerRow, string> selector, double width, string tooltip) => ToolGrid.Number(title, selector, width, tooltip);

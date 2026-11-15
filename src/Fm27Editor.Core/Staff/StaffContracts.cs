@@ -23,7 +23,7 @@ public sealed class StaffContractAccess(IProcessMemory memory, OffsetProfile pro
             S.ContractRolling is not { } rolling || S.ContractRollingMask is not { } mask) return null;
         var b = new byte[Math.Max(type + 1, Math.Max(c.ExpiryDate + 4, started + 4))];
         if (!memory.TryRead(job, b) || BitConverter.ToUInt64(b) != moduleBase + c.ContractVtableRva ||
-            BitConverter.ToUInt64(b, S.JobPerson) != staff.Address) return null;
+            BitConverter.ToUInt64(b, S.JobPerson) != staff.Address + (ulong)S.JobPersonAnchor) return null;
         return new OfferContract(job, 0, false, BitConverter.ToInt32(b, c.Wage), b[type], (b[rolling] & mask) != 0,
             FutureTransferReader.DateAt(b, started), FutureTransferReader.DateAt(b, c.ExpiryDate), Convert.ToHexString(b));
     }
@@ -31,12 +31,10 @@ public sealed class StaffContractAccess(IProcessMemory memory, OffsetProfile pro
     public void Set(StaffRecord staff, OfferContract contract, OfferContractFields fields)
     {
         if (!IsStaff(staff) || memory.ReadUInt64(staff.Address + (ulong)S.Job) != contract.Address ||
-            (staff.Id > 0 && (memory.ReadUInt64(staff.Address) != moduleBase + staff.Kind.PersonVtableRva ||
-            memory.ReadUInt64(staff.StaffAddress) != moduleBase + staff.Kind.StaffVtableRva ||
-            staff.Address != staff.StaffAddress + (ulong)staff.Kind.StaffPart ||
+            (staff.Id > 0 && (!StaffIdentity.IsCurrent(staff, memory, moduleBase, S) ||
             BitConverter.ToInt32(memory.Read(staff.Address + (ulong)S.Id, 4)) != staff.Id ||
             profile.Contract is not { } c || memory.ReadUInt64(contract.Address) != moduleBase + c.ContractVtableRva ||
-            memory.ReadUInt64(contract.Address + (ulong)S.JobPerson) != staff.Address)))
+            memory.ReadUInt64(contract.Address + (ulong)S.JobPerson) != staff.Address + (ulong)S.JobPersonAnchor)))
             throw new StaleObjectException($"{staff.DisplayName}'s contract changed since it was read");
         new FutureTransferWriter(memory, profile, moduleBase).SetContract(contract, fields);
     }
@@ -47,13 +45,11 @@ public sealed class StaffContractAccess(IProcessMemory memory, OffsetProfile pro
         if (wage < 0) throw new ArgumentOutOfRangeException(nameof(wage));
         var c = profile.Contract ?? throw new InvalidOperationException("Profile has no contract offsets");
         var snapshot = Convert.FromHexString(contract.Snapshot);
-        if (staff.Id <= 0 || !S.Kinds.Contains(staff.Kind) || staff.Address != staff.StaffAddress + (ulong)staff.Kind.StaffPart ||
-            memory.ReadUInt64(staff.Address) != moduleBase + staff.Kind.PersonVtableRva ||
-            memory.ReadUInt64(staff.StaffAddress) != moduleBase + staff.Kind.StaffVtableRva ||
+        if (staff.Id <= 0 || !S.Kinds.Contains(staff.Kind) || !StaffIdentity.IsCurrent(staff, memory, moduleBase, S) ||
             BitConverter.ToInt32(memory.Read(staff.Address + (ulong)S.Id, 4)) != staff.Id ||
             memory.ReadUInt64(staff.Address + (ulong)S.Job) != contract.Address ||
             memory.ReadUInt64(contract.Address) != moduleBase + c.ContractVtableRva ||
-            memory.ReadUInt64(contract.Address + (ulong)S.JobPerson) != staff.Address ||
+            memory.ReadUInt64(contract.Address + (ulong)S.JobPerson) != staff.Address + (ulong)S.JobPersonAnchor ||
             c.Wage < 0 || snapshot.Length < c.Wage + 4 || BitConverter.ToInt32(snapshot, c.Wage) != contract.Wage)
             throw new StaleObjectException($"{staff.DisplayName}'s contract changed since it was read");
         ulong address = contract.Address + (ulong)c.Wage;
@@ -67,7 +63,7 @@ public sealed class StaffContractAccess(IProcessMemory memory, OffsetProfile pro
     bool IsStaff(StaffRecord staff)
     {
         ulong vt = memory.ReadUInt64(staff.Address);
-        return S.Kinds.Any(k => vt == moduleBase + k.PersonVtableRva);
+        return StaffIdentity.IsPersonVtable(vt, moduleBase, S) || StaffIdentity.IsStaffVtable(vt, moduleBase, S);
     }
 
     /// <summary>Moves the expiry by whole years (−1 / +1 Year); a contract with no expiry has nothing to move.</summary>

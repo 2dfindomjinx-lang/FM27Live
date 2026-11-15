@@ -31,46 +31,122 @@ public sealed record RefereeRecord(ulong Address, uint VtableRva, string? FirstN
     public string DisplayName => string.IsNullOrWhiteSpace(CommonName) ? $"{FirstName} {LastName}".Trim() : CommonName;
 }
 
-/// <summary>Reads the officials array found through <see cref="GlobalArrayFinder"/>; read only.</summary>
-public sealed class RefereeDirectory(IProcessMemory memory, ulong moduleBase, ulong moduleSize)
+/// <summary>
+/// Reads the officials array. A measured profile (<see cref="Offsets.OfficialsOffsets"/>) names its module slot and
+/// object layout (Mac); without one the array is found through the clubs anchor and the x86-64 layout is used.
+/// </summary>
+public sealed class RefereeDirectory(IProcessMemory memory, ulong moduleBase, ulong moduleSize, Fm27Editor.Core.Offsets.OfficialsOffsets? offsets = null)
 {
-    internal const int FirstName = 0x28, LastName = 0x30, CommonName = 0x38, Nation = 0x40, City = 0x58;
-    internal const int BirthDay = 0x60, BirthYear = 0x62;
-    internal const int CurrentAbility = 0x11C, PotentialAbility = 0x11E, Reputation = 0x120;
-    internal const int AllowingFlow = 0x122, Discipline = 0x123, ImportantMatches = 0x124, Pressure = 0x125;
-    internal const int Refereeing = 0x126, RunningLine = 0x127, TimeKeeping = 0x128, EliteList = 0x129;
-    internal const int Continental = 0x12A, EuropeanCategory = 0x12B, UniqueId = 0x144;
-    internal const int SnapshotSize = 0x148;
+    // x86-64 (Windows 27.0.0) defaults, used when the profile has no officials section.
+    const int FirstNameDefault = 0x28, LastNameDefault = 0x30, CommonNameDefault = 0x38, NationDefault = 0x40, CityDefault = 0x58;
+    const int BirthDayDefault = 0x60, BirthYearDefault = 0x62;
+    const int CurrentAbilityDefault = 0x11C, PotentialAbilityDefault = 0x11E, ReputationDefault = 0x120;
+    const int AllowingFlowDefault = 0x122, DisciplineDefault = 0x123, ImportantMatchesDefault = 0x124, PressureDefault = 0x125;
+    const int RefereeingDefault = 0x126, RunningLineDefault = 0x127, TimeKeepingDefault = 0x128, EliteListDefault = 0x129;
+    const int ContinentalDefault = 0x12A, EuropeanCategoryDefault = 0x12B, UniqueIdDefault = 0x144, SnapshotSizeDefault = 0x148;
     const int MaxReferees = 20_000;
+
+    int FirstName => offsets?.FirstName ?? FirstNameDefault;
+    int LastName => offsets?.LastName ?? LastNameDefault;
+    int CommonName => offsets?.CommonName ?? CommonNameDefault;
+    int Nation => offsets?.Nation ?? NationDefault;
+    int City => offsets?.City ?? CityDefault;
+    int BirthDay => offsets?.BirthDay ?? BirthDayDefault;
+    int BirthYear => offsets?.BirthYear ?? BirthYearDefault;
+    int CurrentAbility => offsets?.CurrentAbility ?? CurrentAbilityDefault;
+    int PotentialAbility => offsets?.PotentialAbility ?? PotentialAbilityDefault;
+    int Reputation => offsets?.Reputation ?? ReputationDefault;
+    int AllowingFlow => offsets?.AllowingFlow ?? AllowingFlowDefault;
+    int Discipline => offsets?.Discipline ?? DisciplineDefault;
+    int ImportantMatches => offsets?.ImportantMatches ?? ImportantMatchesDefault;
+    int Pressure => offsets?.Pressure ?? PressureDefault;
+    int Refereeing => offsets?.Refereeing ?? RefereeingDefault;
+    int RunningLine => offsets?.RunningLine ?? RunningLineDefault;
+    int TimeKeeping => offsets?.TimeKeeping ?? TimeKeepingDefault;
+    int EliteList => offsets?.EliteList ?? EliteListDefault;
+    int Continental => offsets?.Continental ?? ContinentalDefault;
+    int EuropeanCategory => offsets?.EuropeanCategory ?? EuropeanCategoryDefault;
+    int UniqueId => offsets?.UniqueId ?? UniqueIdDefault;
+    int SnapshotSize => offsets?.SnapshotSize ?? SnapshotSizeDefault;
+
+    /// <summary>The byte offset and allowed range of an editable field for the given profile layout.</summary>
+    public static (int Offset, int Min, int Max) Spec(RefereeField field, Fm27Editor.Core.Offsets.OfficialsOffsets? offsets = null) => field switch
+    {
+        RefereeField.CurrentAbility => (offsets?.CurrentAbility ?? CurrentAbilityDefault, 1, 200),
+        RefereeField.PotentialAbility => (offsets?.PotentialAbility ?? PotentialAbilityDefault, 1, 200),
+        RefereeField.Reputation => (offsets?.Reputation ?? ReputationDefault, 0, 10_000),
+        RefereeField.AllowingFlow => (offsets?.AllowingFlow ?? AllowingFlowDefault, 1, 20),
+        RefereeField.Discipline => (offsets?.Discipline ?? DisciplineDefault, 1, 20),
+        RefereeField.ImportantMatches => (offsets?.ImportantMatches ?? ImportantMatchesDefault, 1, 20),
+        RefereeField.Pressure => (offsets?.Pressure ?? PressureDefault, 1, 20),
+        RefereeField.Refereeing => (offsets?.Refereeing ?? RefereeingDefault, 1, 20),
+        RefereeField.RunningLine => (offsets?.RunningLine ?? RunningLineDefault, 1, 20),
+        RefereeField.TimeKeeping => (offsets?.TimeKeeping ?? TimeKeepingDefault, 1, 20),
+        RefereeField.EliteList => (offsets?.EliteList ?? EliteListDefault, 0, 1),
+        RefereeField.Continental => (offsets?.Continental ?? ContinentalDefault, 0, 1),
+        RefereeField.EuropeanCategory => (offsets?.EuropeanCategory ?? EuropeanCategoryDefault, 0, 5),
+        _ => throw new ArgumentOutOfRangeException(nameof(field)),
+    };
+
+    internal (int Offset, int Min, int Max) Spec(RefereeField field) => Spec(field, offsets);
+
+    /// <summary>Every editable field's byte offset and display name for the given layout, for the edit history.</summary>
+    public static IReadOnlyList<(int Offset, string Name)> FieldOffsets(Fm27Editor.Core.Offsets.OfficialsOffsets? offsets = null) =>
+        Enum.GetValues<RefereeField>().Select(f => (Spec(f, offsets).Offset, f switch
+        {
+            RefereeField.CurrentAbility => "Current Ability",
+            RefereeField.PotentialAbility => "Potential Ability",
+            RefereeField.AllowingFlow => "Allowing Flow",
+            RefereeField.ImportantMatches => "Important Matches",
+            RefereeField.RunningLine => "Running Line",
+            RefereeField.TimeKeeping => "Time Keeping",
+            RefereeField.EliteList => "Elite List",
+            RefereeField.EuropeanCategory => "European Category",
+            _ => f.ToString(),
+        })).ToList();
+
+    internal int Window => SnapshotSize;
 
     /// <summary>Every referee the array holds; empty when the anchor or the array is not readable.</summary>
     public IReadOnlyList<RefereeRecord> ReadAll()
     {
         using var reads = new BulkReadScope(memory);
-        return new RefereeDirectory(reads.Memory, moduleBase, moduleSize).ReadAllCore();
+        return new RefereeDirectory(reads.Memory, moduleBase, moduleSize, offsets).ReadAllCore();
     }
 
     IReadOnlyList<RefereeRecord> ReadAllCore()
     {
-        if (GlobalArrayFinder.Read(memory, moduleBase, moduleSize) is not { } arrays) return [];
-        int count = GlobalArrays.Count(arrays.RefereesBegin, arrays.RefereesEnd);
+        ulong begin, end;
+        if (offsets?.ListRootRva is { } rva)
+        {
+            // Mac: the module slot itself holds the begin/end pointers.
+            begin = memory.TryRead(moduleBase + rva, new byte[8].AsSpan()) ? memory.ReadUInt64(moduleBase + rva) : 0;
+            end = memory.TryRead(moduleBase + rva + 8, new byte[8].AsSpan()) ? memory.ReadUInt64(moduleBase + rva + 8) : 0;
+        }
+        else if (GlobalArrayFinder.Read(memory, moduleBase, moduleSize) is { } arrays)
+        {
+            begin = arrays.RefereesBegin;
+            end = arrays.RefereesEnd;
+        }
+        else return [];
+        int count = GlobalArrays.Count(begin, end);
         if (count is 0 or > MaxReferees) return [];
         var pointers = new byte[count * 8];
-        if (!memory.TryRead(arrays.RefereesBegin, pointers)) return [];
+        if (!memory.TryRead(begin, pointers)) return [];
         var result = new List<RefereeRecord>(count);
         for (int i = 0; i < count; i++)
             if (Read(BitConverter.ToUInt64(pointers, i * 8)) is { } referee) result.Add(referee);
         return result;
     }
 
-    /// <summary>One referee; null when the object is not a referee (vtable differs from the first one seen).</summary>
+    /// <summary>One referee; null when the object is not a referee of this build.</summary>
     public RefereeRecord? Read(ulong address)
     {
         if (address == 0) return null;
         var bytes = new byte[SnapshotSize];
         if (!memory.TryRead(address, bytes)) return null;
         ulong vtable = BitConverter.ToUInt64(bytes);
-        if (vtable < moduleBase || vtable >= moduleBase + moduleSize) return null;
+        if (offsets is { } o ? vtable != moduleBase + o.VtableRva : vtable < moduleBase || vtable >= moduleBase + moduleSize) return null;
         int day = BitConverter.ToInt16(bytes, BirthDay), year = BitConverter.ToInt16(bytes, BirthYear);
         DateOnly? born = year is >= 1900 and <= 2100 && day is >= 1 and <= 366
             ? DateOnly.FromDayNumber(new DateOnly(year, 1, 1).DayNumber + day - 1) : null;
@@ -111,31 +187,15 @@ public sealed class RefereeDirectory(IProcessMemory memory, ulong moduleBase, ul
 /// Guarded writes for one referee: the whole 0x148-byte snapshot must still match, the value must be inside the
 /// range FMRTE/game use, then read back. Names and the pointer fields are never written.
 /// </summary>
-public sealed class RefereeWriter(IProcessMemory memory, ulong moduleBase)
+public sealed class RefereeWriter(IProcessMemory memory, ulong moduleBase, Fm27Editor.Core.Offsets.OfficialsOffsets? offsets = null)
 {
     public void Set(RefereeRecord referee, RefereeField field, int value)
     {
-        (int offset, int min, int max) = field switch
-        {
-            RefereeField.CurrentAbility or RefereeField.PotentialAbility => (field == RefereeField.CurrentAbility
-                ? RefereeDirectory.CurrentAbility : RefereeDirectory.PotentialAbility, 1, 200),
-            RefereeField.Reputation => (RefereeDirectory.Reputation, 0, 10_000),
-            RefereeField.AllowingFlow => (RefereeDirectory.AllowingFlow, 1, 20),
-            RefereeField.Discipline => (RefereeDirectory.Discipline, 1, 20),
-            RefereeField.ImportantMatches => (RefereeDirectory.ImportantMatches, 1, 20),
-            RefereeField.Pressure => (RefereeDirectory.Pressure, 1, 20),
-            RefereeField.Refereeing => (RefereeDirectory.Refereeing, 1, 20),
-            RefereeField.RunningLine => (RefereeDirectory.RunningLine, 1, 20),
-            RefereeField.TimeKeeping => (RefereeDirectory.TimeKeeping, 1, 20),
-            RefereeField.EliteList => (RefereeDirectory.EliteList, 0, 1),
-            RefereeField.Continental => (RefereeDirectory.Continental, 0, 1),
-            RefereeField.EuropeanCategory => (RefereeDirectory.EuropeanCategory, 0, 5),
-            _ => throw new ArgumentOutOfRangeException(nameof(field)),
-        };
+        var (offset, min, max) = new RefereeDirectory(memory, moduleBase, 0, offsets).Spec(field);
         if (value < min || value > max)
             throw new ArgumentOutOfRangeException(nameof(value), $"{field} must be {min}..{max}");
         var before = Convert.FromHexString(referee.Snapshot);
-        if (before.Length != RefereeDirectory.SnapshotSize || BitConverter.ToUInt64(before) != moduleBase + referee.VtableRva)
+        if (before.Length != new RefereeDirectory(memory, moduleBase, 0, offsets).Window || BitConverter.ToUInt64(before) != moduleBase + referee.VtableRva)
             throw new StaleObjectException("The referee snapshot has an invalid vtable");
         var now = memory.Read(referee.Address, before.Length);
         if (!now.AsSpan().SequenceEqual(before))

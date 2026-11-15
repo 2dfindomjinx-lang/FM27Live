@@ -18,7 +18,7 @@ public class StaffDetailsMassEditTests
         return new StaffRecord
         {
             Address = 0x1000, StaffAddress = 0x0F00, Id = 581, Attributes = attrs, Personality = new byte[8],
-            Kind = new StaffKind(1, 2, 0x100, false), DateOfBirth = new DateOnly(1972, 8, 12), Caps = 0, Goals = 0,
+            Kind = new StaffKind(1, 2, 0x100, 0, false), DateOfBirth = new DateOnly(1972, 8, 12), Caps = 0, Goals = 0,
             License = StaffLicense.StudyingToContinentalA,
         };
     }

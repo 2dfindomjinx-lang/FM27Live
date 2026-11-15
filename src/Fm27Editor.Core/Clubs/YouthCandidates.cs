@@ -119,7 +119,10 @@ public sealed class YouthCandidate
 public sealed class YouthCandidateReader(IProcessMemory memory, OffsetProfile profile, ulong moduleBase)
 {
     // MSVC std::map tree node: left, parent, right, then the isnil flag; the key follows at +0x20.
+    // libc++ std::__tree (arm64 macOS): map header is begin_node_ (+0), end_node_.__left_ / root (+8), size_ (+0x10);
+    // nodes use left (+0), right (+8), null children == 0, with no isnil byte.
     const int Left = 0, Parent = 8, Right = 0x10, IsNil = 0x19, Key = 0x20;
+    const int LibcxxLeft = 0, LibcxxRight = 8;
     const int MaxNameLength = 256, MaxNodes = 100_000, MaxRecords = 10_000;
 
     ulong? _manager;
@@ -145,11 +148,11 @@ public sealed class YouthCandidateReader(IProcessMemory memory, OffsetProfile pr
             }
         }
         var found = new List<ulong>();
-        if (memory is WindowsProcessMemory windows)
+        if (memory is IMemoryRegions regions)
         {
             ulong want = moduleBase + o.ManagerVtable;
             var buffer = new byte[1 << 22];
-            foreach (var region in windows.EnumerateWritableRegions())
+            foreach (var region in regions.EnumerateWritableRegions())
             {
                 if (region.IsModuleData) continue;
                 for (ulong offset = 0; offset + 8 <= region.Size; offset += (ulong)buffer.Length)
@@ -175,9 +178,18 @@ public sealed class YouthCandidateReader(IProcessMemory memory, OffsetProfile pr
         return (_manager = found[0]).Value;
     }
 
-    /// <summary>The candidate map's head node is an MSVC sentinel: its isnil byte is 1.</summary>
+    /// <summary>The candidate map header matches either an MSVC sentinel tree or a libc++ <c>std::__tree</c>.</summary>
     bool LooksLikeManager(ulong address, YouthCandidateOffsets o)
     {
+        if (profile.IsArm64)
+        {
+            ulong mapAddr = address + (ulong)o.CandidateMap;
+            ulong endNode = mapAddr + 8;
+            if (!TryQ(mapAddr, out ulong beginNode) || !TryQ(endNode, out ulong root) || !TryQ(mapAddr + 0x10, out ulong size))
+                return false;
+            if (size == 0) return beginNode == endNode && root == 0;
+            return size <= MaxNodes && beginNode != 0 && beginNode != endNode && root != 0 && TryQ(root + LibcxxLeft, out _);
+        }
         var q = new byte[8];
         if (!memory.TryRead(address + (ulong)o.CandidateMap, q)) return false;
         ulong head = BitConverter.ToUInt64(q);
@@ -234,31 +246,47 @@ public sealed class YouthCandidateReader(IProcessMemory memory, OffsetProfile pr
     /// <summary>Every (begin, end) candidate vector in the manager's candidate map.</summary>
     IEnumerable<(ulong Begin, ulong End)> Vectors(ulong managerAddress, YouthCandidateOffsets o)
     {
-        if (!TryQ(managerAddress + (ulong)o.CandidateMap, out ulong head) || head == 0) yield break;
-        if (!TryQ(head + Parent, out ulong root) || root == 0 || root == head) yield break;
-        // In-order walk from the root; the sentinel head itself is never a candidate node.
+        bool arm64 = profile.IsArm64;
+        ulong root;
+        ulong sentinel = 0;
+        if (arm64)
+        {
+            ulong mapAddr = managerAddress + (ulong)o.CandidateMap;
+            if (!TryQ(mapAddr + 8, out root) || root == 0 || !TryQ(mapAddr + 0x10, out ulong size) || size == 0 || size > MaxNodes)
+                yield break;
+        }
+        else
+        {
+            if (!TryQ(managerAddress + (ulong)o.CandidateMap, out ulong head) || head == 0) yield break;
+            if (!TryQ(head + Parent, out root) || root == 0 || root == head) yield break;
+            sentinel = head;
+        }
+        int leftOffset = arm64 ? LibcxxLeft : Left;
+        int rightOffset = arm64 ? LibcxxRight : Right;
+        // In-order walk from the root; MSVC uses a sentinel head with isnil == 1, while libc++ uses null (0) children.
         var stack = new Stack<ulong>();
-        var flag = new byte[1];
+        var visited = new HashSet<ulong>();
+        var flag = arm64 ? null : new byte[1];
         ulong node = root;
         int seen = 0;
-        while ((stack.Count > 0 || node != 0) && seen <= MaxNodes)
+        while ((stack.Count > 0 || (node != 0 && node != sentinel)) && seen <= MaxNodes)
         {
-            while (node != 0 && seen <= MaxNodes)
+            while (node != 0 && node != sentinel && seen <= MaxNodes)
             {
-                if (!TryQ(node + Left, out ulong left)) break;
+                if (!visited.Add(node) || !TryQ(node + (ulong)leftOffset, out ulong left)) break;
                 stack.Push(node);
                 node = left;
                 seen++;
             }
             if (stack.Count == 0) yield break;
             node = stack.Pop();
-            if (memory.TryRead(node + IsNil, flag) && flag[0] == 0)
+            if (arm64 || (memory.TryRead(node + IsNil, flag!) && flag![0] == 0))
             {
                 if (TryQ(node + (ulong)o.NodeVector, out ulong begin) && TryQ(node + (ulong)o.NodeVector + 8, out ulong end)
                     && end >= begin && (end - begin) / (ulong)o.RecordSize <= MaxRecords)
                     yield return (begin, end);
             }
-            if (!TryQ(node + Right, out ulong right)) yield break;
+            if (!TryQ(node + (ulong)rightOffset, out ulong right)) yield break;
             node = right;
         }
     }

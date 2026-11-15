@@ -8,14 +8,15 @@ namespace Fm27Editor.Core.Game;
 /// <summary>An attached, build-checked Football Manager 27 process.</summary>
 public sealed class GameSession : IDisposable
 {
-    readonly WindowsProcessMemory _memory;
+    readonly IProcessMemory _memory;
+    internal IDisposable? _disposable;
 
     public IProcessMemory Memory => _memory;
-    public WindowsProcessMemory Process => _memory;
+    public WindowsProcessMemory? Process => _memory as WindowsProcessMemory;
     public GameProcess Game { get; }
     public OffsetProfile Profile { get; }
     public ulong ModuleBase => Game.ModuleBase;
-    public bool CanWrite => _memory.CanWrite;
+    public bool CanWrite => (_memory as IRemoteAllocator)?.CanWrite ?? false;
 
     public PlayerRepository Players { get; }
     public PlayerWriter Writer { get; }
@@ -29,8 +30,11 @@ public sealed class GameSession : IDisposable
     /// </summary>
     public ulong AllocateGameBlock(int size)
     {
-        ulong at = RemoteCrtAllocator.Allocate(_memory, size);
-        _memory.OnAllocate?.Invoke(at, size);
+        ulong at;
+        if (_memory is WindowsProcessMemory wpm) at = RemoteCrtAllocator.Allocate(wpm, size);
+        else if (_memory is IRemoteAllocator alloc) at = alloc.Allocate(size);
+        else throw new NotSupportedException("This process memory cannot allocate game blocks");
+        (_memory as IMemoryWriteObserver)?.OnAllocate?.Invoke(at, size);
         return at;
     }
 
@@ -43,7 +47,7 @@ public sealed class GameSession : IDisposable
 
     /// <summary>Every club, including those without players: a full heap scan, about 15 s.</summary>
     public IReadOnlyList<Clubs.ClubEntry> ScanAllClubs() =>
-        Clubs.ClubDirectory.Load(_memory, _memory.EnumerateWritableRegions(Game.ModuleBase, Game.ModuleEnd), Profile, Game.ModuleBase);
+        Clubs.ClubDirectory.Load(_memory, ((IMemoryRegions)_memory).EnumerateWritableRegions(Game.ModuleBase, Game.ModuleEnd), Profile, Game.ModuleBase);
 
     /// <summary>Adds a bonus/clause to the contract, growing its list in the game process when it is full.</summary>
     public void AddContractTerm(PlayerRecord player, ContractDetails snapshot, short type, int value, short parameter, ulong futureContract = 0) =>
@@ -67,13 +71,13 @@ public sealed class GameSession : IDisposable
 
     /// <summary>"Accelerate Player Development"; one instance per session so the located code site is reused.</summary>
     public Presets.AcceleratedDevelopment AcceleratedDevelopment =>
-        _accelerated ??= new(_memory, _memory.CanWrite ? _memory : null, Profile, Game.ModuleBase, Game.ModuleSize);
+        _accelerated ??= new(_memory, CanWrite ? _memory as Presets.ICodePatchHost : null, Profile, Game.ModuleBase, Game.ModuleSize);
 
     Presets.GoldenGenerationHook? _golden;
 
     /// <summary>Golden Generation as a hook on the regen code; one instance per session so the located code site is reused.</summary>
     public Presets.GoldenGenerationHook GoldenGenerationHook =>
-        _golden ??= new(_memory, _memory.CanWrite ? _memory : null, Profile, Game.ModuleBase, Game.ModuleSize);
+        _golden ??= new(_memory, CanWrite ? _memory as Presets.ICodePatchHost : null, Profile, Game.ModuleBase, Game.ModuleSize);
 
     /// <summary>Current in-game date, read fresh on every call; null if unknown.</summary>
     public DateOnly? ReadGameDate() => GameClock.Read(_memory, Profile, Game.ModuleBase);
@@ -591,10 +595,10 @@ public sealed class GameSession : IDisposable
             ModuleBase + (Profile.Nation?.VtableRva ?? throw new InvalidOperationException("No nation vtable")),
             ModuleBase + (Profile.Nation?.Preferences?.TeamVtable ?? throw new InvalidOperationException("No national team vtable")), snapshot, values);
     /// <summary>Referees from the game-wide officials array (found through the clubs anchor).</summary>
-    public Officials.RefereeDirectory Referees => new(_memory, ModuleBase, Game.ModuleEnd - ModuleBase);
+    public Officials.RefereeDirectory Referees => new(_memory, ModuleBase, Game.ModuleEnd - ModuleBase, Profile.Officials);
     public IReadOnlyList<Officials.RefereeRecord> ReadReferees() => Referees.ReadAll();
     public void SetReferee(Officials.RefereeRecord referee, Officials.RefereeField field, int value) =>
-        new Officials.RefereeWriter(_memory, ModuleBase).Set(referee, field, value);
+        new Officials.RefereeWriter(_memory, ModuleBase, Profile.Officials).Set(referee, field, value);
     /// <summary>Term editing and recall for a player who is out on loan.</summary>
     public Players.LoanEditor Loans => new(_memory, Profile, Game.ModuleBase);
     public Players.ActiveLoan? ReadLoan(Players.PlayerRecord player) => Loans.Read(player);
@@ -655,9 +659,10 @@ public sealed class GameSession : IDisposable
     public IReadOnlyList<ContractClause> ReadClauses(PlayerRecord player) =>
         new PendingContractReader(_memory, Profile).ReadClauses(player.PendingContractAddress);
 
-    GameSession(WindowsProcessMemory memory, GameProcess game, OffsetProfile profile)
+    GameSession(IProcessMemory memory, GameProcess game, OffsetProfile profile)
     {
         _memory = memory;
+        _disposable = memory as IDisposable;
         Game = game;
         Profile = profile;
         Players = new PlayerRepository(memory, profile, game.ModuleBase);
@@ -677,27 +682,36 @@ public sealed class GameSession : IDisposable
         Exception? accessError = null;
         foreach (var game in games)
         {
-            WindowsProcessMemory memory;
-            try { memory = new WindowsProcessMemory(game.ProcessId, false); }
+            IProcessMemory memory = default!;
+            try
+            {
+                memory = OperatingSystem.IsMacOS()
+                    ? MacMemory.Open(game.ProcessId, false)
+                    : new WindowsProcessMemory(game.ProcessId, false);
+            }
             catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or MemoryAccessException)
             { accessError = ex; continue; }
             try
             {
-                bool store = game.ExePath.Contains("WindowsApps", StringComparison.OrdinalIgnoreCase);
+                bool store = game.ExePath is not null && game.ExePath.Contains("WindowsApps", StringComparison.OrdinalIgnoreCase);
                 foreach (var profile in all.OrderBy(p => PreferredRank(p, store)))
                     if (ProfileMatches(memory, game.ModuleBase, game.ModuleSize, profile))
                     {
                         if (writable && !profile.ReadOnly)
                         {
-                            var writableMemory = new WindowsProcessMemory(game.ProcessId, true);
-                            memory.Dispose();
-                            memory = writableMemory;
+                            // Close the read-only handle before opening the writable one: on macOS the privileged
+                            // helper serves one client socket at a time, so opening a second connection first deadlocks.
+                            (memory as IDisposable)?.Dispose();
+                            memory = null!;
+                            memory = OperatingSystem.IsMacOS()
+                                ? MacMemory.Open(game.ProcessId, true)
+                                : new WindowsProcessMemory(game.ProcessId, true);
                         }
                         return new GameSession(memory, game, profile);
                     }
             }
-            catch { memory.Dispose(); throw; }
-            memory.Dispose();
+            catch { (memory as IDisposable)?.Dispose(); throw; }
+            (memory as IDisposable)?.Dispose();
         }
         if (accessError is not null) throw new GameNotRunningException($"Could not access a game process: {accessError.Message}");
         throw new UnsupportedBuildException("No running game matches a supported build. Run: Fm27Editor.Tools find-offsets");
@@ -769,7 +783,7 @@ public sealed class GameSession : IDisposable
             .ToList();
     }
 
-    public void Dispose() => _memory.Dispose();
+    public void Dispose() => (_disposable ?? (_memory as IDisposable))?.Dispose();
 }
 
 public sealed class GameNotRunningException(string message) : Exception(message);

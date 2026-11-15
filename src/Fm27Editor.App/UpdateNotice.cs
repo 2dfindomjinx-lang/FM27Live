@@ -10,25 +10,31 @@ public sealed partial class MainWindow
     /// release checksum, puts it in place of this one and restarts. Anything that goes wrong leaves this version as it was
     /// and offers the download page instead.
     /// </summary>
+    static bool IsSelfUpdatable(string? exe) =>
+        exe is not null && Path.GetFileName(exe).Equals(UpdateCheck.ExeName, StringComparison.OrdinalIgnoreCase);
+
     async Task NotifyIfUpdateAsync()
     {
         string? exe = Environment.ProcessPath;
-        if (exe is not null && Path.GetFileName(exe).Equals(UpdateCheck.ExeName, StringComparison.OrdinalIgnoreCase))
-            await Task.Run(() => UpdateCheck.CleanUp(exe));
+        if (IsSelfUpdatable(exe))
+            await Task.Run(() => UpdateCheck.CleanUp(exe!));
         var release = await UpdateCheck.NewerReleaseAsync();
         if (release is null) return;
+        bool selfUpdatable = IsSelfUpdatable(exe);
         await Dispatcher.UIThread.InvokeAsync(() =>
             ShowNotice(Loc.S("Update available"),
-                Loc.F("Version {0} is out. Update now downloads it, closes the editor and opens the new version. Changes you have not saved yet are lost; anything running in the game (Development Speed, Wonderkid Academy) keeps running.", release.Tag),
+                selfUpdatable
+                    ? Loc.F("Version {0} is out. Update now downloads it, closes the editor and opens the new version. Changes you have not saved yet are lost; anything running in the game (Development Speed, Wonderkid Academy) keeps running.", release.Tag)
+                    : Loc.F("Version {0} is out on GitHub. Download the latest release from the release page.", release.Tag),
                 (Loc.S("Later"), false, null),
-                (Loc.S("Update now"), true, () => UpdateAsync(release))));
+                (Loc.S(selfUpdatable ? "Update now" : "Open GitHub"), true, () => UpdateAsync(release))));
     }
 
     async Task UpdateAsync(ReleaseInfo release)
     {
         string? exe = Environment.ProcessPath;
         // Only the single-file release exe can replace itself; a development build or a renamed copy goes to the download page.
-        if (exe is null || !Path.GetFileName(exe).Equals(UpdateCheck.ExeName, StringComparison.OrdinalIgnoreCase))
+        if (!IsSelfUpdatable(exe))
         {
             OpenReleasesPage();
             return;
@@ -36,9 +42,9 @@ public sealed partial class MainWindow
         status.Text = Loc.F("Downloading {0}…", release.Tag);
         try
         {
-            string downloaded = await UpdateCheck.DownloadAsync(release, exe);
-            UpdateCheck.Swap(exe, downloaded);
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(exe) { UseShellExecute = false, WorkingDirectory = Path.GetDirectoryName(exe) });
+            string downloaded = await UpdateCheck.DownloadAsync(release, exe!);
+            UpdateCheck.Swap(exe!, downloaded);
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(exe!) { UseShellExecute = false, WorkingDirectory = Path.GetDirectoryName(exe) });
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Net.Http.HttpRequestException
                                        or TaskCanceledException or InvalidDataException or System.ComponentModel.Win32Exception)

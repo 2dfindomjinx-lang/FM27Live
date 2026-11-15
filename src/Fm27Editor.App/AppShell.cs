@@ -763,6 +763,41 @@ public sealed partial class MainWindow
         else modules.SelectedIndex = 0;
     }
 
+    /// <summary>Shows or hides a top-bar module button and switches away if that module was active.</summary>
+    void SetModuleVisible(string header, bool visible)
+    {
+        if (moduleButtons.TryGetValue(header, out var button)) button.IsVisible = visible;
+        if (visible) return;
+
+        if (header.Equals("Referees", StringComparison.OrdinalIgnoreCase))
+        {
+            foreach (var (key, tab) in kindTabs.ToArray())
+            {
+                if (!key.StartsWith("referee:", StringComparison.OrdinalIgnoreCase)) continue;
+                tab.Dirty = false;
+                kindTabs.Remove(key);
+                entityStrip.Children.Remove(tab.Button);
+                if (ReferenceEquals(activeEntityButton, tab.Button)) activeEntityButton = null;
+            }
+            UpdateEntityRow();
+        }
+
+        if (string.Equals(activeModule, header, StringComparison.Ordinal))
+        {
+            if (activeEntityButton is null) ShowModule("Players");
+            else
+            {
+                activeModule = "Players";
+                UpdateModuleBarStyles();
+            }
+        }
+        else if (activeEntityButton is null)
+        {
+            HighlightEntityTab();
+            UpdateModuleBarStyles();
+        }
+    }
+
     void ShowDetailTab(PlayerRecord? player)
     {
         if (player is null) { CloseDetailTab(); return; }

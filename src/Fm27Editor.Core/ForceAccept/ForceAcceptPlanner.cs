@@ -28,11 +28,19 @@ namespace Fm27Editor.Core.ForceAccept;
 /// human manager's offers, which an overwrite cannot express (see the site table below). It reports
 /// <see cref="ForceAcceptSiteState.NotImplemented"/> and stays unavailable until that hook is measured.
 /// </para>
+/// <para>
+/// ARM64 presets are unavailable. The former transfer candidate is libcurl's HSTS callback validation, not transfer
+/// evaluation. No ARM64 acceptance site or human-club guard has been established; an RVA alone cannot enable one.
+/// </para>
 /// </remarks>
 public sealed class ForceAcceptPlanner(OffsetProfile profile, IProcessMemory memory, ulong moduleBase, ChangeJournal? journal = null)
 {
-    /// <summary>One patch site: which profile field carries its RVA, which bytes replace which, and whether the preset is an implemented overwrite.</summary>
-    sealed record Site(string Key, Func<ForceAcceptOffsets?, uint?> RvaFrom, byte[] Original, byte[] Replacement, bool RequiresGuardedHook = false);
+    /// <summary>
+    /// One patch site: which profile field carries its RVA, which bytes replace which, and whether the preset is an
+    /// implemented x86-64 overwrite. No ARM64 byte sequences are offered until the acceptance logic is measured.
+    /// </summary>
+    sealed record Site(string Key, Func<ForceAcceptOffsets?, uint?> RvaFrom, byte[] Original, byte[] Replacement,
+        bool RequiresGuardedHook = false);
 
     static readonly IReadOnlyDictionary<ForceAcceptPreset, Site[]> Sites = new Dictionary<ForceAcceptPreset, Site[]>
     {
@@ -70,6 +78,8 @@ public sealed class ForceAcceptPlanner(OffsetProfile profile, IProcessMemory mem
         // Transfer: `movzx r13d, byte [obj+0x800]` loads the answer the acceptance branch switches on; the
         // replacement sets r13d to 3 — the value both the Cheat Engine preset and FM27Studio force — and pads the
         // two leftover bytes with NOPs so the instruction length stays the same.
+        // Do not port this by matching just the load offset. The former ARM64 candidate `ldrb w8,[x21,#0x800]`
+        // checks a libcurl HSTS callback's hostname buffer; forcing 3 takes CURLE_BAD_FUNCTION_ARGUMENT, not acceptance.
         [ForceAcceptPreset.TransferOffers] =
         [
             new("transferStatus", o => o?.TransferOffersRva,
@@ -81,27 +91,29 @@ public sealed class ForceAcceptPlanner(OffsetProfile profile, IProcessMemory mem
     /// <summary>Plans one preset against the current memory; reads only, writes nothing.</summary>
     public ForceAcceptPlan Plan(ForceAcceptPreset preset)
     {
+        bool arm64 = profile.IsArm64;
         var planned = new List<ForceAcceptSitePlan>(Sites[preset].Length);
         foreach (var site in Sites[preset])
         {
+            byte[] original = arm64 ? [] : site.Original;
+            byte[] replacement = arm64 ? [] : site.Replacement;
+            uint? rva = site.RvaFrom(profile.ForceAccept);
             // A preset whose reference is a guarded hook is never read: no byte pattern at the site can enable it,
             // and reading would only suggest it could be planned.
-            if (site.RequiresGuardedHook)
+            if (site.RequiresGuardedHook || arm64 && rva is not null)
             {
-                uint? hookRva = site.RvaFrom(profile.ForceAccept);
                 planned.Add(new ForceAcceptSitePlan
                 {
                     Key = site.Key,
-                    Rva = hookRva,
-                    Address = hookRva is null ? null : moduleBase + hookRva.Value,
-                    Original = site.Original,
-                    Replacement = site.Replacement,
+                    Rva = rva,
+                    Address = rva is null ? null : moduleBase + rva.Value,
+                    Original = original,
+                    Replacement = replacement,
                     State = ForceAcceptSiteState.NotImplemented,
                 });
                 continue;
             }
 
-            uint? rva = site.RvaFrom(profile.ForceAccept);
             if (rva is null)
             {
                 planned.Add(new ForceAcceptSitePlan
@@ -109,15 +121,15 @@ public sealed class ForceAcceptPlanner(OffsetProfile profile, IProcessMemory mem
                     Key = site.Key,
                     Rva = null,
                     Address = null,
-                    Original = site.Original,
-                    Replacement = site.Replacement,
+                    Original = original,
+                    Replacement = replacement,
                     State = ForceAcceptSiteState.MissingOffset,
                 });
                 continue;
             }
 
             ulong address = moduleBase + rva.Value;
-            var current = new byte[site.Original.Length];
+            var current = new byte[original.Length];
             if (!memory.TryRead(address, current))
             {
                 planned.Add(new ForceAcceptSitePlan
@@ -125,24 +137,24 @@ public sealed class ForceAcceptPlanner(OffsetProfile profile, IProcessMemory mem
                     Key = site.Key,
                     Rva = rva,
                     Address = address,
-                    Original = site.Original,
-                    Replacement = site.Replacement,
+                    Original = original,
+                    Replacement = replacement,
                     State = ForceAcceptSiteState.Unreadable,
                 });
                 continue;
             }
 
             var state =
-                current.AsSpan().SequenceEqual(site.Replacement) ? ForceAcceptSiteState.AlreadyApplied :
-                current.AsSpan().SequenceEqual(site.Original) ? ForceAcceptSiteState.Ready :
+                current.AsSpan().SequenceEqual(replacement) ? ForceAcceptSiteState.AlreadyApplied :
+                current.AsSpan().SequenceEqual(original) ? ForceAcceptSiteState.Ready :
                 ForceAcceptSiteState.Mismatch;
             planned.Add(new ForceAcceptSitePlan
             {
                 Key = site.Key,
                 Rva = rva,
                 Address = address,
-                Original = site.Original,
-                Replacement = site.Replacement,
+                Original = original,
+                Replacement = replacement,
                 Current = current,
                 State = state,
             });
@@ -168,6 +180,8 @@ public sealed class ForceAcceptPlanner(OffsetProfile profile, IProcessMemory mem
     public int Apply(ForceAcceptPlan plan, bool gamePaused)
     {
         ArgumentNullException.ThrowIfNull(plan);
+        if (profile.IsArm64)
+            throw new InvalidOperationException("Force accept is not implemented on ARM64: no acceptance hook has been measured");
         if (!gamePaused)
             throw new InvalidOperationException("The force-accept presets are applied only while the game is paused");
         if (plan.State != ForceAcceptPlanState.Appliable)
@@ -222,6 +236,8 @@ public sealed class ForceAcceptPlanner(OffsetProfile profile, IProcessMemory mem
     public int Restore(ForceAcceptPlan plan, bool gamePaused)
     {
         ArgumentNullException.ThrowIfNull(plan);
+        if (profile.IsArm64)
+            throw new InvalidOperationException("Force accept is not implemented on ARM64: no acceptance hook has been measured");
         if (!gamePaused)
             throw new InvalidOperationException("The force-accept presets are restored only while the game is paused");
         if (plan.State != ForceAcceptPlanState.Active)

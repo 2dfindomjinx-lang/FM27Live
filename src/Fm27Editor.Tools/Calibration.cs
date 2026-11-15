@@ -721,8 +721,13 @@ public static class Calibration
                     foreach (var y in youth)
                     {
                         string k = $"Youth[{y.DisplayName}]";
+                        f[$"{k}.Position"] = y.PositionSummary;
                         f[$"{k}.Born"] = Iso(y.DateOfBirth);
+                        f[$"{k}.Nationality"] = y.NationalityName ?? "";
+                        f[$"{k}.City"] = y.CityOfBirthName ?? "";
                         f[$"{k}.Height"] = I(y.Height);
+                        f[$"{k}.LeftFoot"] = I(y.Attribute(PlayerAttribute.LeftFoot));
+                        f[$"{k}.RightFoot"] = I(y.Attribute(PlayerAttribute.RightFoot));
                         f[$"{k}.CurrentAbility"] = I(y.CurrentAbility);
                         f[$"{k}.PotentialAbility"] = I(y.PotentialAbility);
                     }

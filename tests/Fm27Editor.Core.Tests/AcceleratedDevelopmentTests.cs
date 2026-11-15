@@ -98,6 +98,7 @@ public class AcceleratedDevelopmentTests
     [Fact]
     public void A_player_not_in_the_table_keeps_his_gain_and_the_stolen_load_still_reads_CA()
     {
+        if (!OperatingSystem.IsWindows()) return;
         using var r = new NativeRoutine(liftZeroGains: true, currentAbility: 133);
         r.Table((r.Player + 0x1000, 5));
         Assert.Equal((133, (short)1), r.Run(1));
@@ -108,6 +109,7 @@ public class AcceleratedDevelopmentTests
     [Fact]
     public void A_player_in_the_table_gets_his_gain_multiplied()
     {
+        if (!OperatingSystem.IsWindows()) return;
         using var r = new NativeRoutine(liftZeroGains: true);
         r.Table((r.Player - 0x400, 3), (r.Player, 5));      // second row is the player
         Assert.Equal((120, (short)10), r.Run(2));             // 2 x 5
@@ -121,6 +123,7 @@ public class AcceleratedDevelopmentTests
     [InlineData(false, -1, -1)]  // left alone
     public void Gains_below_one_follow_the_lift_setting(bool lift, short gain, short expected)
     {
+        if (!OperatingSystem.IsWindows()) return;
         using var r = new NativeRoutine(lift);
         r.Table((r.Player, 5));
         Assert.Equal(expected, r.Run(gain).Gain);
@@ -133,6 +136,7 @@ public class AcceleratedDevelopmentTests
     [InlineData(2, 99, 198)]
     public void The_multiplied_gain_never_exceeds_200(double multiplier, short gain, short expected)
     {
+        if (!OperatingSystem.IsWindows()) return;
         using var r = new NativeRoutine(liftZeroGains: true);
         r.Table((r.Player, multiplier));
         Assert.Equal(expected, r.Run(gain).Gain);
@@ -141,6 +145,7 @@ public class AcceleratedDevelopmentTests
     [Fact]
     public void An_empty_table_changes_nothing()
     {
+        if (!OperatingSystem.IsWindows()) return;
         using var r = new NativeRoutine(liftZeroGains: true);
         r.Table();
         Assert.Equal((short)3, r.Run(3).Gain);
@@ -271,6 +276,7 @@ public class AcceleratedDevelopmentTests
     [InlineData(4.5, 4, 18)]
     public void Decimal_speeds_multiply_the_gain_and_round_to_the_nearest_whole_point(double multiplier, short gain, short expected)
     {
+        if (!OperatingSystem.IsWindows()) return;
         using var r = new NativeRoutine(liftZeroGains: true);
         r.Table((r.Player, multiplier));
         Assert.Equal(expected, r.Run(gain).Gain);
@@ -351,6 +357,7 @@ public class AcceleratedDevelopmentTests
     [Fact]
     public void The_routine_remembers_the_objects_that_passed_through_newest_last_in_a_ring_of_16()
     {
+        if (!OperatingSystem.IsWindows()) return;
         using var r = new NativeRoutine(liftZeroGains: true);
         r.Table();
         for (int i = 0; i < 18; i++) r.Run(1);

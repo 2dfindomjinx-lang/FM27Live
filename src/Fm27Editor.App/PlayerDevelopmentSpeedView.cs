@@ -30,7 +30,7 @@ public sealed partial class MainWindow
         Action<string>? onStatus, Action? onApplied, Func<string, Action, bool, Button> actionButton)
     {
         var session = backend.Session;
-        if (session is null || !session.Process.CanWrite) return;
+        if (session is null || !session.CanWrite) return;
         var accel = session.AcceleratedDevelopment;
         var current = new TextBlock { FontSize = 12, Foreground = UiKit.TextSecondary, Text = Loc.S("Speed now: reading…") };
         var speed = new TextBox

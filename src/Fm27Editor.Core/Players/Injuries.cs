@@ -322,7 +322,7 @@ public sealed class InjuryReader(IProcessMemory memory, OffsetProfile profile, u
     /// </summary>
     public IReadOnlyList<InjuryType> Types(PlayerInjury? sample = null)
     {
-        if (profile.Injuries is not { } o || memory is not WindowsProcessMemory windows) return [];
+        if (profile.Injuries is not { } o || memory is not IMemoryRegions regions) return [];
         var found = new Dictionary<int, InjuryType>();
         var head = new byte[Math.Max(Math.Max(o.TypeId + 4, o.TypeName + 8), InjuryWriter.TypeExtraDays + 2)];
         void Look(ulong address)
@@ -347,7 +347,7 @@ public sealed class InjuryReader(IProcessMemory memory, OffsetProfile profile, u
             found.Clear();
         }
         var buffer = new byte[1 << 22];
-        foreach (var region in windows.EnumerateWritableRegions())
+        foreach (var region in regions.EnumerateWritableRegions())
         {
             for (ulong offset = 0; offset + 8 <= region.Size; offset += (ulong)buffer.Length)
             {

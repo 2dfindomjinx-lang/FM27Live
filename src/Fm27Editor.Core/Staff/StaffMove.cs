@@ -26,7 +26,7 @@ public sealed class StaffMoveService(IProcessMemory memory, OffsetProfile profil
     {
         ValidateStaff(staff);
         if (newJob is { } wanted && !SupportedJob(wanted)) throw new InvalidOperationException("That role cannot be given by a move");
-        if (staff.Kind.Manager || staff.Kind.StaffPart != 0x100) throw new InvalidOperationException("Human managers and unusual staff objects cannot be moved");
+        if (staff.Kind.Manager || staff.Kind.StaffPart != S.Kinds[0].StaffPart) throw new InvalidOperationException("Human managers and unusual staff objects cannot be moved");
         if (from.Address == to.Address) throw new InvalidOperationException("Staff already belongs to that club");
         var guards = new List<StaffMoveGuard>();
         var writes = new List<PlannedWrite>();
@@ -48,7 +48,7 @@ public sealed class StaffMoveService(IProcessMemory memory, OffsetProfile profil
         ulong employer = BitConverter.ToUInt64(contractBytes, C.Team);
         ulong senior = BitConverter.ToUInt64(contractBytes, seniorAt);
         byte job = contractBytes[jobAt];
-        if (contractOwner != staff.Address || employer == 0 || senior == 0 || !SupportedJob(job))
+        if (contractOwner != staff.Address + (ulong)S.JobPersonAnchor || employer == 0 || senior == 0 || !SupportedJob(job))
             throw new InvalidOperationException("Staff contract or job is not supported");
         if (memory.ReadUInt64(employer) != moduleBase + T.VtableRva || memory.ReadUInt64(senior) != moduleBase + T.VtableRva ||
             memory.ReadUInt64(employer + (ulong)C.TeamClub) != from.Address || memory.ReadUInt64(senior + (ulong)C.TeamClub) != from.Address)
@@ -220,9 +220,7 @@ public sealed class StaffMoveService(IProcessMemory memory, OffsetProfile profil
 
     void ValidateStaff(StaffRecord staff)
     {
-        if (staff.Id <= 0 || !S.Kinds.Contains(staff.Kind) ||
-            memory.ReadUInt64(staff.Address) != moduleBase + staff.Kind.PersonVtableRva ||
-            memory.ReadUInt64(staff.StaffAddress) != moduleBase + staff.Kind.StaffVtableRva ||
+        if (staff.Id <= 0 || !S.Kinds.Contains(staff.Kind) || !StaffIdentity.IsCurrent(staff, memory, moduleBase, S) ||
             BitConverter.ToInt32(memory.Read(staff.Address + (ulong)S.Id, 4)) != staff.Id)
             throw new StaleObjectException("Staff identity changed");
     }

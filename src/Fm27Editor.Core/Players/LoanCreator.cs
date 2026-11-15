@@ -46,7 +46,6 @@ public sealed record LoanCreatePlan(PlayerRecord Player, ulong ParentTeam, ulong
 public sealed class LoanCreator(IProcessMemory memory, OffsetProfile profile, ulong moduleBase)
 {
     public const int ContractSize = 0x100, HolderSize = 0x20;
-    public const int PlayerParentTeam = 0x138, PlayerJoinedClubSecond = 0x3A8, Person = 0x288;
     public const int ContractPerson = 0x08, ContractTeam = 0x10, ContractSeniorTeam = 0x18, Flags = 0xB0, FlagsExtra = 0xB4,
         PurchaseAfterMatchesByte = 0xF7, WageCopy = 0xD4;
     public const int PlaysInCupMatches = 0x02, CanBeRecalledFlag = 0x04;
@@ -104,10 +103,12 @@ public sealed class LoanCreator(IProcessMemory memory, OffsetProfile profile, ul
         if (memory.ReadUInt64(holderSlot) != 0)
             throw new InvalidOperationException("The player already has a loan (or a loan record); recall it first");
 
+        var rel = profile.Relations ?? throw new InvalidOperationException("Profile has no person offsets");
+        int joinedAt = C.PlayerJoinedClub ?? throw new InvalidOperationException("Profile has no joined club offset");
         var template = FindTemplate(players, borrowingTeam) ?? throw new InvalidOperationException("The game has no loan contract to copy as a template");
         var bytes = memory.Read(template.Contract, ContractSize);
         Put64(bytes, 0, moduleBase + F.LoanContractVtable);
-        Put64(bytes, ContractPerson, player.Address + Person);
+        Put64(bytes, ContractPerson, player.Address + (ulong)rel.PlayerPerson);
         Put64(bytes, ContractTeam, borrowingTeam);
         Put64(bytes, ContractSeniorTeam, borrowingTeam);
         Put32(bytes, F.Wage, offer.Wage);
@@ -141,8 +142,9 @@ public sealed class LoanCreator(IProcessMemory memory, OffsetProfile profile, ul
             else newSquad = [.. current, player.Address];
         }
         writes.Add(new PlannedWrite(player.Address + (ulong)T.PlayerTeam, memory.Read(player.Address + (ulong)T.PlayerTeam, 8), BitConverter.GetBytes(borrowingTeam), "playing team"));
-        writes.Add(new PlannedWrite(player.Address + PlayerParentTeam, memory.Read(player.Address + PlayerParentTeam, 8), BitConverter.GetBytes(parent), "parent team"));
-        foreach (var at in new[] { C.PlayerJoinedClub, PlayerJoinedClubSecond })
+        ulong parentTeamAt = (ulong)(T.PlayerTeam + 8);
+        writes.Add(new PlannedWrite(player.Address + parentTeamAt, memory.Read(player.Address + parentTeamAt, 8), BitConverter.GetBytes(parent), "parent team"));
+        foreach (var at in new[] { joinedAt, joinedAt + 4 })
         {
             var now = memory.Read(player.Address + (ulong)at, 4);
             var next = (byte[])now.Clone();

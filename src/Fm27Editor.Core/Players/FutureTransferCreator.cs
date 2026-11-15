@@ -7,8 +7,7 @@ namespace Fm27Editor.Core.Players;
 /// <summary>Creation of a future transfer, traced on FMRTE for Game Pass 27.0.0+2493426. Call only with an attached, build-checked session.</summary>
 public sealed class FutureTransferCreator(IProcessMemory memory, OffsetProfile profile, ulong moduleBase)
 {
-    internal const int OfferSerial = 0x7D4;
-    const int ChangedFlag = 0x50, ContractBytes = 200;
+    const int ContractBytes = 200;
     const int MaxOffers = 100_000, MaxPlayerOffers = 100;
 
     public sealed record Plan(PlayerRecord Player, ulong Buyer, ulong Seller, int Fee, DateOnly Today, DateOnly Date,
@@ -74,7 +73,7 @@ public sealed class FutureTransferCreator(IProcessMemory memory, OffsetProfile p
         ulong root = Pointer(moduleBase + po.ListRootRva, "offer root");
         if (root == 0) throw new StaleObjectException("Offer root missing");
         Guard(root, 8, "offer root vtable");
-        int serial = BitConverter.ToInt32(Guard(root + OfferSerial, 4, "offer serial"));
+        int serial = BitConverter.ToInt32(Guard(root + (ulong)po.OfferSerial, 4, "offer serial"));
         if (serial < 0 || serial == int.MaxValue) throw new StaleObjectException("Invalid offer serial");
         var offers = FutureTransferVectorSnapshot.Capture(memory, root + (ulong)po.ListOffset, 8, MaxOffers);
         var dates = FutureTransferVectorSnapshot.Capture(memory, root + (ulong)fo.DateVector, 8, MaxOffers);
@@ -95,7 +94,7 @@ public sealed class FutureTransferCreator(IProcessMemory memory, OffsetProfile p
             throw new InvalidOperationException("Player already has a future transfer");
         var terms = contract == 0 ? FutureTransferVectorSnapshot.Empty(8) : FutureTransferVectorSnapshot.Capture(memory, contract + 0x68, 8, 10_000);
         var extra = contract == 0 ? FutureTransferVectorSnapshot.Empty(32) : FutureTransferVectorSnapshot.Capture(memory, contract + 0x80, 32, 10_000);
-        Guard(root + ChangedFlag, 1, "offer changed flag");
+        if (po.ChangedFlag is { } cf) Guard(root + (ulong)cf, 1, "offer changed flag");
         if (offerTerms is not null) TransferTermsLayout.Records(offerTerms);   // rejects negative amounts before anything is allocated
         return new(player, buyer, seller, fee, today, date, root, id, serial, source, terms, extra, offers, dates,
             ids, links, playerIds, playerContracts, guards, offerTerms) { LoanRecall = recall };
@@ -169,8 +168,8 @@ public sealed class FutureTransferCreator(IProcessMemory memory, OffsetProfile p
         Append(plan.Dates, BitConverter.GetBytes(date));
         PlayerVector(plan.IdHolder, plan.PlayerIds, plan.Player.Address + (ulong)po.PlayerIds, BitConverter.GetBytes(plan.Id));
         PlayerVector(plan.ContractHolder, plan.PlayerContracts, plan.Player.Address + (ulong)fo.PlayerOffers, BitConverter.GetBytes(link));
-        publish.Add(new(plan.Root + OfferSerial, BitConverter.GetBytes(plan.Serial), BitConverter.GetBytes(plan.Serial + 1), "offer serial"));
-        publish.Add(new(plan.Root + ChangedFlag, memory.Read(plan.Root + ChangedFlag, 1), [1], "offer changed flag"));
+        publish.Add(new(plan.Root + (ulong)po.OfferSerial, BitConverter.GetBytes(plan.Serial), BitConverter.GetBytes(plan.Serial + 1), "offer serial"));
+        if (po.ChangedFlag is { } cf) publish.Add(new(plan.Root + (ulong)cf, memory.Read(plan.Root + (ulong)cf, 1), [1], "offer changed flag"));
         // IGE's Coulibaly capture recalled the player immediately while creating the future offer.
         // Apply both parts in one rollback-capable transaction so a failed offer cannot leave a recall behind.
         FutureTransferTransaction.Apply(memory, guards, [.. scratch, .. (plan.LoanRecall?.Writes ?? []), .. publish]);

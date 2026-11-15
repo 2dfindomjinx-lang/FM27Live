@@ -92,7 +92,6 @@ public sealed partial class MainWindow
         };
         host.Child = loading;
 
-        ulong playerAddress = player.Address;
         var session = backend.Session;
 
         // Two steps, so the list never waits for the heap scan: the proposals and offered contracts first, then the live deal
@@ -121,7 +120,7 @@ public sealed partial class MainWindow
                 lock (dealCandidateLock)
                 {
                     if (cachedDealCandidates is not null && (DateTime.UtcNow - lastDealScanUtc).TotalSeconds < 60)
-                        liveDeal = session.TransferDeals.FindForPlayer(playerAddress + 0x288, cachedDealCandidates);
+                        liveDeal = session.TransferDeals.FindForPlayer(PersonAddressOf(session, player), cachedDealCandidates);
                 }
             }
             catch (Exception ex)
@@ -142,7 +141,7 @@ public sealed partial class MainWindow
                     cachedDealCandidates = candidates;
                     lastDealScanUtc = DateTime.UtcNow;
                 }
-                if (session.TransferDeals.FindForPlayer(playerAddress + 0x288, candidates) is { } found)
+                if (session.TransferDeals.FindForPlayer(PersonAddressOf(session, player), candidates) is { } found)
                     Show(BuildOnUi(proposals, contracts, found));
             }
             catch { /* the proposals are already shown; a failed scan only means no live deal is listed */ }
@@ -462,7 +461,7 @@ public sealed partial class MainWindow
         lock (dealCandidateLock)
         {
             if (cachedDealCandidates is null || (DateTime.UtcNow - lastDealScanUtc).TotalSeconds >= 60) return false;
-            try { return session.TransferDeals.FindForPlayer(player.Address + 0x288, cachedDealCandidates) is not null; } catch { return false; }
+            try { return session.TransferDeals.FindForPlayer(PersonAddressOf(session, player), cachedDealCandidates) is not null; } catch { return false; }
         }
     }
     bool HasFutureTransfer(PlayerRecord player)

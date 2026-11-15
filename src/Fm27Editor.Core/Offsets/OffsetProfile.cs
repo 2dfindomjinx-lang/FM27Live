@@ -18,6 +18,15 @@ public sealed class OffsetProfile
     public string? MatchBuild { get; init; }
     /// <summary>Installed flavour this profile belongs to ("gamepass" for the Microsoft Store image), or null.</summary>
     public string? Variant { get; init; }
+    /// <summary>
+    /// Instruction set of the game image: <c>arm64</c> for the Apple silicon build, or null for the x86-64 builds.
+    /// Code patches pick their machine code and their site patterns from this, so a feature knows which
+    /// <c>offsets/*.json</c> family it is running against.
+    /// </summary>
+    public string? Architecture { get; init; }
+
+    /// <summary>True for a profile of an Apple silicon image (AArch64 code patching).</summary>
+    public bool IsArm64 => Architecture is "arm64";
     public uint? ImageSize { get; init; }
     public uint? PeTimestamp { get; init; }
     /// <summary>Experimental layouts must never open the game with write access.</summary>
@@ -42,6 +51,8 @@ public sealed class OffsetProfile
     public NationOffsets? Nation { get; init; }
     public CompetitionOffsets? Competition { get; init; }
     public AwardOffsets? Award { get; init; }
+    /// <summary>Profile <c>officials</c>: the referee array and its object layout; null uses the x86-64 default layout.</summary>
+    public OfficialsOffsets? Officials { get; init; }
     public GameDateOffsets? GameDate { get; init; }
     /// <summary>Address of a packed in-game date stored directly in the module.</summary>
     public uint? DirectGameDateRva { get; init; }
@@ -93,6 +104,7 @@ public sealed class OffsetProfile
             BuildStringRva = (uint)Hex(root, "buildStringRva"),
             MatchBuild = root.TryGetProperty("matchBuild", out var mb) ? mb.GetString() : null,
         Variant = root.TryGetProperty("variant", out var va) ? va.GetString() : null,
+            Architecture = root.TryGetProperty("architecture", out var arch) ? arch.GetString() : null,
             ImageSize = root.TryGetProperty("imageSize", out _) ? (uint)Hex(root, "imageSize") : null,
             PeTimestamp = root.TryGetProperty("peTimestamp", out _) ? (uint)Hex(root, "peTimestamp") : null,
             ReadOnly = root.TryGetProperty("readOnly", out var ro) && ro.GetBoolean(),
@@ -188,6 +200,7 @@ public sealed class OffsetProfile
                 VtableRva = (uint)Hex(tm, "vtable"),
                 PlayerTeam = Hex(tm, "playerTeam"),
                 Squad = Hex(tm, "squad"),
+                Club = OptHex(tm, "club"),
                 Classification = OptHex(tm, "classification"),
                 AgeLimit = OptHex(tm, "ageLimit"),
                 Captain = OptHex(tm, "captain"),
@@ -249,6 +262,7 @@ public sealed class OffsetProfile
                 Name = Hex(nat, "name"),
                 ShortName = Hex(nat, "shortName"),
                 ListRootRva = (uint?)OptHex(nat, "listRootRva"),
+                ListObjectOffset = OptHex(nat, "listObjectOffset"),
                 ListOffset = OptHex(nat, "listOffset"),
                 Id = OptHex(nat, "id"),
                 Capital = OptHex(nat, "capital"),
@@ -262,7 +276,8 @@ public sealed class OffsetProfile
                     Hex(nr, "team"), (uint)Hex(nr, "teamVtable"), Hex(nr, "vector"), Hex(nr, "entrySize"),
                     Hex(nr, "type"), Hex(nr, "rivalType"), Hex(nr, "value")) : null,
                 Preferences = nat.TryGetProperty("preferences", out var np) ? new NationPreferenceOffsets(
-                    Hex(np, "team"), (uint)Hex(np, "teamVtable"), Hex(np, "vector"), Hex(np, "entrySize")) : null,
+                    Hex(np, "team"), (uint)Hex(np, "teamVtable"), Hex(np, "vector"), Hex(np, "entrySize"),
+                    OptHex(np, "euroCoefficients") ?? 0x190) : null,
                 Fields = nat.TryGetProperty("fields", out var nf) ? FieldMap<Nations.NationField>(nf, rootRequired: false) : null,
             } : null,
             Competition = root.TryGetProperty("competition", out var comp) ? new CompetitionOffsets
@@ -313,6 +328,7 @@ public sealed class OffsetProfile
                 WinnerHomeReputation = Hex(aw, "winnerHomeReputation"),
                 WinnerWorldReputation = Hex(aw, "winnerWorldReputation"),
             } : null,
+            Officials = root.TryGetProperty("officials", out var off) ? OfficialsOffsets.Load(off) : null,
         };
     }
 
@@ -364,6 +380,7 @@ public sealed class OffsetProfile
             H("buildStringRva", BuildStringRva);
             if (MatchBuild is { } matchBuild) w.WriteString("matchBuild", matchBuild);
         if (Variant is { } variant) w.WriteString("variant", variant);
+            if (Architecture is { } architecture) w.WriteString("architecture", architecture);
             if (ImageSize is { } imageSize) H("imageSize", imageSize);
             if (PeTimestamp is { } timestamp) H("peTimestamp", timestamp);
             if (ReadOnly) w.WriteBoolean("readOnly", true);
@@ -455,11 +472,13 @@ public sealed class OffsetProfile
             }
             Staff?.Write(w);
             Stadium?.Write(w);
+            Officials?.Write(w);
             YouthCandidates?.Write(w);
             if (Team is { } tm)
             {
                 w.WriteStartObject("team");
                 H("vtable", tm.VtableRva); H("playerTeam", tm.PlayerTeam); H("squad", tm.Squad);
+                if (tm.Club is { } tcl) H("club", tcl);
                 if (tm.Classification is { } tc) H("classification", tc);
                 if (tm.AgeLimit is { } ta) H("ageLimit", ta);
                 if (tm.Captain is { } captain) H("captain", captain);
@@ -554,6 +573,7 @@ public sealed class OffsetProfile
                 w.WriteStartObject("nation");
                 H("playerNation", nat.PlayerNation); H("vtable", nat.VtableRva); H("name", nat.Name); H("shortName", nat.ShortName);
                 if (nat.ListRootRva is { } nlr) H("listRootRva", nlr);
+                if (nat.ListObjectOffset is { } nlo2) H("listObjectOffset", nlo2);
                 if (nat.ListOffset is { } nlo) H("listOffset", nlo);
                 if (nat.Id is { } nid) H("id", nid);
                 if (nat.Capital is { } ncap) H("capital", ncap);
@@ -579,6 +599,7 @@ public sealed class OffsetProfile
                 {
                     w.WriteStartObject("preferences");
                     H("team", np.Team); H("teamVtable", np.TeamVtable); H("vector", np.Vector); H("entrySize", np.EntrySize);
+                    if (np.EuroCoefficients != 0x190) H("euroCoefficients", np.EuroCoefficients);
                     w.WriteEndObject();
                 }
                 if (nat.Fields is { Count: > 0 } nfs)

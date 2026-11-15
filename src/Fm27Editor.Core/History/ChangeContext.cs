@@ -33,16 +33,22 @@ public static class ChangeContext
         {
             foreach (var frame in new System.Diagnostics.StackTrace(2, false).GetFrames())
             {
-                var method = frame.GetMethod();
-                var type = method?.DeclaringType;
-                while (type?.DeclaringType is not null && type.Name.StartsWith('<')) type = type.DeclaringType;
-                string? ns = type?.Namespace;
-                if (method is null || type is null || ns is null || !ns.StartsWith("Fm27Editor.Core", StringComparison.Ordinal)
+                var method = System.Diagnostics.DiagnosticMethodInfo.Create(frame);
+                if (method is null) continue;
+                string typeName = method.DeclaringTypeName;
+                int namespaceEnd = typeName.LastIndexOf('.');
+                string? ns = namespaceEnd < 0 ? null : typeName[..namespaceEnd];
+                if (ns is null || !ns.StartsWith("Fm27Editor.Core", StringComparison.Ordinal)
                     || ns.EndsWith(".Memory", StringComparison.Ordinal) || ns.EndsWith(".History", StringComparison.Ordinal) || ns.Contains(".Tests", StringComparison.Ordinal)) continue;
                 string name = method.Name;
                 if (name.StartsWith('<')) { int end = name.IndexOf('>'); name = end > 1 ? name[1..end] : name; }
                 if (name.Length > 3 && name.StartsWith("Set", StringComparison.Ordinal) && char.IsUpper(name[3])) name = name[3..];
-                string owner = type.Name; int tick = owner.IndexOf('`'); if (tick > 0) owner = owner[..tick];
+                string owner = typeName[(namespaceEnd + 1)..];
+                int nestedGenerated = owner.IndexOf("+<", StringComparison.Ordinal);
+                if (nestedGenerated >= 0) owner = owner[..nestedGenerated];
+                int nestedType = owner.LastIndexOf('+');
+                if (nestedType >= 0) owner = owner[(nestedType + 1)..];
+                int tick = owner.IndexOf('`'); if (tick > 0) owner = owner[..tick];
                 owner = owner.EndsWith("Writer", StringComparison.Ordinal) && owner.Length > 6 ? owner[..^6] : owner;
                 return $"{PlayerChangeLabels.Words(owner)}: {PlayerChangeLabels.Words(name)}";
             }

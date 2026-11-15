@@ -142,10 +142,7 @@ public sealed partial class MainWindow : IClubPanels
                     VerticalAlignment = VerticalAlignment.Center,
                     Margin = new Thickness(2, 2, 8, 2),
                 });
-        clubSectionList.ItemsSource = ClubFieldInfo.Sections
-            .Select(s => new ClubSectionOption(s, ClubFieldInfo.SectionTitle(s)))
-            .ToArray();
-        clubSectionList.SelectedIndex = 0;
+        RefreshClubSectionRail();
         clubSectionList.SelectionChanged += (_, _) =>
         {
             if (clubUpdating) return;
@@ -159,6 +156,25 @@ public sealed partial class MainWindow : IClubPanels
     }
 
     // What the club screen asks of the window.
+    IReadOnlyList<ClubSection> VisibleClubSections() =>
+        backend.State.Status == ConnectionStatus.Connected && backend.Session.Profile.YouthCandidates is null
+            ? ClubFieldInfo.Sections.Where(s => s != ClubSection.YouthIntake).ToArray()
+            : ClubFieldInfo.Sections;
+
+    void RefreshClubSectionRail()
+    {
+        var visible = VisibleClubSections();
+        if (!visible.Contains(selectedClubSection)) selectedClubSection = visible[0];
+        clubUpdating = true;
+        clubSectionList.ItemsSource = visible
+            .Select(s => new ClubSectionOption(s, ClubFieldInfo.SectionTitle(s)))
+            .ToArray();
+        int railIndex = 0;
+        for (int i = 0; i < visible.Count; i++) if (visible[i] == selectedClubSection) { railIndex = i; break; }
+        clubSectionList.SelectedIndex = railIndex;
+        clubUpdating = false;
+    }
+
     ListBox IClubPanels.SectionRail => clubSectionList;
     IReadOnlyList<ClubEntry>? IClubPanels.CachedClubs => clubCache;
     IReadOnlyList<PlayerRecord> IClubPanels.ShownPlayers => rows.OfType<PlayerRecord>().ToArray();
@@ -383,11 +399,7 @@ public sealed partial class MainWindow : IClubPanels
         {
             clubDirtySections.Clear();
             foreach (var section in dirty) clubDirtySections.Add(section);
-            clubUpdating = true;
-            int railIndex = clubSectionList.SelectedIndex;
-            clubSectionList.ItemsSource = ClubFieldInfo.Sections.Select(s => new ClubSectionOption(s, ClubFieldInfo.SectionTitle(s))).ToArray();
-            clubSectionList.SelectedIndex = railIndex;
-            clubUpdating = false;
+            RefreshClubSectionRail();
         }
 
         SetActiveTabDirty(total > 0 || draft.InvalidCount > 0 || youthInvalid > 0);
@@ -511,6 +523,12 @@ public sealed partial class MainWindow : IClubPanels
         clubScreen.Header.Content = UiKit.EntityBanner(club.Name ?? club.DisplayName, badges, null, crestImg);
 
         if (HookClubSquadsView(club, orderedTeams, activeTeam, teamAddr)) return;
+
+        if (!VisibleClubSections().Contains(selectedClubSection))
+        {
+            selectedClubSection = ClubSection.Information;
+            RefreshClubSectionRail();
+        }
 
         if (selectedClubSection == ClubSection.YouthIntake)
         {
@@ -1306,7 +1324,7 @@ public sealed partial class MainWindow : IClubPanels
             {
                 try
                 {
-                    Func<int, ulong>? allocator = session.Memory is Fm27Editor.Core.Memory.WindowsProcessMemory wpm ? wpm.Allocate : null;
+                    Func<int, ulong>? allocator = session.Memory is Fm27Editor.Core.Memory.IRemoteAllocator alloc ? alloc.Allocate : null;
                     backend.Edits.Execute("Club", club.DisplayName, "Vision: Duplicate", () => session.ClubVisionWriter.Duplicate(teamAddr, entry, allocator));
                     drafts.Clear();
                     RenderClubEditor();
@@ -1481,7 +1499,7 @@ public sealed partial class MainWindow : IClubPanels
 
             try
             {
-                Func<int, ulong>? allocator = session.Memory is Fm27Editor.Core.Memory.WindowsProcessMemory wpm ? wpm.Allocate : null;
+                Func<int, ulong>? allocator = session.Memory is Fm27Editor.Core.Memory.IRemoteAllocator alloc ? alloc.Allocate : null;
                 backend.Edits.Execute("Club", (selectedClub?.DisplayName ?? "Club"), "Vision: Add", () =>
                     session.ClubVisionWriter.Create(teamAddr, template, typeCode, imp, tgt, start, end, allocator, targetIndex, kind));
                 RenderClubEditor();

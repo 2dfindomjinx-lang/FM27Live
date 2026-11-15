@@ -14,7 +14,7 @@ namespace Fm27Editor.Core.Nations;
 /// </summary>
 public sealed class NationStaffContracts(IProcessMemory memory, OffsetProfile profile, ulong moduleBase)
 {
-    const int HolderOffset = 0xB0, AppointmentOffset = 0x10, PersonOffset = 8;
+    const int AppointmentOffset = 0x10;
 
     public OfferContract? Read(StaffRecord staff)
     {
@@ -58,9 +58,11 @@ public sealed class NationStaffContracts(IProcessMemory memory, OffsetProfile pr
 
     ulong AppointmentOf(StaffRecord staff)
     {
-        ulong holder = memory.ReadUInt64(staff.Address + HolderOffset);
+        if (profile.Staff is not { } staffOffsets) return 0;
+        ulong holder = memory.ReadUInt64(staff.Address + (ulong)(staffOffsets.Job + 8));
         if (holder == 0) return 0;
         ulong appointment = memory.ReadUInt64(holder + AppointmentOffset);
-        return appointment != 0 && memory.ReadUInt64(appointment + PersonOffset) == staff.Address ? appointment : 0;
+        ulong expectedPerson = staff.Address + (ulong)staffOffsets.JobPersonAnchor;
+        return appointment != 0 && memory.ReadUInt64(appointment + (ulong)staffOffsets.JobPerson) == expectedPerson ? appointment : 0;
     }
 }

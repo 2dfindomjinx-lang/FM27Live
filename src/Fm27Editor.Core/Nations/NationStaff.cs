@@ -30,6 +30,7 @@ public sealed class NationStaff(IProcessMemory memory, OffsetProfile profile, ul
     /// <summary>Reads a staff member's separate national appointment, including job and national team.</summary>
     public IReadOnlyList<NationStaffRow> ReadDetails(ulong nation)
     {
+        if (profile.Staff is not { } staff) return [];
         var teams = new NationTeamReader(memory, profile, moduleBase).Read(nation).ToDictionary(t => t.Address);
         var result = new List<NationStaffRow>();
         Span<byte> ptr = stackalloc byte[8];
@@ -40,7 +41,7 @@ public sealed class NationStaff(IProcessMemory memory, OffsetProfile profile, ul
             byte? teamType = null;
             bool hasFullContract = false;
             DateOnly? expires = null;
-            if (memory.TryRead(person.Address + 0xB0, ptr))
+            if (memory.TryRead(person.Address + (ulong)(staff.Job + 8), ptr))
             {
                 ulong holder = BitConverter.ToUInt64(ptr);
                 if (holder != 0 && memory.TryRead(holder + 0x10, ptr))
@@ -49,10 +50,10 @@ public sealed class NationStaff(IProcessMemory memory, OffsetProfile profile, ul
                     var bytes = new byte[0x28];
                     if (appointment != 0 && memory.TryRead(appointment, bytes) &&
                         (BitConverter.ToUInt64(bytes) == moduleBase + profile.NationAppointmentVtable.GetValueOrDefault() || BitConverter.ToUInt64(bytes) == moduleBase + profile.Contract!.ContractVtableRva) &&
-                        BitConverter.ToUInt64(bytes, 8) == person.Address && teams.TryGetValue(BitConverter.ToUInt64(bytes, 0x10), out var matched))
+                        BitConverter.ToUInt64(bytes, staff.JobPerson) == person.Address + (ulong)staff.JobPersonAnchor && teams.TryGetValue(BitConverter.ToUInt64(bytes, staff.JobTeam), out var matched))
                     {
                         team = matched;
-                        job = bytes[0x26];
+                        job = bytes[staff.JobCode];
                         var type = new byte[1];
                         if (memory.TryRead(matched.Address + 0x28, type)) teamType = type[0];
                         if (BitConverter.ToUInt64(bytes) == moduleBase + profile.Contract!.ContractVtableRva && profile.Contract is { } contract)
@@ -90,9 +91,8 @@ public sealed class NationStaff(IProcessMemory memory, OffsetProfile profile, ul
         void Add(ulong address)
         {
             if (address == 0 || found.ContainsKey(address)) return;
-            foreach (var kind in staff.Kinds)
-                if (repository.Reload(address + (ulong)kind.StaffPart) is { } person && person.StaffAddress == address)
-                { found.Add(address, person); break; }
+            if (repository.Reload(address) is { } person && person.StaffAddress == address)
+                found.Add(address, person);
         }
         // FMRTE lists the national-team managers first, then coaching and medical staff.
         foreach (var team in nationalTeams)

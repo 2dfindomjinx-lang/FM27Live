@@ -288,3 +288,103 @@ public class YouthIntakeWindowsTests
         Assert.True(count >= 16, "The guide table should cover well beyond the spot-checked nations");
     }
 }
+
+public class Arm64YouthCandidatesTests
+{
+    const ulong Module = 0x0000_0001_8000_0000, Manager = 0x7000_0000_1000;
+    const ulong ManUtd = 0x7000_0000_2000, OtherClub = 0x7000_0000_3000;
+
+    readonly FakeMemory _memory = new();
+    readonly OffsetProfile _profile =
+        OffsetProfile.LoadFile(Path.Combine(AppContext.BaseDirectory, "offsets", "27.0.1+2503222-mac.json"));
+
+    void SetupManagerHeader(ulong beginNode, ulong rootNode, ulong size)
+    {
+        var o = _profile.YouthCandidates!;
+        TestWorld.Set64(_memory.Map(Module + o.ManagerRootRva!.Value, 8), 0, Manager);
+        var mgr = _memory.Map(Manager, o.CandidateMap + 0x20);
+        TestWorld.Set64(mgr, 0, Module + o.ManagerVtable);
+        TestWorld.Set64(mgr, o.CandidateMap, beginNode);
+        TestWorld.Set64(mgr, o.CandidateMap + 8, rootNode);
+        TestWorld.Set64(mgr, o.CandidateMap + 0x10, size);
+    }
+
+    void MapCandidateRecord(ulong vecAddr, ulong club, short ca, short pa, string first, string last, ulong strBase)
+    {
+        var o = _profile.YouthCandidates!;
+        var rec = _memory.Map(vecAddr, o.RecordSize);
+        TestWorld.Set64(rec, o.Club, club);
+        BitConverter.TryWriteBytes(rec.AsSpan(o.CurrentAbility), ca);
+        BitConverter.TryWriteBytes(rec.AsSpan(o.PotentialAbility), pa);
+        _memory.MapString(strBase, first);
+        _memory.MapString(strBase + 0x40, last);
+        TestWorld.Set64(rec, o.FirstName, strBase);
+        TestWorld.Set64(rec, o.LastName, strBase + 0x40);
+    }
+
+    [Fact]
+    public void Reads_libcxx_tree_candidates_on_arm64_mac_profile()
+    {
+        var o = _profile.YouthCandidates!;
+        ulong root = 0x7000_0001_0000, left = 0x7000_0001_1000, right = 0x7000_0001_2000;
+        SetupManagerHeader(left, root, 3);
+
+        var rootMem = _memory.Map(root, o.NodeVector + 0x18);
+        TestWorld.Set64(rootMem, 0, left);
+        TestWorld.Set64(rootMem, 8, right);
+        TestWorld.Set64(rootMem, o.NodeVector, 0x7000_0002_0000);
+        TestWorld.Set64(rootMem, o.NodeVector + 8, 0x7000_0002_0000 + (ulong)o.RecordSize);
+        MapCandidateRecord(0x7000_0002_0000, ManUtd, 81, 165, "Shea", "Lacey", 0x7000_0003_0000);
+
+        var leftMem = _memory.Map(left, o.NodeVector + 0x18);
+        TestWorld.Set64(leftMem, 0, 0);
+        TestWorld.Set64(leftMem, 8, 0);
+        TestWorld.Set64(leftMem, o.NodeVector, 0x7000_0002_1000);
+        TestWorld.Set64(leftMem, o.NodeVector + 8, 0x7000_0002_1000 + (ulong)o.RecordSize);
+        MapCandidateRecord(0x7000_0002_1000, OtherClub, 65, 130, "Oshane", "Mckogg", 0x7000_0003_1000);
+
+        var rightMem = _memory.Map(right, o.NodeVector + 0x18);
+        TestWorld.Set64(rightMem, 0, 0);
+        TestWorld.Set64(rightMem, 8, 0);
+        TestWorld.Set64(rightMem, o.NodeVector, 0x7000_0002_2000);
+        TestWorld.Set64(rightMem, o.NodeVector + 8, 0x7000_0002_2000 + (ulong)o.RecordSize);
+        MapCandidateRecord(0x7000_0002_2000, ManUtd, 74, 152, "Chido", "Obi", 0x7000_0003_2000);
+
+        var reader = new YouthCandidateReader(_memory, _profile, Module);
+        Assert.Equal(Manager, reader.FindManager());
+
+        var all = reader.ReadAll();
+        Assert.Equal(3, all.Count);
+        var clubOnly = reader.ReadForClub(ManUtd);
+        Assert.Equal(2, clubOnly.Count);
+        Assert.Contains(clubOnly, c => c.DisplayName == "Shea Lacey" && c.CurrentAbility == 81 && c.PotentialAbility == 165);
+        Assert.Contains(clubOnly, c => c.DisplayName == "Chido Obi" && c.CurrentAbility == 74 && c.PotentialAbility == 152);
+    }
+
+    [Fact]
+    public void Recognises_empty_libcxx_tree_and_returns_empty_without_failing()
+    {
+        var o = _profile.YouthCandidates!;
+        ulong endNode = Manager + (ulong)o.CandidateMap + 8;
+        SetupManagerHeader(endNode, 0, 0);
+
+        var reader = new YouthCandidateReader(_memory, _profile, Module);
+        Assert.Equal(Manager, reader.FindManager());
+        Assert.Empty(reader.ReadAll(Manager));
+    }
+
+    [Fact]
+    public void Rejects_corrupt_libcxx_tree_size()
+    {
+        var o = _profile.YouthCandidates!;
+        ulong root = 0x7000_0001_0000;
+        var rootMem = _memory.Map(root, o.NodeVector + 0x18);
+        TestWorld.Set64(rootMem, 0, 0);
+        TestWorld.Set64(rootMem, 8, 0);
+        SetupManagerHeader(root, root, 200_000);
+
+        var reader = new YouthCandidateReader(_memory, _profile, Module);
+        Assert.Throws<InvalidOperationException>(() => reader.FindManager());
+        Assert.Empty(reader.ReadAll(Manager));
+    }
+}

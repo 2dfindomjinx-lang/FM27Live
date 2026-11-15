@@ -12,33 +12,12 @@ namespace Fm27Editor.App.Tests;
 
 public sealed class UiSnapshotTests
 {
-    static bool initialized;
-    static void EnsureApp()
-    {
-        if (initialized) return;
-        try
-        {
-            AppBuilder.Configure<App>().UsePlatformDetect().SetupWithoutStarting();
-            initialized = true;
-        }
-        catch
-        {
-            initialized = true;
-        }
-    }
-
-    static void RunOnUi(Action action)
-    {
-        EnsureApp();
-        if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess())
-        {
-            action();
-        }
-        else
-        {
-            Avalonia.Threading.Dispatcher.UIThread.Invoke(action);
-        }
-    }
+    /// <summary>
+    /// Runs <paramref name="action"/> on the shared UI thread. Avalonia used to be set up here with the desktop platform
+    /// and the action was handed over with <c>Dispatcher.Invoke</c>, which blocks forever without a main loop; the shared
+    /// thread owns the setup (headless off Windows) and runs the action itself.
+    /// </summary>
+    static void RunOnUi(Action action) => AvaloniaTestThread.Run(action);
 
     [Fact]
     public void TwoColumnFormBuilder_Creates_Valid_Structure()
@@ -148,6 +127,8 @@ public sealed class UiSnapshotTests
 
         var financePanel = new StackPanel { Spacing = 10, Width = 780, Background = UiKit.WindowBg, Children = { summaryCard, incomeCard, expenditureCard } };
 
+        // The headless compositor never starts its render timer here, so CaptureRenderedFrame returns null; the snapshot
+        // is drawn with the immediate renderer instead. RunJobs settles the Show-triggered layout pass before drawing.
         void SaveControlToPng(Control c, int width, int height, string filename)
         {
             var window = new Window
@@ -163,8 +144,8 @@ public sealed class UiSnapshotTests
 
             var rtb = new RenderTargetBitmap(new PixelSize(width, height), new Vector(96, 96));
             rtb.Render(window);
-            string path = Path.Combine(outDir, filename);
-            rtb.Save(path);
+            rtb.Save(Path.Combine(outDir, filename));
+
             window.Close();
             Avalonia.Threading.Dispatcher.UIThread.RunJobs();
         }
@@ -552,7 +533,7 @@ public sealed class UiSnapshotTests
             Nationality = new Fm27Editor.Core.Players.NationInfo(796, nat, nat),
             Attributes = [],
             Personality = [],
-            Kind = new Fm27Editor.Core.Staff.StaffKind(0, 0, 0, false),
+            Kind = new Fm27Editor.Core.Staff.StaffKind(0, 0, 0, null, false),
         };
 
         var staffModel = ClubStaffLabels.BuildTable(

@@ -14,7 +14,7 @@ public class ClubStaffLabelsTests
 
     static StaffRecord Staff(string common, short? job, DateOnly? born, string? nation, short ca, short pa) => new()
     {
-        Address = 1, StaffAddress = 2, Attributes = [], Personality = [], Kind = new StaffKind(0, 0, 0, false),
+        Address = 1, StaffAddress = 2, Attributes = [], Personality = [], Kind = new StaffKind(0, 0, 0, 0, false),
         CommonName = common, JobCode = job, DateOfBirth = born, CurrentAbility = ca, PotentialAbility = pa,
         Nationality = nation is null ? null : new NationInfo(0x10, nation, nation),
     };

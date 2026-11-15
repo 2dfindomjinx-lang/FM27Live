@@ -13,7 +13,7 @@ namespace Fm27Editor.Core.Discovery;
 /// save loaded. Structure is found statistically over the heap; fields that statistics cannot
 /// tell apart (names, height, date of birth) are located with the golden players.
 /// </summary>
-public sealed partial class OffsetFinder(WindowsProcessMemory memory, GameProcess game, Action<string> log)
+public sealed partial class OffsetFinder(IProcessMemory memory, GameProcess game, Action<string> log)
 {
     const int ScanLimit = 0x400;
     const int PositionCount = 15;   // includes one unnamed slot (FM26 offset 0x99)
@@ -53,7 +53,9 @@ public sealed partial class OffsetFinder(WindowsProcessMemory memory, GameProces
         var (build, buildRva) = FindBuildString();
         log($"build {build} at +0x{buildRva:X}");
 
-        var heap = memory.EnumerateWritableRegions(game.ModuleBase, game.ModuleEnd).ToList();
+        if (memory is not IMemoryRegions regions)
+            throw new DiscoveryException("offset discovery needs a process whose writable memory can be enumerated");
+        var heap = regions.EnumerateWritableRegions(game.ModuleBase, game.ModuleEnd).ToList();
         var (vtables, blockOffset, objects) = FindPlayerType(heap);
         log($"player vtables {string.Join(", ", vtables.Select(v => $"+0x{v:X}"))}, positions at +0x{blockOffset:X}, {objects.Count} objects");
 

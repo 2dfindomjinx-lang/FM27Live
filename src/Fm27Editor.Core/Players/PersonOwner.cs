@@ -25,7 +25,13 @@ public sealed record PersonOwner(ulong Address, int Shift, IReadOnlyList<uint> V
 
     public static PersonOwner Of(PlayerRecord player, OffsetProfile profile) => new(player.Address, 0, profile.PlayerVtableRvas, player.DisplayName);
 
-    public static PersonOwner Of(Staff.StaffRecord staff, OffsetProfile profile) =>
-        new(staff.Address, profile.Relations?.PlayerPerson ?? throw new InvalidOperationException("Profile has no person offset"),
-            (profile.Staff ?? throw new InvalidOperationException("Profile has no staff offsets")).Kinds.Select(k => k.PersonVtableRva).ToList(), staff.DisplayName);
+    public static PersonOwner Of(Staff.StaffRecord staff, OffsetProfile profile)
+    {
+        var staffOffsets = profile.Staff ?? throw new InvalidOperationException("Profile has no staff offsets");
+        // On a build whose staff vector holds staff objects the entry carries the staff vtable, not the person vtable.
+        var vtables = staffOffsets.Kinds.SelectMany(k => new[] { k.PersonVtableRva, k.StaffVtableRva }).Distinct().ToList();
+        return new(staff.Address + (ulong)staffOffsets.JobPersonAnchor,
+            profile.Relations?.PlayerPerson ?? throw new InvalidOperationException("Profile has no person offset"),
+            vtables, staff.DisplayName);
+    }
 }

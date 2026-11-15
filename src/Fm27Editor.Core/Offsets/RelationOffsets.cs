@@ -64,6 +64,8 @@ public sealed class TeamOffsets
     public required int PlayerTeam { get; init; }
     /// <summary>Squad vector begin; end and capacity follow at +8 and +16.</summary>
     public required int Squad { get; init; }
+    /// <summary>The club the team belongs to; measured where a hook needs the club without a contract.</summary>
+    public int? Club { get; init; }
     /// <summary>Optional team classification and age bytes, measured for first team, U21 and U18.</summary>
     public int? Classification { get; init; }
     public int? AgeLimit { get; init; }
@@ -112,7 +114,7 @@ public sealed class ClubOffsets
 }
 
 public sealed record NationRivalryOffsets(int Team, uint TeamVtable, int Vector, int EntrySize, int Type, int RivalType, int Value);
-public sealed record NationPreferenceOffsets(int Team, uint TeamVtable, int Vector, int EntrySize);
+public sealed record NationPreferenceOffsets(int Team, uint TeamVtable, int Vector, int EntrySize, int EuroCoefficients = 0x190);
 
 /// <summary>
 /// Club → holder object whose first field is a vector (begin/end/cap) of pointers to the clauses on that
@@ -196,6 +198,11 @@ public sealed class NationOffsets
     public required int ShortName { get; init; }
     /// <summary>Every nation: [module + ListRootRva] + ListOffset is a begin/end vector of nation pointers (251 on FM27).</summary>
     public uint? ListRootRva { get; init; }
+    /// <summary>
+    /// When set, [module + ListRootRva] is a holder object and this is the offset of a pointer to the vector header
+    /// (Mac 27.0.1: holder + 0x88). Without it the vector header sits inside the holder at <see cref="ListOffset"/>.
+    /// </summary>
+    public int? ListObjectOffset { get; init; }
     public int? ListOffset { get; init; }
     /// <summary>int32 ID as FMRTE shows it (Vietnam 145, England 765).</summary>
     public int? Id { get; init; }

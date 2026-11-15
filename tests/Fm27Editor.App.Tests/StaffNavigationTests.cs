@@ -8,7 +8,7 @@ public class StaffNavigationTests
     [Fact]
     public void Open_selected_matches_current_address_and_unique_id_even_for_duplicate_names()
     {
-        var kind = new StaffKind(0, 0, 0, false);
+        var kind = new StaffKind(0, 0, 0, 0, false);
         StaffRecord Person(ulong address, int id) => new()
         {
             Address = address, StaffAddress = address + 1, Id = id,
@@ -27,7 +27,7 @@ public class StaffNavigationTests
     [Fact]
     public void Filter_matches_folded_name_or_unique_id_while_respecting_club_and_job_filters()
     {
-        var kind = new StaffKind(0, 0, 0, false);
+        var kind = new StaffKind(0, 0, 0, 0, false);
         StaffRecord Person(ulong address, int id) => new()
         {
             Address = address, StaffAddress = address + 1, Id = id,

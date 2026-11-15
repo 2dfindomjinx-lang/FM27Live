@@ -52,7 +52,7 @@ public sealed record StaffRecord
 
 public sealed class StaffRepository(IProcessMemory memory, OffsetProfile profile, ulong moduleBase)
 {
-    const int MaxPersons = 2_000_000, PersonReadSize = 0xB0, StaffReadSize = 0xE0, JobReadSize = 0x28;
+    const int MaxPersons = 2_000_000, StaffReadSize = 0xE0, JobReadSize = 0x28;
 
     StaffOffsets S => profile.Staff ?? throw new InvalidOperationException("Profile has no staff offsets");
 
@@ -75,34 +75,85 @@ public sealed class StaffRepository(IProcessMemory memory, OffsetProfile profile
         Span<byte> vtable = stackalloc byte[8];
         for (int i = 0; i < raw.Length; i += 8)
         {
-            ulong person = BitConverter.ToUInt64(raw, i);
+            ulong entry = BitConverter.ToUInt64(raw, i);
+            if (entry == 0 || !memory.TryRead(entry, vtable)) continue;
+            ulong vt = BitConverter.ToUInt64(vtable);
+            StaffKind? kind;
+            ulong person, staff;
             if (s.DirectStaffVector)
             {
-                if (person == 0 || !memory.TryRead(person, vtable)) continue;
-                ulong vt = BitConverter.ToUInt64(vtable);
-                var kind = s.Kinds.FirstOrDefault(k => moduleBase + k.StaffVtableRva == vt);
+                // The vector holds staff objects (Mac): the staff part starts at the entry and the person part sits
+                // kind.PersonAnchor bytes above it (0 for ordinary staff, 0x340 for human managers).
+                kind = s.Kinds.FirstOrDefault(k => moduleBase + k.StaffVtableRva == vt);
                 if (kind is null) continue;
-                person += (ulong)kind.StaffPart;
+                staff = entry;
+                person = entry + (ulong)kind.DirectPersonDelta;
             }
-            if (Decode(person, reader) is { } r) result.Add(r);
+            else
+            {
+                // The vector holds person parts (Steam): the staff part sits kind.StaffPart bytes below the entry.
+                kind = s.Kinds.FirstOrDefault(k => moduleBase + k.PersonVtableRva == vt);
+                if (kind is null) continue;
+                staff = entry - (ulong)kind.StaffPart;
+                person = entry + (ulong)(kind.PersonAnchor ?? 0);
+            }
+            if (Decode(person, staff, kind, reader) is { } r) result.Add(r);
         }
         return result;
     }
 
-    /// <summary>Re-reads one staff member by person-part address; null when it is no longer a staff object.</summary>
-    public StaffRecord? Reload(ulong address) => Decode(address, new PlayerReader(memory, profile) { ModuleBase = moduleBase });
-
-    StaffRecord? Decode(ulong person, PlayerReader reader)
+    /// <summary>Re-reads one staff member at its person-anchor address (the address a <see cref="StaffRecord"/> carries); null when it is no longer a staff object.</summary>
+    public StaffRecord? Reload(ulong address)
     {
         var s = S;
-        if (person == 0) return null;
-        var p = new byte[PersonReadSize];
-        if (!memory.TryRead(person, p)) return null;
-        ulong vt = BitConverter.ToUInt64(p);
-        if (s.Kinds.FirstOrDefault(k => moduleBase + k.PersonVtableRva == vt) is not { } kind) return null;
-        ulong staff = person - (ulong)kind.StaffPart;
-        var st = new byte[kind.Manager ? kind.StaffPart : StaffReadSize];
+        if (address == 0) return null;
+        var reader = new PlayerReader(memory, profile) { ModuleBase = moduleBase };
+        Span<byte> head = stackalloc byte[8];
+        if (!memory.TryRead(address, head)) return null;
+        ulong vt = BitConverter.ToUInt64(head);
+        // The address is the person part: its vtable names the kind, the staff part is below it.
+        if (s.Kinds.FirstOrDefault(k => moduleBase + k.PersonVtableRva == vt) is { } byPerson)
+        {
+            ulong staff = s.DirectStaffVector ? address - (ulong)byPerson.DirectPersonDelta : address - (ulong)byPerson.StaffPart;
+            if (Decode(address, staff, byPerson, reader) is { } r) return r;
+        }
+        // The address is the staff object: on the direct builds that is where the vector entry points.
+        if (s.Kinds.FirstOrDefault(k => moduleBase + k.StaffVtableRva == vt) is { } byStaff)
+        {
+            ulong person = address + (ulong)(s.DirectStaffVector ? byStaff.DirectPersonDelta : byStaff.PersonVectorPersonDelta);
+            if (Decode(person, address, byStaff, reader) is { } r) return r;
+        }
+        // Mac staff objects carry the staff vtable at the entry but a person part that need not carry its own vtable;
+        // an address inside the person part is not a stable identity, so the entry itself is the reload address.
+        return null;
+    }
+
+    StaffRecord? Decode(ulong person, ulong staff, StaffKind kind, PlayerReader reader)
+    {
+        var s = S;
+        if (person == 0 || staff == 0) return null;
+        // The staff part holds CA/PA, reputations and the attributes (and the manager attributes on the manager kind);
+        // read only as far as the profile maps it.
+        int staffEnd = new[]
+        {
+            s.HomeReputation + 2, s.CurrentReputation + 2, s.WorldReputation + 2, s.CurrentAbility + 2, s.PotentialAbility + 2,
+            s.Attributes.Values.Max(a => a.Offset) + 1,
+            kind.Manager && s.ManagerAttributes.Count > 0 ? s.ManagerAttributes.Values.Max() + 1 : 0,
+        }.Max();
+        var st = new byte[Math.Max(staffEnd, StaffReadSize)];
         if (!memory.TryRead(staff, st) || BitConverter.ToUInt64(st) != moduleBase + kind.StaffVtableRva) return null;
+        // The person part holds ID, names, nation, personality, birth date and the job record. On the direct builds it
+        // need not carry the person vtable at its anchor (the staff vtable is the identity), so the caller has already
+        // matched the class; on the person-vector builds the vtable is read here and must match.
+        int personEnd = new[]
+        {
+            s.Id + 4, s.FullName + 8, s.FirstName + 8, s.LastName + 8, s.CommonName + 8, s.Nation + 8,
+            s.Personality + 8, s.DateOfBirth + 4, s.Job + 8,
+            profile.Relations is { PersonGender: { } g } ? g + 1 : 0,
+        }.Max();
+        var p = new byte[Math.Max(personEnd, 0xB0)];
+        if (!memory.TryRead(person, p)) return null;
+        if (!s.DirectStaffVector && BitConverter.ToUInt64(p) != moduleBase + kind.PersonVtableRva) return null;
         byte[]? manager = kind.Manager
             ? Enum.GetValues<ManagerAttribute>().Select(a => s.ManagerAttributes.TryGetValue(a, out int o) && o < st.Length ? st[o] : (byte)0).ToArray()
             : null;
@@ -118,7 +169,7 @@ public sealed class StaffRepository(IProcessMemory memory, OffsetProfile profile
         string? teamName = null;
         ulong job = BitConverter.ToUInt64(p, s.Job);
         var jb = new byte[JobReadSize];
-        if (job != 0 && memory.TryRead(job, jb) && BitConverter.ToUInt64(jb, s.JobPerson) == person)
+        if (job != 0 && memory.TryRead(job, jb) && BitConverter.ToUInt64(jb, s.JobPerson) == person + (ulong)s.JobPersonAnchor)
         {
             jobCode = BitConverter.ToInt16(jb, s.JobCode);
             if (profile.Contract is { } c)
@@ -129,7 +180,7 @@ public sealed class StaffRepository(IProcessMemory memory, OffsetProfile profile
             }
         }
         int day = BitConverter.ToUInt16(p, s.DateOfBirth) & 0x1FF, year = BitConverter.ToInt16(p, s.DateOfBirth + 2);
-        var details = s.PersonDetails is { } d && moduleBase + d.PersonVtableRva == vt ? d : null;
+        var details = s.PersonDetails is { } d && d.PersonVtableRva == kind.PersonVtableRva ? d : null;
         // Caps, goals, licence and the roles pointer sit past the main person read; read them only for the measured kind.
         int extraEnd = details is null ? 0 : new[] { details.Caps + 2, details.Goals + 2, details.License + 1, details.Roles + 8 }.Max();
         var extra = new byte[extraEnd];
@@ -343,10 +394,14 @@ public sealed class StaffWriter(IProcessMemory memory, OffsetProfile profile, ul
     void RequireStaff(StaffRecord staff)
     {
         var k = staff.Kind;
-        if (memory.ReadUInt64(staff.Address) != moduleBase + k.PersonVtableRva || memory.ReadUInt64(staff.StaffAddress) != moduleBase + k.StaffVtableRva)
-            throw new StaleObjectException($"0x{staff.Address:X} is no longer a staff object");
-        if (staff.Id > 0 && (staff.Address != staff.StaffAddress + (ulong)k.StaffPart ||
-            BitConverter.ToInt32(memory.Read(staff.Address + (ulong)S.Id, 4)) != staff.Id))
+        if (memory.ReadUInt64(staff.StaffAddress) != moduleBase + k.StaffVtableRva)
+            throw new StaleObjectException($"0x{staff.StaffAddress:X} is no longer a staff object");
+        // On the direct builds the person fields sit inside the staff object and need no vtable of their own.
+        if (!S.DirectStaffVector && memory.ReadUInt64(staff.Address) != moduleBase + k.PersonVtableRva)
+            throw new StaleObjectException($"0x{staff.Address:X} is no longer a person object");
+        ulong personDelta = S.DirectStaffVector ? (ulong)k.DirectPersonDelta : (ulong)k.PersonVectorPersonDelta;
+        if (staff.Address != staff.StaffAddress + personDelta ||
+            (staff.Id > 0 && BitConverter.ToInt32(memory.Read(staff.Address + (ulong)S.Id, 4)) != staff.Id))
             throw new StaleObjectException("Staff identity changed since it was read");
     }
 }

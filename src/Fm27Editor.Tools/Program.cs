@@ -45,6 +45,7 @@ try
         "status" => Status(),
         "accelerate" => AccelerateCli.Run(args[1..], Attach),
         "golden" => GoldenCli.Run(args[1..], Attach),
+        "academy-check" or "academy" => AcademyCheckCli.Run(args[1..], Attach),
         "players" => Players(args.Length > 1 ? string.Join(' ', args[1..]) : null),
         "healthplayers" => HealthPlayers(),
         "healthstructure" => HealthStructure(),
@@ -311,7 +312,7 @@ try
         "agrsurvey" => AgrSurveyCommand(),
         "slotsbyname" => SlotsByNameCommand(args[1]),
         "chunkslot" => ChunkSlotCommand(Convert.ToUInt64(args[1].Replace("0x", ""), 16)),
-        "agentchunk" => AgentChunkCommand(Convert.ToUInt64(args[1].Replace("0x", ""), 16)),
+        "agentchunk" => AgentChunkCommand(Convert.ToUInt64(args[1].Replace("0x", ""), 16), args.Length > 2 ? Convert.ToInt32(args[2].Replace("0x", ""), 16) : 0xE0),
         "personsof" => PersonsOfCommand(Convert.ToUInt32(args[1].Replace("0x", ""), 16), args.Length > 2 ? int.Parse(args[2]) : 5),
         "gamecheck" or "steamcheck" => RunGameCheck(args),
         "vectorroot" => VectorRootCommand(Convert.ToUInt64(args[1].Replace("0x", ""), 16), Convert.ToInt32(args[2].Replace("0x", ""), 16)),
@@ -323,6 +324,7 @@ try
         "temporarypermits" => TemporaryPermitsCommand(),
         "permitscan" => PermitScanCommand(args.Length > 1 ? int.Parse(args[1]) : 1),
         "memdump" => MemDumpCommand(args[1], args.Length > 2 ? Convert.ToInt32(args[2], 16) : 0x80),
+        "jobscan" => JobScanCommand(Convert.ToUInt64(args[1].Replace("0x", ""), 16), args.Length > 2 ? Convert.ToInt32(args[2], 16) : 0x400),
         "intwithdrawal" => IntWithdrawalCommand(string.Join(" ", args[1..])),
         "stadiumset" => StadiumSetCommand(args[1..]),
         "nationkititem" => NationKitItemCommand(args[1..]),
@@ -2605,7 +2607,7 @@ int FindPersonCommand(int[] pairs)
     for (int i = 0; i < pairs.Length; i += 2) { sets.Add([]); hitsPer.Add([]); }
     var sw = Stopwatch.StartNew();
     var chunk = new byte[1 << 20];
-    foreach (var r in ((WindowsProcessMemory)mem).EnumerateWritableRegions(mb, me).Where(r => !r.IsModuleData))
+    foreach (var r in ((IMemoryRegions)mem).EnumerateWritableRegions(mb, me).Where(r => !r.IsModuleData))
         for (ulong off = 0; off < r.Size; off += (ulong)chunk.Length)
         {
             int len = (int)Math.Min((ulong)chunk.Length, r.Size - off);
@@ -2678,7 +2680,7 @@ int FindListCommand(ulong vtRva)
         int ok = Enumerable.Range(0, 8).Count(i => IsTarget(BitConverter.ToUInt64(first, i * 8)));
         return ok >= 6 ? (int)((end - begin) / 8) : 0;
     }
-    foreach (var r in ((WindowsProcessMemory)mem).EnumerateWritableRegions(mb, me).Where(r => r.IsModuleData))
+    foreach (var r in ((IMemoryRegions)mem).EnumerateWritableRegions(mb, me).Where(r => r.IsModuleData))
     {
         var data = new byte[r.Size];
         if (!mem.TryRead(r.Start, data)) continue;
@@ -2967,7 +2969,7 @@ int NearCommand(int a, int b)
     ulong mb = session.Game.ModuleBase, me = session.Game.ModuleEnd;
     var chunk = new byte[1 << 20];
     int hits = 0;
-    foreach (var r in ((WindowsProcessMemory)mem).EnumerateWritableRegions(mb, me).Where(r => !r.IsModuleData))
+    foreach (var r in ((IMemoryRegions)mem).EnumerateWritableRegions(mb, me).Where(r => !r.IsModuleData))
         for (ulong off = 0; off < r.Size; off += (ulong)chunk.Length)
         {
             int len = (int)Math.Min((ulong)chunk.Length, r.Size - off);
@@ -3673,7 +3675,7 @@ int CompFindCommand(string[] args)
             }
         }
     }
-    foreach (var region in session.Process.EnumerateWritableRegions(session.Game.ModuleBase, session.Game.ModuleEnd))
+    foreach (var region in ((IMemoryRegions)session.Memory).EnumerateWritableRegions(session.Game.ModuleBase, session.Game.ModuleEnd))
     {
         if (hits >= 8) break;
         Scan(region.Start, region.Size);
@@ -3801,7 +3803,7 @@ int Near32Command(int value, string[] patterns)
     using var session = Attach(writable: false);
     var needles = patterns.Select(Convert.FromHexString).ToArray();
     var chunk = new byte[1 << 20]; int hits = 0, refs = 0;
-    foreach (var region in session.Process.EnumerateWritableRegions(session.Game.ModuleBase, session.Game.ModuleEnd).Where(r => !r.IsModuleData))
+    foreach (var region in ((IMemoryRegions)session.Memory).EnumerateWritableRegions(session.Game.ModuleBase, session.Game.ModuleEnd).Where(r => !r.IsModuleData))
         for (ulong offset = 0; offset < region.Size; offset += (ulong)chunk.Length - 0x40)
         {
             int length = (int)Math.Min((ulong)chunk.Length, region.Size - offset);
@@ -3825,7 +3827,7 @@ int NearDateCommand(int day, int year, string[] patterns)
     using var session = Attach(writable: false);
     var needles = patterns.Select(Convert.FromHexString).ToArray();
     var chunk = new byte[1 << 20]; int hits = 0, refs = 0;
-    foreach (var region in session.Process.EnumerateWritableRegions(session.Game.ModuleBase, session.Game.ModuleEnd).Where(r => !r.IsModuleData))
+    foreach (var region in ((IMemoryRegions)session.Memory).EnumerateWritableRegions(session.Game.ModuleBase, session.Game.ModuleEnd).Where(r => !r.IsModuleData))
         for (ulong offset = 0; offset < region.Size; offset += (ulong)chunk.Length - 0x80)
         {
             int length = (int)Math.Min((ulong)chunk.Length, region.Size - offset);
@@ -4227,7 +4229,7 @@ int OfferList(string? name)
 {
     using var session = Attach(writable: false);
     var m = session.Memory; ulong mb = session.Game.ModuleBase;
-    var persons = session.Players.LoadAll().ToDictionary(p => p.Address + 0x288, p => p);
+    var persons = session.Players.LoadAll().ToDictionary(session.PersonOf, p => p);
     var clubs = new Dictionary<ulong, string>();
     string Team(ulong t) { if (t == 0) return "-"; ulong c = m.ReadUInt64(t + 0x30); var b = new byte[8]; return c != 0 && m.TryRead(c + 0xC8, b) && BitConverter.ToUInt64(b) is var s && s != 0 ? System.Text.Encoding.UTF8.GetString(m.Read(s + 4, m.Read(s, 1)[0])) : $"team 0x{t:X}"; }
     ulong root = m.ReadUInt64(mb + 0x56F2EF0);
@@ -4253,12 +4255,12 @@ int OfferScan()
 {
     using var session = Attach(writable: false);
     var m = session.Memory; ulong mb = session.Game.ModuleBase;
-    var persons = session.Players.LoadAll().ToDictionary(p => p.Address + 0x288, p => p);
+    var persons = session.Players.LoadAll().ToDictionary(session.PersonOf, p => p);
     ulong teamVt = mb + session.Profile.Team!.VtableRva;
     bool IsTeam(ulong a) => a != 0 && m.TryRead(a, new byte[8]) && m.ReadUInt64(a) == teamVt;
     var hist = new Dictionary<ulong, int>();
     var chunk = new byte[1 << 20];
-    foreach (var region in session.Process.EnumerateWritableRegions(mb, session.Game.ModuleEnd).Where(r => !r.IsModuleData))
+    foreach (var region in ((IMemoryRegions)session.Memory).EnumerateWritableRegions(mb, session.Game.ModuleEnd).Where(r => !r.IsModuleData))
         for (ulong offset = 0; offset < region.Size; offset += (ulong)chunk.Length - 0x100)
         {
             int length = (int)Math.Min((ulong)chunk.Length, region.Size - offset);
@@ -4450,7 +4452,7 @@ int NearPtrCommand(ulong target, string[] patterns)
     using var session = Attach(writable: false);
     var needles = patterns.Select(Convert.FromHexString).ToArray();
     var chunk = new byte[1 << 20]; int hits = 0, refs = 0;
-    foreach (var region in session.Process.EnumerateWritableRegions(session.Game.ModuleBase, session.Game.ModuleEnd).Where(r => !r.IsModuleData))
+    foreach (var region in ((IMemoryRegions)session.Memory).EnumerateWritableRegions(session.Game.ModuleBase, session.Game.ModuleEnd).Where(r => !r.IsModuleData))
         for (ulong offset = 0; offset < region.Size; offset += (ulong)chunk.Length - 0x80)
         {
             int length = (int)Math.Min((ulong)chunk.Length, region.Size - offset);
@@ -4477,9 +4479,10 @@ int PermitProbeCommand()
     var nations = session.Nations.LoadAll();
     var nationKeys = nations.SelectMany(n => new[] { n.Id ?? -1, BitConverter.ToInt32(memory.Read(n.Address + 8, 4)) }).Where(x => x >= 0).ToHashSet();
     var players = session.Players.LoadAll();
-    var personKeys = players.SelectMany((p, index) => new[] { index, p.Id ?? -1, BitConverter.ToInt32(memory.Read(p.Address + 8, 4)), BitConverter.ToInt32(memory.Read(p.Address + 0x290, 4)) }).Where(x => x > 0).ToHashSet();
+    int personIndexOffset = Fm27Editor.Core.Players.WorkPermitTable.PersonIndexFor(session.Profile);
+    var personKeys = players.SelectMany((p, index) => new[] { index, p.Id ?? -1, BitConverter.ToInt32(memory.Read(p.Address + 8, 4)), BitConverter.ToInt32(memory.Read(p.Address + (ulong)personIndexOffset, 4)) }).Where(x => x > 0).ToHashSet();
     var chunk = new byte[1 << 20]; long scanned = 0; int candidates = 0;
-    foreach (var region in session.Process.EnumerateWritableRegions(session.Game.ModuleBase, session.Game.ModuleEnd).Where(r => !r.IsModuleData))
+    foreach (var region in ((IMemoryRegions)session.Memory).EnumerateWritableRegions(session.Game.ModuleBase, session.Game.ModuleEnd).Where(r => !r.IsModuleData))
         for (ulong offset = 0; offset < region.Size; offset += (ulong)chunk.Length - 0x20)
         {
             int length = (int)Math.Min((ulong)chunk.Length, region.Size - offset);
@@ -4736,7 +4739,7 @@ int DealsCommand(string[] rest)
 {
     using var session = Attach(writable: false);
     var reader = session.TransferDeals;
-    var people = session.Players.LoadAll().ToDictionary(p => p.Address + 0x288, p => p);
+    var people = session.Players.LoadAll().ToDictionary(session.PersonOf, p => p);
     IReadOnlyList<TransferDeal> deals;
     if (rest.Length >= 2 && rest[0].Equals("--at", StringComparison.OrdinalIgnoreCase))
     {
@@ -4832,7 +4835,7 @@ TransferDeal? FindDealOf(GameSession session, string key)
     var player = players.FirstOrDefault(p => p.Id.ToString() == key)
                  ?? players.FirstOrDefault(p => p.DisplayName.Equals(key, StringComparison.OrdinalIgnoreCase));
     if (player is null) return null;
-    return session.TransferDeals.FindForPlayer(player.Address + 0x288);
+    return session.TransferDeals.FindForPlayer(session.PersonOf(player));
 }
 
 // regunlock <check|install|status|uninstall> [rvaHex]   guarded trampoline that captures the squad-registration rules object
@@ -4975,7 +4978,7 @@ int CompVecCommand(string[] rest)
     Console.WriteLine($"element 0x{element:X} vtable 0x{vt:X} stride 0x{stride:X}");
     var chunk = new byte[1 << 22];
     var hits = new List<(ulong Begin, ulong End)>();
-    foreach (var region in session.Process.EnumerateWritableRegions(session.Game.ModuleBase, session.Game.ModuleEnd).Where(r => !r.IsModuleData))
+    foreach (var region in ((IMemoryRegions)session.Memory).EnumerateWritableRegions(session.Game.ModuleBase, session.Game.ModuleEnd).Where(r => !r.IsModuleData))
         for (ulong offset = 0; offset + 8 <= region.Size; offset += (ulong)chunk.Length)
         {
             int length = (int)Math.Min((ulong)chunk.Length, region.Size - offset);
@@ -5038,7 +5041,7 @@ int NearRangeCommand(string[] rest)
     var mem = session.Memory;
     var chunk = new byte[1 << 22];
     var hits = new List<(ulong At, ulong Value)>();
-    foreach (var region in session.Process.EnumerateWritableRegions(session.Game.ModuleBase, session.Game.ModuleEnd).Where(r => !r.IsModuleData))
+    foreach (var region in ((IMemoryRegions)session.Memory).EnumerateWritableRegions(session.Game.ModuleBase, session.Game.ModuleEnd).Where(r => !r.IsModuleData))
         for (ulong offset = 0; offset + 8 <= region.Size; offset += (ulong)chunk.Length)
         {
             int length = (int)Math.Min((ulong)chunk.Length, region.Size - offset);
@@ -5091,8 +5094,8 @@ int VtScanCommand(string[] rest)
     int maxHits = rest.Length > 1 ? int.Parse(rest[1]) : 10;
     using var session = Attach(writable: false);
     var memory = session.Memory;
-    if (memory is not Fm27Editor.Core.Memory.WindowsProcessMemory wpm)
-    { Console.Error.WriteLine("region scan needs the Windows process memory"); return 2; }
+    if (memory is not IMemoryRegions wpm)
+    { Console.Error.WriteLine("region scan needs process memory with regions"); return 2; }
     ulong wanted = session.Game.ModuleBase + rva;
     Console.WriteLine($"scanning writable regions for vtable 0x{wanted:X} (module+0x{rva:X})");
     int hits = 0;
@@ -5392,7 +5395,7 @@ int VisionAddCommand(int clubId, string[] rest)
     Console.WriteLine($"{club.Name}: {rows.Count} rows; template {templateIndex} type {rows[templateIndex].TypeCode}");
     Console.WriteLine($"new row type {type} importance {importance} target {target} {start:yyyy-MM-dd}..{end:yyyy-MM-dd}" + (write ? "" : " (plan only)"));
     if (!write) return 0;
-    var allocate = session.Memory as Fm27Editor.Core.Memory.WindowsProcessMemory;
+    var allocate = session.Memory as IRemoteAllocator;
     var added = session.ClubVisionWriter.Create(team.Address, rows[templateIndex], type, importance, target, start, end,
         allocate is null ? null : allocate.Allocate);
     Console.WriteLine($"added at 0x{added.Address:X}; now {session.ReadClubVision(team.Address, null).Count} rows");
@@ -5463,6 +5466,28 @@ int StadiumProbeCommand()
     ulong begin = BitConverter.ToUInt64(vec, 0), end = BitConverter.ToUInt64(vec, 8), cap = BitConverter.ToUInt64(vec, 16);
     Console.WriteLine($"  listOffset 0x{s.ListOffset:X}: begin 0x{begin:X} end 0x{end:X} cap 0x{cap:X}" +
                       (end >= begin && (end - begin) % 8 == 0 ? $" count {(end - begin) / 8:N0}" : " (bad)"));
+    // Chunk path: a nation's national stadium anchors the contiguous record table.
+    if (s.RecordStride > 0 && session.Profile.Nation is { Stadium: { } stadiumOffset })
+    {
+        ulong Q(ulong at) { try { return memory.ReadUInt64(at); } catch { return 0; } }
+        int anchors = 0, runs = 0, records = 0;
+        var seen = new HashSet<ulong>();
+        foreach (var nation in session.Nations.LoadAll())
+        {
+            ulong st = Q(nation.Address + (ulong)stadiumOffset);
+            if (st == 0 || Q(st) != module + s.VtableRva) continue;
+            anchors++;
+            ulong start = st;
+            while (start >= (ulong)s.RecordStride && Q(start - (ulong)s.RecordStride) == module + s.VtableRva) start -= (ulong)s.RecordStride;
+            if (!seen.Add(start)) continue;
+            ulong at = start;
+            while (Q(at) == module + s.VtableRva) at += (ulong)s.RecordStride;
+            Console.WriteLine($"  anchor 0x{st:X}: run 0x{start:X}..0x{at:X}, {(at - start) / (ulong)s.RecordStride} records");
+            runs++;
+            records += (int)((at - start) / (ulong)s.RecordStride);
+        }
+        Console.WriteLine($"  {anchors} anchors, {runs} runs, {records} records");
+    }
     // Nearby qwords from the root: helps spot a moved list offset without a full profile rebuild.
     var window = memory.Read(root, 0x2000);
     for (int off = 0; off + 16 <= window.Length; off += 8)
@@ -6726,7 +6751,7 @@ int PromisesCommand(string[] rest)
     if (a.Length > 2 && a[1] == "person")
     {
         uint want = uint.Parse(a[2]);
-        foreach (var p in session.Players.LoadAll()) if (store.PersonIndex(p.Address + 0x288) == want) Console.WriteLine($"player {p.DisplayName} id {p.Id}");
+        foreach (var p in session.Players.LoadAll()) if (store.PersonIndex(session.PersonOf(p)) == want) Console.WriteLine($"player {p.DisplayName} id {p.Id}");
         foreach (var s in session.Staff.LoadAll()) if (store.PersonIndex(s.Address) == want) Console.WriteLine($"staff {s.DisplayName} id {s.Id}");
         return 0;
     }
@@ -6770,7 +6795,7 @@ int PromisesCommand(string[] rest)
             case "fixperson":
             {
                 var promise = list[int.Parse(a[2])];
-                ulong want = owner.Address + 0x288;
+                ulong want = session.PersonOf(player);
                 Console.WriteLine($"person 0x{promise.Person:X} -> 0x{want:X}");
                 if (write) session.Memory.TryWrite(promise.Address + 0x20, BitConverter.GetBytes(want));
                 break;
@@ -6888,7 +6913,7 @@ int ModPtrCommand(string[] rest)
     ulong lo = Convert.ToUInt64(rest[0].Replace("0x", ""), 16), hi = Convert.ToUInt64(rest[1].Replace("0x", ""), 16);
     var mem = session.Memory;
     ulong b = session.Game.ModuleBase;
-    foreach (var region in session.Process.EnumerateWritableRegions(b, session.Game.ModuleEnd).Where(r => r.IsModuleData))
+    foreach (var region in ((IMemoryRegions)session.Memory).EnumerateWritableRegions(b, session.Game.ModuleEnd).Where(r => r.IsModuleData))
     {
         for (ulong off = 0; off < region.Size; off += 0x10000)
         {
@@ -7001,7 +7026,8 @@ int TemporaryPermitsCommand()
 {
     using var session = Attach(writable: false);
     var table = new Fm27Editor.Core.Players.WorkPermitTable(session.Memory, session.Profile, session.Game.ModuleBase);
-    var byPerson = session.Players.LoadAll().GroupBy(p => BitConverter.ToUInt32(session.Memory.Read(p.Address + 0x290, 4))).ToDictionary(g => g.Key, g => g.First());
+    ulong personIndexOffset = (ulong)Fm27Editor.Core.Players.WorkPermitTable.PersonIndexFor(session.Profile);
+    var byPerson = session.Players.LoadAll().GroupBy(p => BitConverter.ToUInt32(session.Memory.Read(p.Address + personIndexOffset, 4))).ToDictionary(g => g.Key, g => g.First());
     ulong at = table.Locate();
     ulong b = session.Memory.ReadUInt64(at), e = session.Memory.ReadUInt64(at + 8);
     var pointers = session.Memory.Read(b, (int)(e - b));
@@ -7038,7 +7064,8 @@ int PermitsCommand(string[] rest)
         var after = session.ReadWorkPermits(player);
         Console.WriteLine($"now {after.Count} permit(s)");
         foreach (var g in after) Console.WriteLine($"  {g.NationName} {g.Year} record 0x{g.Record:X}");
-        Console.WriteLine($"flag byte at player+0x2A0: 0x{session.Memory.Read(player.Address + 0x2A0, 1)[0]:X2}");
+        int flagsOffset = Fm27Editor.Core.Players.WorkPermitTable.FlagsFor(session.Profile);
+        Console.WriteLine($"flag byte at player+0x{flagsOffset:X}: 0x{session.Memory.Read(player.Address + (ulong)flagsOffset, 1)[0]:X2}");
     }
     return 0;
 }
@@ -7208,7 +7235,7 @@ int PermitScanCommand(int flag)
     var everyone = session.Players.LoadAll();
     var buffer = new byte[1 << 22];
     int hits = 0, family = 0;
-    foreach (var region in session.Process.EnumerateWritableRegions(session.Game.ModuleBase, session.Game.ModuleEnd).Where(r => !r.IsModuleData))
+    foreach (var region in ((IMemoryRegions)session.Memory).EnumerateWritableRegions(session.Game.ModuleBase, session.Game.ModuleEnd).Where(r => !r.IsModuleData))
         for (ulong offset = 0; offset < region.Size; offset += (ulong)buffer.Length - 64)
         {
             int length = (int)Math.Min((ulong)buffer.Length, region.Size - offset);
@@ -7259,7 +7286,7 @@ int HeapFindCommand(string[] rest)
     var parsed = patterns.Select(Parse).ToList();
     var buffer = new byte[1 << 22];
     int hits = 0;
-    foreach (var region in session.Process.EnumerateWritableRegions(session.Game.ModuleBase, session.Game.ModuleEnd).Where(r => Environment.GetEnvironmentVariable("HEAPFIND_MODULE") == "1" || !r.IsModuleData))
+    foreach (var region in ((IMemoryRegions)session.Memory).EnumerateWritableRegions(session.Game.ModuleBase, session.Game.ModuleEnd).Where(r => Environment.GetEnvironmentVariable("HEAPFIND_MODULE") == "1" || !r.IsModuleData))
     {
         for (ulong offset = 0; offset < region.Size; offset += (ulong)buffer.Length - 256)
         {
@@ -7774,7 +7801,8 @@ int Set(string name, string field, string text)
 int FindOffsets(string goldenPath, string outPath, string? gameDate)
 {
     var game = GameProcess.Locate();
-    using var memory = new WindowsProcessMemory(game.ProcessId, writable: false);
+    IProcessMemory memory = OperatingSystem.IsMacOS() ? MacMemory.Open(game.ProcessId, false) : new WindowsProcessMemory(game.ProcessId, false);
+    using var _ = memory as IDisposable;
     var sw = Stopwatch.StartNew();
     var date = gameDate is null ? (DateOnly?)null : DateOnly.Parse(gameDate, System.Globalization.CultureInfo.InvariantCulture);
     var profile = new OffsetFinder(memory, game, Console.WriteLine).Find(GoldenPlayers.Load(goldenPath), date);
@@ -8196,7 +8224,7 @@ int PromiseScanCommand()
         if (begin == 0 || end <= begin || (end - begin) / 8 > 64) continue;
         ulong record = Q(begin); if (record == 0) continue;
         ulong person = Q(record + 0x20);
-        bool ownerOk = person == player.Address + 0x288;
+        bool ownerOk = person == session.PersonOf(player);
         ushort type = BitConverter.ToUInt16(session.Memory.Read(record + 0x4E, 2));
         Console.WriteLine($"{player.DisplayName} (ID {player.Id}): {(end - begin) / 8} record(s), first 0x{record:X} type {type} owner {(ownerOk ? "ok" : "mismatch")} holder 0x{holder:X} begin 0x{begin:X}");
         if (++found >= 12) break;
@@ -8211,7 +8239,7 @@ int VectorRootCommand(ulong record, int vectorOffset)
     using var session = Attach(writable: false);
     var mem = session.Memory; ulong b = session.Game.ModuleBase;
     ulong Q(ulong at) { try { return mem.ReadUInt64(at); } catch { return 0; } }
-    foreach (var region in session.Process.EnumerateWritableRegions(b, session.Game.ModuleEnd).Where(r => r.IsModuleData))
+    foreach (var region in ((IMemoryRegions)session.Memory).EnumerateWritableRegions(b, session.Game.ModuleEnd).Where(r => r.IsModuleData))
         for (ulong off = 0; off < region.Size; off += 0x10000)
         {
             int n = (int)Math.Min(0x10000UL, region.Size - off);
@@ -8254,16 +8282,38 @@ int PersonsOfCommand(uint vtableRva, int count)
     return 0;
 }
 
-// agentchunk <record hex>   walks the 0xE0-byte records of the same vtable around one record: chunk start, count (read only)
-int AgentChunkCommand(ulong record)
+// agentchunk <record hex> [stride hex]   walks the records of the same vtable around one record: chunk start, count (read only)
+int AgentChunkCommand(ulong record, int stride = 0xE0)
 {
     using var session = Attach(writable: false);
     ulong Q(ulong at) { try { return session.Memory.ReadUInt64(at); } catch { return 0; } }
     ulong vt = Q(record), start = record, end = record;
-    while (Q(start - 0xE0) == vt) start -= 0xE0;
-    while (Q(end + 0xE0) == vt) end += 0xE0;
-    Console.WriteLine($"vtable 0x{vt:X} (+0x{vt - session.ModuleBase:X}); chunk start 0x{start:X}, last record 0x{end:X}, {(end - start) / 0xE0 + 1} records");
+    while (Q(start - (ulong)stride) == vt) start -= (ulong)stride;
+    while (Q(end + (ulong)stride) == vt) end += (ulong)stride;
+    Console.WriteLine($"vtable 0x{vt:X} (+0x{vt - session.ModuleBase:X}); chunk start 0x{start:X}, last record 0x{end:X}, {(end - start) / (ulong)stride + 1} records");
     Console.WriteLine("heapfind pattern: " + Convert.ToHexString(BitConverter.GetBytes(start)));
+    return 0;
+}
+
+// jobscan <object hex> [bytes]   pointers inside an object that lead to a record pointing back at it (read only)
+int JobScanCommand(ulong obj, int size)
+{
+    using var session = Attach(writable: false);
+    var mem = session.Memory;
+    var b = new byte[size];
+    if (!mem.TryRead(obj, b)) { Console.WriteLine("unreadable"); return 0; }
+    for (int at = 0; at + 8 <= size; at += 8)
+    {
+        ulong p = BitConverter.ToUInt64(b, at);
+        if (p < 0x10000 || p >= 0x800000000000UL || (p & 7) != 0) continue;
+        var q = new byte[0x30];
+        if (!mem.TryRead(p, q)) continue;
+        ulong vtable = BitConverter.ToUInt64(q);
+        string back = "";
+        for (int k = 0; k + 8 <= q.Length; k += 8)
+            if (BitConverter.ToUInt64(q, k) == obj) back += $" back@+0x{k:X}";
+        Console.WriteLine($"+0x{at:X} -> 0x{p:X} vt {(vtable >= session.Game.ModuleBase && vtable < session.Game.ModuleEnd ? $"+0x{vtable - session.Game.ModuleBase:X}" : $"0x{vtable:X}")}{back}");
+    }
     return 0;
 }
 
@@ -8273,7 +8323,7 @@ int ChunkSlotCommand(ulong chunk)
     using var session = Attach(writable: false);
     var mem = session.Memory; ulong b = session.Game.ModuleBase;
     ulong Q(ulong at) { try { return mem.ReadUInt64(at); } catch { return 0; } }
-    foreach (var region in session.Process.EnumerateWritableRegions(b, session.Game.ModuleEnd).Where(r => r.IsModuleData))
+    foreach (var region in ((IMemoryRegions)session.Memory).EnumerateWritableRegions(b, session.Game.ModuleEnd).Where(r => r.IsModuleData))
         for (ulong off = 0; off < region.Size; off += 0x10000)
         {
             int n = (int)Math.Min(0x10000UL, region.Size - off);
@@ -8310,7 +8360,7 @@ int SlotsByNameCommand(string text)
         catch { return ""; }
     }
     var seen = new HashSet<ulong>();
-    foreach (var region in session.Process.EnumerateWritableRegions(b, session.Game.ModuleEnd).Where(r => r.IsModuleData))
+    foreach (var region in ((IMemoryRegions)session.Memory).EnumerateWritableRegions(b, session.Game.ModuleEnd).Where(r => r.IsModuleData))
         for (ulong off = 0; off < region.Size; off += 0x10000)
         {
             int n = (int)Math.Min(0x10000UL, region.Size - off);
@@ -8427,7 +8477,9 @@ int NationNamesCommand()
     var no = session.Profile.Nation!;
     ulong b = session.ModuleBase;
     ulong Q(ulong at) { try { return session.Memory.ReadUInt64(at); } catch { return 0; } }
-    ulong root = Q(b + (ulong)no.ListRootRva!.Value), begin = Q(root + (ulong)no.ListOffset!.Value), end = Q(root + (ulong)no.ListOffset!.Value + 8);
+    ulong root = Q(b + (ulong)no.ListRootRva!.Value);
+    if (no.ListObjectOffset is { } objectOffset) root = Q(root + (ulong)objectOffset);
+    ulong begin = Q(root + (ulong)no.ListOffset!.Value), end = Q(root + (ulong)no.ListOffset!.Value + 8);
     var vts = new Dictionary<ulong, int>();
     for (ulong at = begin; at < end; at += 8) { ulong v = Q(Q(at)); vts[v] = vts.GetValueOrDefault(v) + 1; }
     Console.WriteLine($"raw vector: {(end - begin) / 8} pointers; vtables: " + string.Join(", ", vts.Select(kv => $"+0x{(kv.Key >= b ? kv.Key - b : 0):X} x{kv.Value}")) + $"; profile nation vtable +0x{no.VtableRva:X}");
@@ -8442,7 +8494,7 @@ int VectorsOfCommand(uint vtableRva, int minCount)
     using var session = Attach(writable: false);
     var mem = session.Memory; ulong b = session.Game.ModuleBase;
     ulong Q(ulong at) { try { return mem.ReadUInt64(at); } catch { return 0; } }
-    foreach (var region in session.Process.EnumerateWritableRegions(b, session.Game.ModuleEnd).Where(r => r.IsModuleData))
+    foreach (var region in ((IMemoryRegions)session.Memory).EnumerateWritableRegions(b, session.Game.ModuleEnd).Where(r => r.IsModuleData))
         for (ulong off = 0; off < region.Size; off += 0x10000)
         {
             int n = (int)Math.Min(0x10000UL, region.Size - off);
@@ -8497,7 +8549,7 @@ int HeapVectorsCommand(uint vtableRva, int minCount)
     var mem = session.Memory; ulong b = session.Game.ModuleBase;
     ulong Q(ulong at) { try { return mem.ReadUInt64(at); } catch { return 0; } }
     int found = 0;
-    foreach (var region in session.Process.EnumerateWritableRegions(0x10000UL, 0x7FFF00000000UL))
+    foreach (var region in ((IMemoryRegions)session.Memory).EnumerateWritableRegions(b, session.Game.ModuleEnd))
         for (ulong off = 0; off < region.Size; off += 0x100000)
         {
             int n = (int)Math.Min(0x100000UL, region.Size - off);
@@ -8506,7 +8558,7 @@ int HeapVectorsCommand(uint vtableRva, int minCount)
             for (int i = 0; i + 24 <= n; i += 8)
             {
                 ulong begin = BitConverter.ToUInt64(buf, i), end = BitConverter.ToUInt64(buf, i + 8), cap = BitConverter.ToUInt64(buf, i + 16);
-                if (begin < 0x10000 || end <= begin || cap < end || (end - begin) % 8 != 0 || (end - begin) / 8 < (ulong)minCount || (end - begin) / 8 > 5000) continue;
+                if (begin < 0x10000 || end <= begin || cap < end || (end - begin) % 8 != 0 || (end - begin) / 8 < (ulong)minCount || (end - begin) / 8 > 500000) continue;
                 if (Q(Q(begin)) != b + vtableRva || Q(Q(end - 8)) != b + vtableRva) continue;
                 Console.WriteLine($"header at 0x{region.Start + off + (ulong)i:X}: {(end - begin) / 8} items, begin 0x{begin:X}");
                 if (++found >= 10) return 0;

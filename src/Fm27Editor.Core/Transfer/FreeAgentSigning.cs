@@ -68,21 +68,23 @@ public sealed class FreeAgentSigning(IProcessMemory memory, OffsetProfile profil
         if (BitConverter.ToUInt64(contract, C.Team) != firstTeam.Address)
             throw new InvalidOperationException("The first player in that squad is under contract elsewhere; his contract can't be copied");
 
+        int personAt = profile.Relations?.PlayerPerson ?? throw new InvalidOperationException("Profile has no person offsets");
         int seniorAt = C.SeniorTeam ?? throw new InvalidOperationException("Profile has no contract senior team offset");
         int joinedAt = C.PlayerJoinedClub ?? throw new InvalidOperationException("Profile has no joined club offset");
-        ulong person = player.Address + (ulong)LoanCreator.Person;
+        ulong person = player.Address + (ulong)personAt;
         BitConverter.GetBytes(person).CopyTo(contract, 0x08);
         BitConverter.GetBytes(firstTeam.Address).CopyTo(contract, C.Team);
         BitConverter.GetBytes(firstTeam.Address).CopyTo(contract, seniorAt);
         Date(today).CopyTo(contract, StartDate);
         Date(today).CopyTo(contract, SignedDate);
 
+        ulong parentTeamAt = (ulong)(T.PlayerTeam + 8), joinedSecondAt = (ulong)(joinedAt + 4);
         var writes = new List<PlannedWrite>
         {
             Write(player.Address + (ulong)T.PlayerTeam, BitConverter.GetBytes(to.Address), "playing team"),
-            Write(player.Address + LoanCreator.PlayerParentTeam, BitConverter.GetBytes(firstTeam.Address), "parent team"),
+            Write(player.Address + parentTeamAt, BitConverter.GetBytes(firstTeam.Address), "parent team"),
             Write(player.Address + (ulong)joinedAt, Date(today), "joined club"),
-            Write(player.Address + LoanCreator.PlayerJoinedClubSecond, Date(today), "joined date"),
+            Write(player.Address + joinedSecondAt, Date(today), "joined date"),
         };
         IReadOnlyList<ulong>? newSquad = null;
         if (end < cap)

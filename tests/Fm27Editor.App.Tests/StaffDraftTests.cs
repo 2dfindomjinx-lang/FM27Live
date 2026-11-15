@@ -8,7 +8,7 @@ public class StaffDraftTests
     [Fact]
     public void StaffSearchNameIgnoresAccentsAndTracksRenamedCopies()
     {
-        var staff = new StaffRecord { Address = 1, StaffAddress = 2, Attributes = [], Personality = [], Kind = new StaffKind(0, 0, 0, false) };
+        var staff = new StaffRecord { Address = 1, StaffAddress = 2, Attributes = [], Personality = [], Kind = new StaffKind(0, 0, 0, 0, false) };
         var row = new StaffRow(staff, "José Mourinho", "", "", "", null, 0, 0);
         Assert.Equal("jose mourinho", row.SearchName);
         Assert.Equal("joachim low", (row with { Name = "Joachim Löw" }).SearchName);

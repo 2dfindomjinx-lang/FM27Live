@@ -79,6 +79,55 @@ public class WorkPermitDiscoveryTests
         Assert.Throws<InvalidOperationException>(() => table.Locate());
     }
 
+    [Fact]
+    public void Pipelined_first_samples_match_scalar_discovery_across_candidate_batches()
+    {
+        var world = new DiscoveryWorld();
+        for (int i = 0; i < 1030; i++) world.AddTable(i * 32, i == 1029 ? 200 : 100, badNationAt: i == 1029 ? -1 : 0);
+        var expected = 0x100000UL + 1029 * 32;
+        Assert.Equal(expected, world.Table().Locate());
+        Assert.True(world.Memory.BatchSizes.Count >= 6);
+        Assert.All(world.Memory.BatchSizes, count => Assert.InRange(count, 0, 1024));
+        WorkPermitTable.Forget();
+
+        var scalar = new WithoutScatter(world.Memory);
+        Assert.Equal(expected, new WorkPermitTable(scalar, new TestWorld().Profile, TestWorld.ModuleBase).Locate());
+    }
+
+    [Fact]
+    public void Duplicate_begin_record_and_nation_addresses_share_stage_reads_without_losing_candidates()
+    {
+        var world = new DiscoveryWorld();
+        var first = world.AddTable(0, 100);
+        world.DuplicateHeader(0, 32);
+        var larger = world.AddTable(64, 200);
+        Assert.True(world.Raw.TryWrite(larger.Begin, BitConverter.GetBytes(first.Begin + 0x1000)));
+
+        Assert.Equal(larger.Header, world.Table().Locate());
+
+        Assert.Equal(1, world.Memory.BatchRequests.Count(r => r == (first.Begin, 8)));
+        Assert.Equal(1, world.Memory.BatchRequests.Count(r => r == (first.Begin + 0x1000, 32)));
+        Assert.Equal(1, world.Memory.BatchRequests.Count(r => r == (0x110000UL, 8)));
+    }
+
+    [Fact]
+    public void A_failed_shared_first_sample_is_retried_in_the_next_candidate_batch()
+    {
+        var world = new DiscoveryWorld();
+        var table = world.AddTable(0, 100);
+        for (int i = 1; i < 1025; i++) world.DuplicateHeader(0, i * 32);
+        bool failed = false;
+        world.Memory.FailRead = (address, length) =>
+        {
+            if (address != table.Begin || length != 8 || failed) return false;
+            failed = true;
+            return true;
+        };
+
+        Assert.Equal(table.Header + 1024 * 32, world.Table().Locate());
+        Assert.Equal(2, world.Memory.BatchRequests.Count(r => r == (table.Begin, 8)));
+    }
+
     sealed class DiscoveryWorld
     {
         const ulong HeaderPage = 0x100000, Nation = 0x110000;
@@ -122,11 +171,13 @@ public class WorkPermitDiscoveryTests
         public WorkPermitTable Table() => new(Memory, profile.Profile, TestWorld.ModuleBase);
     }
 
-    sealed class Probe(IProcessMemory source, MemoryRegion region) : IProcessMemory, IMemoryRegions
+    sealed class Probe(IProcessMemory source, MemoryRegion region) : IProcessMemory, IMemoryRegions, IScatterReadMemory
     {
         public List<(ulong Address, int Length)> Reads { get; } = [];
         public Action<ulong, int>? BeforeRead { get; set; }
         public Func<ulong, int, bool>? FailRead { get; set; }
+        public List<int> BatchSizes { get; } = [];
+        public List<(ulong Address, int Length)> BatchRequests { get; } = [];
         public IEnumerable<MemoryRegion> EnumerateWritableRegions(ulong imageStart = 0, ulong imageEnd = 0) => [region];
         public bool TryRead(ulong address, Span<byte> buffer)
         {
@@ -136,5 +187,22 @@ public class WorkPermitDiscoveryTests
             return source.TryRead(address, buffer);
         }
         public bool TryWrite(ulong address, ReadOnlySpan<byte> data) => throw new NotSupportedException();
+        public void ReadMany(IReadOnlyList<MemoryReadRequest> requests, Span<bool> succeeded)
+        {
+            BatchSizes.Add(requests.Count);
+            for (int i = 0; i < requests.Count; i++)
+            {
+                BatchRequests.Add((requests[i].Address, requests[i].Destination.Length));
+                succeeded[i] = TryRead(requests[i].Address, requests[i].Destination.Span);
+            }
+        }
+    }
+
+    sealed class WithoutScatter(Probe source) : IProcessMemory, IMemoryRegions
+    {
+        public bool TryRead(ulong address, Span<byte> buffer) => source.TryRead(address, buffer);
+        public bool TryWrite(ulong address, ReadOnlySpan<byte> data) => throw new NotSupportedException();
+        public IEnumerable<MemoryRegion> EnumerateWritableRegions(ulong imageStart = 0, ulong imageEnd = 0) =>
+            source.EnumerateWritableRegions(imageStart, imageEnd);
     }
 }

@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 
 namespace Fm27Editor.Core.Settings;
@@ -11,6 +12,10 @@ namespace Fm27Editor.Core.Settings;
 /// </summary>
 public static partial class GameCurrency
 {
+    [JsonSourceGenerationOptions(WriteIndented = true)]
+    [JsonSerializable(typeof(Dictionary<int, string>))]
+    internal partial class CurrencyMapJsonContext : JsonSerializerContext;
+
     static string PreferencePath => PreferencePathOverride ?? Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "Sports Interactive", "Football Manager 27", "Preferences", "version 6", "selected_currency.xml");
@@ -81,7 +86,7 @@ public static partial class GameCurrency
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(MapPath)!);
-            File.WriteAllText(MapPath, JsonSerializer.Serialize(map, new JsonSerializerOptions { WriteIndented = true }));
+            File.WriteAllText(MapPath, JsonSerializer.Serialize(map, CurrencyMapJsonContext.Default.DictionaryInt32String));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
     }
@@ -90,7 +95,7 @@ public static partial class GameCurrency
     {
         try
         {
-            if (File.Exists(MapPath) && JsonSerializer.Deserialize<Dictionary<int, string>>(File.ReadAllText(MapPath)) is { } saved) return saved;
+            if (File.Exists(MapPath) && JsonSerializer.Deserialize(File.ReadAllText(MapPath), CurrencyMapJsonContext.Default.DictionaryInt32String) is { } saved) return saved;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException) { }
         return [];

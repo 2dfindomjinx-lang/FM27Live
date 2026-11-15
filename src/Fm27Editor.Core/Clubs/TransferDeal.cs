@@ -62,7 +62,9 @@ public sealed record TransferDeal(
 public sealed class TransferDealReader(IProcessMemory memory, OffsetProfile profile, ulong moduleBase)
 {
     /// <summary>Deal class vtable RVAs: the profile's transfer vtable (Game Pass and Steam each name their own), plus two from FM Studio.</summary>
-    IEnumerable<uint> VtableRvas => profile.Proposals is { } p ? [p.TransferVtable, 74_494_248, 83_071_720] : [74_494_248, 83_071_720];
+    readonly ulong[] vtables = profile.Proposals is { } p
+        ? [moduleBase + p.TransferVtable, moduleBase + 74_494_248, moduleBase + 83_071_720]
+        : [moduleBase + 74_494_248, moduleBase + 83_071_720];
 
     const int PersonOffset = 0x38, BuyingTeamOffset = 0x40, SellingTeamOffset = 0x50;
     const int FeeOffset = 0x58, DayCounterOffset = 0x5C, AcceptFlagOffset = 0x84, StatusOffset = 0x88;
@@ -74,7 +76,7 @@ public sealed class TransferDealReader(IProcessMemory memory, OffsetProfile prof
         Span<byte> head = stackalloc byte[8];
         if (!memory.TryRead(address, head)) return false;
         ulong vtable = BitConverter.ToUInt64(head);
-        return VtableRvas.Any(rva => vtable == moduleBase + rva);
+        return vtables.AsSpan().Contains(vtable);
     }
 
     public TransferDeal? Read(ulong address)
@@ -118,21 +120,40 @@ public sealed class TransferDealReader(IProcessMemory memory, OffsetProfile prof
     /// <summary>Every writable-memory object carrying a deal vtable (FM Studio scans the heap the same way).</summary>
     public IReadOnlyList<ulong> Scan()
     {
-        if (memory is not WindowsProcessMemory windows) return [];
+        if (memory is not IMemoryRegions regions)
+            throw new NotSupportedException("Transfer-deal discovery requires writable-memory region enumeration");
         var found = new List<ulong>();
         var buffer = new byte[1 << 22];
-        foreach (var region in windows.EnumerateWritableRegions())
+        foreach (var region in regions.EnumerateWritableRegions())
         {
             if (region.IsModuleData) continue;
             for (ulong offset = 0; offset + 8 <= region.Size; offset += (ulong)buffer.Length)
             {
                 int length = (int)Math.Min((ulong)buffer.Length, region.Size - offset);
-                if (!memory.TryRead(region.Start + offset, buffer.AsSpan(0, length))) break;
-                for (int i = 0; i + 8 <= length; i += 8)
+                var chunk = buffer.AsSpan(0, length);
+                ulong address = region.Start + offset;
+                if (!memory.TryRead(address, chunk))
                 {
-                    ulong vtable = BitConverter.ToUInt64(buffer, i);
-                    if (VtableRvas.Any(rva => vtable == moduleBase + rva))
-                        found.Add(region.Start + offset + (ulong)i);
+                    // A broad read can fail across a protection/allocation boundary. Recover exact smaller
+                    // ranges, but never present a partial candidate index as a completed scan.
+                    for (int at = 0; at < length; at += 4096)
+                    {
+                        int take = Math.Min(4096, length - at);
+                        if (!memory.TryRead(address + (ulong)at, chunk.Slice(at, take)))
+                            throw new MemoryAccessException($"Cannot complete transfer-deal discovery at 0x{address + (ulong)at:X}");
+                    }
+                }
+                var words = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, ulong>(chunk);
+                int word = 0;
+                while (word < words.Length)
+                {
+                    int next = vtables.Length == 3
+                        ? words[word..].IndexOfAny(vtables[0], vtables[1], vtables[2])
+                        : words[word..].IndexOfAny(vtables[0], vtables[1]);
+                    if (next < 0) break;
+                    word += next;
+                    found.Add(address + (ulong)word * 8);
+                    word++;
                 }
             }
         }

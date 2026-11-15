@@ -19,7 +19,8 @@ public sealed class NationKits(IProcessMemory memory, OffsetProfile profile, ulo
     public ulong? Holder(ulong nation)
     {
         if (!IsNation(nation)) return null;
-        ulong team = memory.ReadUInt64(nation + NationColourAccess.TeamPointer);
+        int teamOffset = profile.Nation?.Preferences?.Team ?? profile.Nation?.Teams?.Pointer ?? NationColourAccess.TeamPointer;
+        ulong team = memory.ReadUInt64(nation + (ulong)teamOffset);
         if (!IsTeam(team)) return null;
         ulong holder = memory.ReadUInt64(team + HolderPointer);
         return holder == 0 ? null : holder;

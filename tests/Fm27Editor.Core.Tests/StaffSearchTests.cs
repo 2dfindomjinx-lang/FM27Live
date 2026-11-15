@@ -25,7 +25,7 @@ public class StaffSearchTests
             PotentialAbility = pa,
             Attributes = bytes,
             Personality = new byte[8],
-            Kind = new StaffKind(0, 0, 0, false),
+            Kind = new StaffKind(0, 0, 0, 0, false),
         };
     }
 

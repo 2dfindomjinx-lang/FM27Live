@@ -9,6 +9,35 @@ namespace Fm27Editor.Core.Tests;
 public class SharedCatalogueDiscoveryTests
 {
     [Fact]
+    public void Region_catalogue_checks_original_and_profile_derived_child_holders()
+    {
+        var json = JsonNode.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "offsets", "27.0.0+2493426-gamepass.json")))!;
+        json["nation"]!["listObjectOffset"] = "0x88";
+        var profile = OffsetProfile.Load(json.ToJsonString());
+        var raw = new FakeMemory();
+        const ulong parent = 0x700000, child = 0x710000, firstList = 0x720000, secondList = 0x730000;
+        const ulong region14 = 0x740000, region23 = 0x750000;
+        TestWorld.Set64(raw.Map(TestWorld.ModuleBase + profile.Nation!.ListRootRva!.Value, 8), 0, parent);
+        var parentBytes = raw.Map(parent, 0x810);
+        TestWorld.Set64(parentBytes, 0x88, child);
+        SetVector(parentBytes, 0x100, firstList, 1);
+        SetVector(raw.Map(child, 0x810), 0x100, secondList, 2);
+        TestWorld.Set64(raw.Map(firstList, 8), 0, region14);
+        var pointers = raw.Map(secondList, 16);
+        TestWorld.Set64(pointers, 0, region14); TestWorld.Set64(pointers, 8, region23);
+        foreach (var (address, id) in new[] { (region14, 14), (region23, 23) })
+        {
+            var bytes = raw.Map(address, 24);
+            TestWorld.Set64(bytes, 0, TestWorld.ModuleBase + 0x4D78508);
+            BitConverter.GetBytes(id).CopyTo(bytes, 0x10);
+        }
+        var memory = new RegionProbe(raw, []);
+
+        Assert.Equal(new[] { 14, 23 }, new NationAgreements(memory, profile, TestWorld.ModuleBase).Regions().Select(r => r.Id));
+        Assert.Equal(0, memory.Enumerations);
+    }
+
+    [Fact]
     public void Region_scan_keeps_a_record_crossing_the_chunk_boundary()
     {
         var profile = OffsetProfile.LoadFile(Path.Combine(AppContext.BaseDirectory, "offsets", "27.0.0+2493426-gamepass.json"));

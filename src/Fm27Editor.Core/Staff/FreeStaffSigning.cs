@@ -29,9 +29,21 @@ public sealed record FreeStaffSigningPlan(StaffRecord Staff, ClubEntry To, ulong
 public sealed class FreeStaffSigning(IProcessMemory memory, OffsetProfile profile, ulong moduleBase)
 {
     public const int ContractSize = 200, OfferSize = 208, LinkSize = 72;
-    public const int PersonIds = 0x98, PersonOffers = 0xA0, PersonJoined = 0x11C, PersonCleared = 0x18;
-    const int OfferSerial = 0x7D4, ChangedFlag = 0x50, MaxOffers = 100_000, MaxDepartment = 1024, MaxPersonOffers = 100;
+    public const int PersonCleared = 0x18;
+    const int MaxOffers = 100_000, MaxDepartment = 1024, MaxPersonOffers = 100;
     const byte FinishedStatus = 0x14;
+
+    static (ulong Person, ulong Ids, ulong Offers, ulong Joined) PersonSlots(
+        ulong staffAddress, StaffOffsets s, ContractOffsets c, ProposalOffsets po, FutureTransferOffsets fo, RelationOffsets rel)
+    {
+        int joinedAt = c.PlayerJoinedClub ?? throw new InvalidOperationException("No joined club offset");
+        ulong person = staffAddress + (ulong)s.JobPersonAnchor;
+        return (
+            person,
+            person + (ulong)(po.PlayerIds - rel.PlayerPerson),
+            person + (ulong)(fo.PlayerOffers - rel.PlayerPerson),
+            person + (ulong)(joinedAt - rel.PlayerPerson));
+    }
 
     public FreeStaffSigningPlan Plan(StaffRecord staff, ClubEntry to, byte job, int wage, DateOnly today, DateOnly expiry)
     {
@@ -40,20 +52,23 @@ public sealed class FreeStaffSigning(IProcessMemory memory, OffsetProfile profil
         var K = profile.Club ?? throw new InvalidOperationException("No club offsets");
         var T = profile.Team ?? throw new InvalidOperationException("No team offsets");
         var po = profile.Proposals ?? throw new InvalidOperationException("No offer offsets");
+        var fo = profile.FutureTransfers ?? throw new InvalidOperationException("No future-transfer offsets");
+        var rel = profile.Relations ?? throw new InvalidOperationException("No person offsets");
         if (!StaffMoveService.SupportedJobs.Contains(job)) throw new InvalidOperationException("That role cannot be given");
         if (wage < 0) throw new ArgumentOutOfRangeException(nameof(wage), "Wage cannot be negative");
         if (expiry <= today) throw new ArgumentException("The contract must end after today", nameof(expiry));
-        if (staff.Kind.Manager || staff.Kind.StaffPart != 0x100) throw new InvalidOperationException("Human managers and unusual staff objects cannot be moved");
+        if (staff.Kind.Manager || staff.Kind.StaffPart != S.Kinds[0].StaffPart) throw new InvalidOperationException("Human managers and unusual staff objects cannot be moved");
 
         var guards = new List<PlannedWrite>();
         byte[] Guard(ulong at, int length, string what) { var b = memory.Read(at, length); guards.Add(new(at, b, [], what)); return b; }
         ulong Pointer(ulong at, string what) => BitConverter.ToUInt64(Guard(at, 8, what));
 
         if (staff.Id <= 0 || !S.Kinds.Contains(staff.Kind) ||
-            Pointer(staff.Address, "person vtable") != moduleBase + staff.Kind.PersonVtableRva ||
-            Pointer(staff.StaffAddress, "staff vtable") != moduleBase + staff.Kind.StaffVtableRva ||
+            !StaffIdentity.IsCurrent(staff, memory, moduleBase, S) ||
             BitConverter.ToInt32(Guard(staff.Address + (ulong)S.Id, 4, "staff ID")) != staff.Id)
             throw new StaleObjectException("Staff identity changed");
+        Guard(staff.StaffAddress, 8, "staff vtable");
+        if (!S.DirectStaffVector) Guard(staff.Address, 8, "person vtable");
         if (Pointer(staff.Address + (ulong)S.Job, "staff contract") != 0)
             throw new InvalidOperationException($"{staff.DisplayName} already has a job; use the normal move");
 
@@ -70,27 +85,28 @@ public sealed class FreeStaffSigning(IProcessMemory memory, OffsetProfile profil
 
         ulong root = Pointer(moduleBase + po.ListRootRva, "offer root");
         if (root == 0) throw new StaleObjectException("Offer root missing");
-        int serial = BitConverter.ToInt32(Guard(root + OfferSerial, 4, "offer serial"));
+        int serial = BitConverter.ToInt32(Guard(root + (ulong)po.OfferSerial, 4, "offer serial"));
         if (serial < 0 || serial == int.MaxValue) throw new StaleObjectException("Invalid offer serial");
-        Guard(root + ChangedFlag, 1, "offer changed flag");
+        if (po.ChangedFlag is { } cf) Guard(root + (ulong)cf, 1, "offer changed flag");
         var offers = FutureTransferVectorSnapshot.Capture(memory, root + (ulong)po.ListOffset, 8, MaxOffers);
         guards.AddRange(offers.Guards);
         // The game puts the new offer in the first empty slot; its ID is the slot index (IDs 132-134 in the traces).
         int slot = offers.IndexOf(x => BitConverter.ToUInt64(x) == 0);
         if (slot < 0) throw new InvalidOperationException("The game's offer list has no free slot");
 
-        ulong ids = Pointer(staff.Address + PersonIds, "person offer IDs");
-        ulong links = Pointer(staff.Address + PersonOffers, "person offers");
+        var slots = PersonSlots(staff.Address, S, C, po, fo, rel);
+        ulong ids = Pointer(slots.Ids, "person offer IDs");
+        ulong links = Pointer(slots.Offers, "person offers");
         var personIds = ids == 0 ? null : FutureTransferVectorSnapshot.Capture(memory, ids, 4, MaxPersonOffers);
         var personOffers = links == 0 ? null : FutureTransferVectorSnapshot.Capture(memory, links, 8, MaxPersonOffers);
-        Guard(staff.Address + PersonJoined, 4, "joined date");
-        Guard(staff.Address + PersonCleared, 4, "person field +0x18");
+        Guard(slots.Joined, 4, "joined date");
+        if (S.JobPersonAnchor == 0) Guard(slots.Person + PersonCleared, 4, "person field +0x18");
         return new(staff, to, first.Address, job, wage, today, expiry, root, slot, serial, department, personIds, personOffers, guards);
     }
 
     public void Apply(FreeStaffSigningPlan plan, Func<int, ulong> allocate)
     {
-        var C = profile.Contract!; var S = profile.Staff!; var po = profile.Proposals!;
+        var C = profile.Contract!; var S = profile.Staff!; var po = profile.Proposals!; var fo = profile.FutureTransfers!; var rel = profile.Relations!;
         var guards = new List<PlannedWrite>(plan.Guards);
         foreach (var v in new[] { plan.Department, plan.PersonIds, plan.PersonOffers })
             if (v is not null) { v.Validate(memory); guards.AddRange(v.Guards); }
@@ -113,18 +129,22 @@ public sealed class FreeStaffSigning(IProcessMemory memory, OffsetProfile profil
             publish.Add(new(slot, memory.Read(slot, 8), BitConverter.GetBytes(Fresh(h, "new person vector holder")), "person vector holder"));
         }
 
-        ulong contract = Fresh(Contract(moduleBase + C.ContractVtableRva, plan.Staff.Address, plan.Team, plan.Wage, plan.Job, plan.Today, plan.Expiry), "staff contract");
-        ulong offer = Fresh(Offer(moduleBase + po.TransferVtable, plan.Staff.Address, plan.Team, plan.OfferId, plan.Serial, plan.Today), "offer");
+        var slots = PersonSlots(plan.Staff.Address, S, C, po, fo, rel);
+        ulong contract = Fresh(Contract(moduleBase + C.ContractVtableRva, slots.Person, plan.Team, plan.Wage, plan.Job, plan.Today, plan.Expiry), "staff contract");
+        ulong offer = Fresh(Offer(moduleBase + po.TransferVtable, slots.Person, plan.Team, plan.OfferId, plan.Serial, plan.Today), "offer");
         ulong link = Fresh(Link(plan.OfferId), "offer link");
         Append(plan.Department, BitConverter.GetBytes(plan.Staff.StaffAddress));
-        PersonVector(plan.Staff.Address + PersonIds, plan.PersonIds, BitConverter.GetBytes(plan.OfferId));
-        PersonVector(plan.Staff.Address + PersonOffers, plan.PersonOffers, BitConverter.GetBytes(link));
+        PersonVector(slots.Ids, plan.PersonIds, BitConverter.GetBytes(plan.OfferId));
+        PersonVector(slots.Offers, plan.PersonOffers, BitConverter.GetBytes(link));
         ulong slotAddress = memory.ReadUInt64(plan.Root + (ulong)po.ListOffset) + (ulong)plan.OfferId * 8;
         publish.Add(new(slotAddress, new byte[8], BitConverter.GetBytes(offer), "offer slot"));
-        publish.Add(new(plan.Root + OfferSerial, BitConverter.GetBytes(plan.Serial), BitConverter.GetBytes(plan.Serial + 1), "offer serial"));
-        publish.Add(new(plan.Staff.Address + PersonJoined, memory.Read(plan.Staff.Address + PersonJoined, 4), FlaggedDate(plan.Today), "joined date"));
-        var cleared = memory.Read(plan.Staff.Address + PersonCleared, 4);
-        if (cleared.Any(b => b != 0)) publish.Add(new(plan.Staff.Address + PersonCleared, cleared, new byte[4], "person field +0x18"));
+        publish.Add(new(plan.Root + (ulong)po.OfferSerial, BitConverter.GetBytes(plan.Serial), BitConverter.GetBytes(plan.Serial + 1), "offer serial"));
+        publish.Add(new(slots.Joined, memory.Read(slots.Joined, 4), FlaggedDate(plan.Today), "joined date"));
+        if (S.JobPersonAnchor == 0)
+        {
+            var cleared = memory.Read(slots.Person + PersonCleared, 4);
+            if (cleared.Any(b => b != 0)) publish.Add(new(slots.Person + PersonCleared, cleared, new byte[4], "person field +0x18"));
+        }
         // The contract pointer goes last: until then the staff member is still a free agent to the game.
         publish.Add(new(plan.Staff.Address + (ulong)S.Job, new byte[8], BitConverter.GetBytes(contract), "staff contract"));
         FutureTransferTransaction.Apply(memory, guards, [.. scratch, .. publish]);

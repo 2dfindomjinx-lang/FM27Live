@@ -854,7 +854,7 @@ internal sealed class NationScreen(IScreenHost host)
                 var source = agreements.Read(addition.SourceNation, addition.Source.Vector, continentList).FirstOrDefault(x => x.Address == addition.Source.Address);
                 if (source is null || !source.Snapshot.AsSpan().SequenceEqual(expected))
                     throw new StaleObjectException("Agreement source changed since it was selected for duplication");
-                var allocate = session.Memory is Fm27Editor.Core.Memory.WindowsProcessMemory wpm ? wpm.Allocate : (Func<int, ulong>?)null;
+                var allocate = session.Memory is IRemoteAllocator alloc ? alloc.Allocate : (Func<int, ulong>?)null;
                 NationAgreementRow? added;
                 if (addition.EmptyHeader is { } empty)
                 {
@@ -925,7 +925,7 @@ internal sealed class NationScreen(IScreenHost host)
                             byte minAge = rows.Count > 0 ? rows[0].MinAge : (byte)14;
                             byte maxAge = rows.Count > 0 ? rows[0].MaxAge : (byte)45;
                             byte knowledge = rows.Count > 0 ? rows[0].Knowledge : (byte)0;
-                            session.NationPreferences.Add(team, vector, target, rating, minAge, maxAge, knowledge, session.Memory is Fm27Editor.Core.Memory.WindowsProcessMemory wpm ? wpm.Allocate : null);
+                            session.NationPreferences.Add(team, vector, target, rating, minAge, maxAge, knowledge, session.Memory is IRemoteAllocator alloc ? alloc.Allocate : null);
                             preferenceStructure++;
                         }
                 }

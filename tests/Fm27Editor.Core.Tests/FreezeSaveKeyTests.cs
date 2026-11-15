@@ -9,7 +9,7 @@ public sealed class FreezeSaveKeyTests
     static StaffRecord Staff(int id, bool manager) => new()
     {
         Address = 0x100000 + (ulong)Math.Max(id, 0), StaffAddress = 0x200000 + (ulong)Math.Max(id, 0), Id = id,
-        Attributes = [], Personality = [], Kind = new StaffKind(0, 0, 0, manager),
+        Attributes = [], Personality = [], Kind = new StaffKind(0, 0, 0, null, manager),
     };
 
     [Theory]

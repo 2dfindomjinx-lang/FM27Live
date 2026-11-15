@@ -17,7 +17,8 @@ namespace Fm27Editor.Core.Players;
 /// </summary>
 public sealed record ProposalOffsets(uint ListRootRva, int ListOffset, int Person, int Buyer, int Seller, int Value, int Id, int Status, int PlayerIds,
     uint TransferVtable, uint LoanVtable, uint TrialVtable, uint BClubMoveVtable,
-    uint? ManagerRva = null, uint? ManagerVtable = null, int OfferVector = 0x20)
+    uint? ManagerRva = null, uint? ManagerVtable = null, int OfferVector = 0x20,
+    int OfferSerial = 0x7D4, int? ChangedFlag = 0x50)
 {
     static readonly string[] Keys = ["listRootRva", "listOffset", "person", "buyer", "seller", "value", "id", "status", "playerIds",
         "transferVtable", "loanVtable", "trialVtable", "bClubMoveVtable"];
@@ -30,7 +31,9 @@ public sealed record ProposalOffsets(uint ListRootRva, int ListOffset, int Perso
         return new((uint)v[0], (int)v[1], (int)v[2], (int)v[3], (int)v[4], (int)v[5], (int)v[6], (int)v[7], (int)v[8], (uint)v[9], (uint)v[10], (uint)v[11], (uint)v[12],
             e.TryGetProperty("managerRva", out _) ? (uint)Hex("managerRva") : null,
             e.TryGetProperty("managerVtable", out _) ? (uint)Hex("managerVtable") : null,
-            e.TryGetProperty("offerVector", out _) ? (int)Hex("offerVector") : 0x20);
+            e.TryGetProperty("offerVector", out _) ? (int)Hex("offerVector") : 0x20,
+            e.TryGetProperty("offerSerial", out _) ? (int)Hex("offerSerial") : 0x7D4,
+            e.TryGetProperty("changedFlag", out var cf) ? (cf.ValueKind == JsonValueKind.Null ? null : (int)Hex("changedFlag")) : 0x50);
     }
 
     internal void Write(Utf8JsonWriter w)
@@ -41,6 +44,9 @@ public sealed record ProposalOffsets(uint ListRootRva, int ListOffset, int Perso
         if (ManagerRva is { } manager) w.WriteString("managerRva", $"0x{manager:X}");
         if (ManagerVtable is { } managerVtable) w.WriteString("managerVtable", $"0x{managerVtable:X}");
         if (ManagerRva is not null) w.WriteString("offerVector", $"0x{OfferVector:X}");
+        if (OfferSerial != 0x7D4) w.WriteString("offerSerial", $"0x{OfferSerial:X}");
+        if (ChangedFlag is null) w.WriteNull("changedFlag");
+        else if (ChangedFlag != 0x50) w.WriteString("changedFlag", $"0x{ChangedFlag:X}");
         w.WriteEndObject();
     }
 }

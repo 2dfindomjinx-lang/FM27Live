@@ -1,4 +1,5 @@
 using Fm27Editor.Core.Memory;
+using Fm27Editor.Core.Presets;
 
 namespace Fm27Editor.Core.History;
 
@@ -175,7 +176,7 @@ public sealed class ChangeJournal
         if (raise) Changed?.Invoke();
     }
 
-    /// <summary>Called for every successful write of the editor (see <c>WindowsProcessMemory.OnWrite</c>).</summary>
+    /// <summary>Called for every successful write of the editor (see <c>IMemoryWriteObserver.OnWrite</c>).</summary>
     public void Record(ulong address, byte[] before, byte[] after)
     {
         lock (_gate)
@@ -219,7 +220,7 @@ public sealed class ChangeJournal
             }
             finally { _suppress--; }
             // A code patch undone must also leave the instruction cache behind, or a thread may run the patched bytes.
-            if (memory is WindowsProcessMemory windows) windows.FlushInstructionCache(entry.Address, entry.Before.Length);
+            if (memory is ICodePatchHost host) host.FlushCode(entry.Address, entry.Before.Length);
             entry.Undone = true;
         }
         Changed?.Invoke();

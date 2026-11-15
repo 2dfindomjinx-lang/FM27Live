@@ -1,0 +1,7 @@
+<Directives xmlns="http://schemas.microsoft.com/netfx/2013/01/metadata">
+  <Application>
+    <!-- Preserve UI row/model properties accessed by Avalonia reflection Binding(...) and JSON serialization under NativeAOT -->
+    <Assembly Name="Fm27Editor" Dynamic="Required All" />
+    <Assembly Name="Fm27Editor.Core" Dynamic="Required All" />
+  </Application>
+</Directives>

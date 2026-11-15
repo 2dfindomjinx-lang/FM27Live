@@ -27,8 +27,8 @@ public enum ForceAcceptSiteState
     MissingOffset,
 
     /// <summary>
-    /// The preset is not implemented in a form safe to apply — the Cheat Engine reference is a guarded hook, not an
-    /// overwrite — so the site is never read and the preset can never be enabled until that hook is measured.
+    /// The preset has no verified implementation for this architecture (or needs a guarded hook rather than an
+    /// overwrite), so the site is never read and cannot be enabled until the acceptance logic is measured.
     /// </summary>
     NotImplemented,
 
@@ -75,10 +75,10 @@ public sealed class ForceAcceptSitePlan
     /// <summary>Module base plus RVA, or null when there is no RVA.</summary>
     public required ulong? Address { get; init; }
 
-    /// <summary>The bytes that must already be in place for a write to be allowed — the guard.</summary>
+    /// <summary>The bytes that must already be in place for a write to be allowed — empty on an unmeasured architecture.</summary>
     public required byte[] Original { get; init; }
 
-    /// <summary>The bytes a write would store in place of <see cref="Original"/>.</summary>
+    /// <summary>The bytes a write would store in place of <see cref="Original"/> — empty on an unmeasured architecture.</summary>
     public required byte[] Replacement { get; init; }
 
     /// <summary>The bytes read at the site, or null when the site is missing or unreadable.</summary>

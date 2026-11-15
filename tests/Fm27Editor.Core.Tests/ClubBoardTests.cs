@@ -11,7 +11,7 @@ namespace Fm27Editor.Core.Tests;
 public class ClubBoardTests
 {
     const ulong ClubA = 0x5000_0000, ClubB = 0x6000_0000;
-    static readonly StaffKind Kind = new(0x4D3B358, 0x4D3B358, 0x100, false);
+    static readonly StaffKind Kind = new(0x4D3B358, 0x4D3B358, 0x100, 0, false);
 
     static StaffRecord Person(string name, ulong club, string clubName, short? job) => new()
     {

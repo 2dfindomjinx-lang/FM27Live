@@ -163,6 +163,7 @@ public sealed partial class MainWindow
             ItemsSource = gridItems,
             Margin = new Thickness(14, 0, 14, 10),
         };
+        ToolGrid.EnableRangeSelect(dataGrid);
 
         dataGrid.Styles.Add(new Style(x => x.OfType<DataGridColumnHeader>())
         {

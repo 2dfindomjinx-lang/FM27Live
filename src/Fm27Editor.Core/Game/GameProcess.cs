@@ -14,6 +14,7 @@ public sealed record GameProcess(int ProcessId, ulong ModuleBase, int ModuleSize
 
     public static GameProcess Locate(string moduleName = DefaultModule)
     {
+        if (OperatingSystem.IsMacOS()) return MacProcessDiscovery.LocateAll(moduleName)[0];
         var processes = Process.GetProcessesByName(ProcessName);
         if (processes.Length == 0) throw new GameNotRunningException("Football Manager 27 (fm.exe) is not running");
         // Another FM version can run at the same time (both are fm.exe); prefer the one whose module is 27.x.
@@ -35,6 +36,7 @@ public sealed record GameProcess(int ProcessId, ulong ModuleBase, int ModuleSize
 
     public static IReadOnlyList<GameProcess> LocateAll(string moduleName = DefaultModule)
     {
+        if (OperatingSystem.IsMacOS()) return MacProcessDiscovery.LocateAll(moduleName);
         var processes = FindProcesses();
         if (processes.Length == 0) return [Locate(moduleName)];
         var games = new List<GameProcess>();

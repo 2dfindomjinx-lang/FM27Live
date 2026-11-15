@@ -41,6 +41,11 @@ public sealed class EditorBackend : IEditorBackend, IDisposable
         session?.Dispose(); session = null;
         try
         {
+            // The app stays unprivileged; make sure the on-demand helper is installed before the first attach.
+            // On every launch after the first this only checks the installed files and the socket.
+            if (OperatingSystem.IsMacOS())
+                await Task.Run(MacElevation.EnsureHelperInstalled, ct);
+
             var attached = await Task.Run(() => GameSession.Attach(GameSession.LoadProfiles(Path.Combine(AppContext.BaseDirectory, "offsets")), true), ct);
             session = attached;
             SaveChanged = false;
@@ -48,12 +53,15 @@ public sealed class EditorBackend : IEditorBackend, IDisposable
             var journal = new ChangeJournal();
             var recorder = FlightRecorder.Current;
             recorder?.Log("game", $"attached {attached.Profile.Build}; writable {attached.CanWrite}");
-            attached.Process.OnWrite = (address, before, after) =>
+            if (attached.Memory is Fm27Editor.Core.Memory.IMemoryWriteObserver observer)
             {
-                journal.Record(address, before, after);
-                recorder?.Write(address, before, after, attached.ModuleBase, attached.Game.ModuleEnd, ChangeContext.Current ?? ChangeContext.CallerName());
-            };
-            attached.Process.OnAllocate = journal.NoteAllocation;
+                observer.OnWrite = (address, before, after) =>
+                {
+                    journal.Record(address, before, after);
+                    recorder?.Write(address, before, after, attached.ModuleBase, attached.Game.ModuleEnd, ChangeContext.Current ?? ChangeContext.CallerName());
+                };
+                observer.OnAllocate = journal.NoteAllocation;
+            }
             Edits = new EditService(attached.Writer, attached.Players, AcceptFrozenEdit, journal, p => PlayerChangeLabels.For(attached.Profile, p.Address)) { Blocked = () => SaveChanged };
             State = new(ConnectionStatus.Connected, attached.CanWrite ? attached.Profile.Build :
                 $"{attached.Profile.Build} (read-only)");

@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.4.0
 
 Checked on Steam `27.0.1+2503222` and Game Pass `27.0.1+2494687`.
 

@@ -43,8 +43,9 @@ internal static class LoanTransferSafety
             throw new StaleObjectException("The loan contract changed while planning");
         if (BitConverter.ToUInt64(loanBytes, LoanCreator.ContractPerson) != player.Address + (ulong)personOffset)
             throw new StaleObjectException("The loan contract belongs to another player");
-        if (BitConverter.ToInt32(loanBytes, LoanEditor.AgreedPrice) != -1 ||
-            BitConverter.ToInt32(loanBytes, LoanEditor.BuyBackFee) != -1 || loanBytes[LoanCreator.PurchaseAfterMatchesByte] != 0xFE)
+        // A price agreed in the loan is not a completed purchase. Moving the player does not charge the borrower.
+        if (BitConverter.ToInt32(loanBytes, LoanEditor.BuyBackFee) != -1 ||
+            loanBytes[LoanCreator.PurchaseAfterMatchesByte] != 0xFE)
             throw new InvalidOperationException("This loan's purchase terms have not been verified for a transfer");
         if (c.Clauses is not { } clauseOffset || clauseOffset < 0 || clauseOffset > loanBytes.Length - 24)
             throw new InvalidOperationException("The loan's contract clauses cannot be verified");

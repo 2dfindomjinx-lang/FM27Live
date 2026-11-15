@@ -178,6 +178,11 @@
         "type": "byte",
         "mask": "0x80"
       },
+      "RetirementPlanned": {
+        "path": "0x2A0",
+        "type": "byte",
+        "mask": "0x01"
+      },
       "Ethnicity": {
         "path": "0x315",
         "type": "byte"

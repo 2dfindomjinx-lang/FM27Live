@@ -175,6 +175,11 @@
         "type": "byte",
         "mask": "0x80"
       },
+      "RetirementPlanned": {
+        "path": "0x2A0",
+        "type": "byte",
+        "mask": "0x01"
+      },
       "Ethnicity": {
         "path": "0x315",
         "type": "byte"
@@ -1173,6 +1178,7 @@
     "worldReputation": "0xD8",
     "currentAbility": "0xDA",
     "potentialAbility": "0xDC",
+    "personIndex": "0x8",
     "attributes": {
       "CoachingAttacking": "0x32",
       "CoachingDefending": "0x33",

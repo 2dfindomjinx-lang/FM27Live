@@ -105,6 +105,34 @@ public sealed class FutureTransferReader(IProcessMemory memory, OffsetProfile pr
         return result;
     }
 
+    /// <summary>
+    /// Every pending future transfer in the game: the offer list's date records (person, date, offer ID), each matched to its
+    /// player and to the offer at that ID in the offer list. Players not in <paramref name="players"/> are skipped.
+    /// </summary>
+    public IReadOnlyList<(PlayerRecord Player, FutureTransfer Transfer)> ReadAll(IEnumerable<PlayerRecord> players)
+    {
+        var result = new List<(PlayerRecord, FutureTransfer)>();
+        if (profile.FutureTransfers is not { } o || profile.Proposals is not { } p || profile.Relations is not { } r) return result;
+        if (!Q(moduleBase + p.ListRootRva, out ulong root) || root == 0) return result;
+        if (!Q(root + (ulong)o.DateVector, out ulong begin) || !Q(root + (ulong)o.DateVector + 8, out ulong end) || begin == 0 || end < begin || (end - begin) / 8 > MaxDates) return result;
+        if (!Q(root + (ulong)p.ListOffset, out ulong offersBegin) || !Q(root + (ulong)p.ListOffset + 8, out ulong offersEnd) || offersEnd < offersBegin) return result;
+        var byPerson = new Dictionary<ulong, PlayerRecord>();
+        foreach (var player in players) byPerson.TryAdd(player.Address + (ulong)r.PlayerPerson, player);
+        var offers = new TransferProposalReader(memory, profile, moduleBase);
+        var raw = memory.Read(begin, (int)(end - begin));
+        var rec = new byte[o.DateOfferId + 4];
+        for (int i = 0; i < raw.Length; i += 8)
+        {
+            ulong at = BitConverter.ToUInt64(raw, i);
+            if (at == 0 || !memory.TryRead(at, rec) || !byPerson.TryGetValue(BitConverter.ToUInt64(rec, o.DatePerson), out var player)) continue;
+            int id = BitConverter.ToInt32(rec, o.DateOfferId);
+            if (id < 0 || offersBegin + (ulong)id * 8 >= offersEnd || !Q(offersBegin + (ulong)id * 8, out ulong offer) || offer == 0) continue;
+            if (offers.ReadOffer(offer) is not { } proposal || proposal.Id != id || DateAt(rec, o.Date) is not { } date) continue;
+            result.Add((player, new FutureTransfer(proposal, at, date, BitConverter.ToInt32(rec, o.Date))));
+        }
+        return result;
+    }
+
     internal static DateOnly? DateAt(byte[] b, int at)
     {
         int day = BitConverter.ToInt16(b, at) & 0x1FF, year = BitConverter.ToInt16(b, at + 2);

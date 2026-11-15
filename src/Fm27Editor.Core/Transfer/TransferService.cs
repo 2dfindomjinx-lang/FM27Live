@@ -31,7 +31,7 @@ public sealed record TransferPlan(
 /// <item>contract team and senior team → the buyer's first team; playing team → the selected buyer team;</item>
 /// <item>removed from the old team's squad vector, appended to the new one.</item>
 /// </list>
-/// For an active loan without purchase or buy-back clauses, also removes the player from the parent squad and
+/// For an active loan with supported terms, also removes the player from the parent squad and
 /// clears the loan holder. This is restricted to the measured three-club layout; unverified loan cases are refused.
 /// Not done (IGE does): a new contract object, transfer history, news, solidarity/sell-on payments to third clubs.
 /// The existing contract keeps its terms; change them afterwards with <see cref="ContractWriter"/>.

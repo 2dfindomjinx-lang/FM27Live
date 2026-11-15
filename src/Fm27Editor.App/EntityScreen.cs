@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -91,7 +91,7 @@ internal abstract class EntityScreen<TRecord, TRow, TDraft> : IEntityScreen
     protected readonly DataGrid ListGrid = new()
     {
         IsReadOnly = true, AutoGenerateColumns = false, CanUserResizeColumns = true, CanUserSortColumns = true,
-        SelectionMode = DataGridSelectionMode.Single, GridLinesVisibility = DataGridGridLinesVisibility.Horizontal,
+        SelectionMode = DataGridSelectionMode.Extended, GridLinesVisibility = DataGridGridLinesVisibility.Horizontal,
         HorizontalGridLinesBrush = UiKit.Brush("#1D2130"), RowHeight = 28, Background = UiKit.Brush("#11131C"), BorderThickness = new Thickness(0),
     };
     protected readonly ContentControl HeaderHost = new() { Margin = new Thickness(12, 9, 12, 8) };
@@ -189,6 +189,8 @@ internal abstract class EntityScreen<TRecord, TRow, TDraft> : IEntityScreen
         ListGrid.SelectionChanged += (_, _) => Selected = ListGrid.SelectedItem is TRow row ? RecordOf(row) : null;
         ListGrid.DoubleTapped += (_, e) => { if (UiKit.OnRow(e)) OpenSelected(); };
         ListGrid.KeyDown += (_, e) => { if (e.Key == Key.Enter) { OpenSelected(); e.Handled = true; } };
+        AttachContextMenu();
+        ToolGrid.EnableRangeSelect(ListGrid);
 
         var left = new DockPanel { Background = UiKit.Brush("#11131C") };
         var searchBar = new Border
@@ -306,6 +308,50 @@ internal abstract class EntityScreen<TRecord, TRow, TDraft> : IEntityScreen
         }
         if (reportStatus && Rows.Count > 0)
             Host.SetStatus(filtered.Count == Rows.Count ? LoadedMessage(Rows.Count) : FilteredMessage(filtered.Count, Rows.Count));
+    }
+
+    /// <summary>Bulk actions a screen offers on the rows selected with Shift / Ctrl (right-click menu), after Open and Copy.</summary>
+    protected virtual IEnumerable<(string Label, Action<IReadOnlyList<TRecord>> Run)> ContextActions() => [];
+
+    IReadOnlyList<TRecord> SelectedRecords() => ListGrid.SelectedItems.OfType<TRow>().Select(RecordOf).ToList();
+
+    /// <summary>Right-click menu for every list: right-clicking a row outside the selection selects that row alone, inside it keeps the Shift / Ctrl selection.</summary>
+    void AttachContextMenu()
+    {
+        ListGrid.AddHandler(InputElement.PointerPressedEvent, (_, e) =>
+        {
+            if (!e.GetCurrentPoint(ListGrid).Properties.IsRightButtonPressed || e.Source is not Avalonia.Visual v) return;
+            if (Avalonia.VisualTree.VisualExtensions.FindAncestorOfType<DataGridColumnHeader>(v, includeSelf: true) is not null) return;
+            var row = Avalonia.VisualTree.VisualExtensions.FindAncestorOfType<DataGridRow>(v, includeSelf: true);
+            if (row?.DataContext is TRow clicked && !ListGrid.SelectedItems.Contains(clicked)) ListGrid.SelectedItem = clicked;
+        }, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+        var menu = new ContextMenu();
+        menu.Opening += (_, e) =>
+        {
+            var targets = SelectedRecords();
+            if (targets.Count == 0) { e.Cancel = true; return; }
+            menu.Items.Clear();
+            menu.Items.Add(new MenuItem { Header = Loc.F("Actions ({0:N0} selected)", targets.Count), IsEnabled = false });
+            var open = new MenuItem { Header = Loc.S("Open"), IsEnabled = targets.Count == 1 };
+            open.Click += (_, _) => OpenSelected();
+            menu.Items.Add(open);
+            var copy = new MenuItem { Header = Loc.S("Copy Name to Clipboard") };
+            copy.Click += async (_, _) =>
+            {
+                if (TopLevel.GetTopLevel(ListGrid)?.Clipboard is { } clipboard)
+                    await clipboard.SetTextAsync(string.Join(Environment.NewLine, targets.Select(NameOf)));
+            };
+            menu.Items.Add(copy);
+            var actions = Host.Backend.State.Status == ConnectionStatus.Connected ? ContextActions().ToList() : [];
+            if (actions.Count > 0) menu.Items.Add(new Separator());
+            foreach (var (label, run) in actions)
+            {
+                var item = new MenuItem { Header = Loc.S(label) };
+                item.Click += (_, _) => run(targets);
+                menu.Items.Add(item);
+            }
+        };
+        ListGrid.ContextMenu = menu;
     }
 
     // Opening one item.

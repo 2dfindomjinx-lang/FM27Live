@@ -61,6 +61,17 @@ public sealed class KeepPlayingWriter(IProcessMemory memory, OffsetProfile profi
         byte after = (byte)((before[0] & ~1) | 2);
         guards.Add(new(traitAddress, before, "retirement traits"));
         if (before[0] != after) writes.Add(new(traitAddress, before, [after], "retirement traits"));
+        // The player's own retirement flags. FMRTE's keep-playing write on Benzema cleared +0x2A0 bit 0x01 (set on every player with
+        // a planned retirement in the calibration save); "Retiring after spell at current club" (+0x2A1 bit 0x80) is the
+        // other retirement flag FM keeps on the player. Both are cleared; the rest of each byte is left alone.
+        foreach (var field in new[] { PlayerField.RetirementPlanned, PlayerField.RetiringAfterSpellAtCurrentClub })
+        {
+            if (profile.PlayerFields?.TryGetValue(field, out var o) != true || o!.Path.Count != 1 || o.Mask == 0) continue;
+            ulong at = player.Address + (ulong)o.Path[0];
+            var flag = memory.Read(at, 1);
+            guards.Add(new(at, flag, field.ToString()));
+            if ((flag[0] & o.Mask) != 0) writes.Add(new(at, flag, [(byte)(flag[0] & ~o.Mask)], field.ToString()));
+        }
         if (writes.Count == 0) return null;
         return new(player, person, date, state.Root, state.Manager, guards, writes);
     }

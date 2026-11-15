@@ -123,7 +123,9 @@ public sealed class SquadTests
             PlayerField.Ethnicity,
             PlayerField.HairColour,
             PlayerField.HairLength,
-            PlayerField.SkinColour
+            PlayerField.SkinColour,
+            // Prevent retirement clears it (player +0x2A0 bit 0x01, 15/11/2026)
+            PlayerField.RetirementPlanned
         };
         var actualFields = Enum.GetValues<PlayerField>();
         Assert.Equal(expectedFields.OrderBy(f => f), actualFields.OrderBy(f => f));

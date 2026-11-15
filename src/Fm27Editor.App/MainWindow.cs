@@ -120,6 +120,21 @@ public sealed partial class MainWindow : Window
         Background = Brush("#11131C"),
         BorderThickness = new Thickness(0),
     };
+    /// <summary>The toolbar's retirement and future-transfer lists, each opened as its own tab (as FMRTE does).</summary>
+    void ShowRetirementsTab()
+    {
+        retiringView ??= BuildRetiringView();
+        OpenKindTab("list", 1, Loc.S("Retire Date"), retiringView, RefreshRetiringPlayers);
+        RefreshRetiringPlayers();
+    }
+
+    void ShowFutureTransfersTab()
+    {
+        futureView ??= BuildFutureTransfersView();
+        OpenKindTab("list", 2, Loc.S("Future Transfers"), futureView, RefreshFutureTransfers);
+        RefreshFutureTransfers();
+    }
+
     StackPanel editor = new() { Spacing = 12, Margin = new Thickness(18, 14) };
     readonly TextBlock status = new() { Margin = new Thickness(14, 5), Foreground = Brush("#94A3B8"), FontSize = 13.5 };
     readonly DispatcherTimer timer = new() { Interval = TimeSpan.FromSeconds(3) };
@@ -222,11 +237,7 @@ public sealed partial class MainWindow : Window
         DockPanel.SetDock(filterArea, Dock.Top);
         allPlayersDock.Children.Add(filterArea);
         allPlayersDock.Children.Add(grid);
-        var playersHost = UiKit.OptionTabs(
-            [("All Players", allPlayersDock), ("Retiring", BuildRetiringView())],
-            selectedIndex: 0,
-            onSelected: idx => { if (idx == 1 && retiringDirty) RefreshRetiringPlayers(); },
-            stretchContent: true);
+        var playersHost = allPlayersDock;
 
         var bodyArea = new Grid();
         bodyArea.Children.Add(bodyHost);
@@ -265,6 +276,7 @@ public sealed partial class MainWindow : Window
             }
         };
         AttachPlayerContextMenu(grid, item => item as PlayerRecord);
+        ToolGrid.EnableRangeSelect(grid);
         Opened += (_, _) => { modules.SelectedIndex = 0; timer.Start(); };
         LanguageSetting.Changed += OnLanguageChanged;
         Closed += (_, _) => { LanguageSetting.Changed -= OnLanguageChanged; timer.Stop(); backend.Dispose(); FlightRecorder.Current?.Close(); };
@@ -892,6 +904,8 @@ public sealed partial class MainWindow : Window
             rows = loaded;
             InvalidateRetiringPlayers();
             if (retiringGrid?.IsVisible == true) RefreshRetiringPlayers();
+            InvalidateFutureTransfers();
+            if (futureGrid?.IsVisible == true) RefreshFutureTransfers();
             selected = null;
             drafts.Clear();
             contractDrafts.Clear();
@@ -1808,6 +1822,8 @@ public sealed partial class MainWindow : Window
             connection.Text = Loc.S(backend.State.Message);
         _ = FilterInternal(reportStatus: rows.Count > 0);
         RefreshRetiringLocalization();
+        if (futureSearch is not null) futureSearch.Watermark = Loc.S("Search future transfers…");
+        ApplyFutureFilter();
         foreach (var screen in screens)
             screen.RefreshLanguage();
         if (selected is not null)
@@ -1824,6 +1840,8 @@ public sealed partial class MainWindow : Window
         _ = FilterInternal(reportStatus: false); updating = true; grid.SelectedItem = p; updating = false;
         InvalidateRetiringPlayers();
         if (retiringGrid?.IsVisible == true) RefreshRetiringPlayers();
+        InvalidateFutureTransfers();
+        if (futureGrid?.IsVisible == true) RefreshFutureTransfers();
     }
 
     internal static IBrush RatingColor(int value) => Brush(value <= 5 ? "#64748B" : value <= 10 ? "#FACC15" : value <= 15 ? "#4ADE80" : "#38BDF8");

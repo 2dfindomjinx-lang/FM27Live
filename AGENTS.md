@@ -71,7 +71,13 @@ dotnet run --project src/Fm27Editor.Tools -c Release -- players "Kobbie Mainoo"
 - Do not commit generated output, captures, local notes or game-derived material. Reverse-engineering notes and tool output belong on your own machine (`re/` is ignored apart from `re/tools/memscan`).
 - When editing a file with mixed CRLF/LF endings, use an editor that preserves them and check the change landed.
 
-## 7. Measuring offsets for a new build
+## 7. FMRTE investigation
+
+- To learn how FMRTE performs an operation, hook FMRTE before the user performs a real change, and capture that operation. Give the user the exact operation and values to apply.
+- Opening an FMRTE page or using Load Game is not an operation that reveals how a change works. Never ask the user to open a page or load game as an investigation step or as evidence of a change.
+- Do not infer FMRTE behaviour from page navigation, loading, or assumptions about caching; base conclusions on the captured operation and observed results.
+
+## 8. Measuring offsets for a new build
 
 1. Attach with the CLI and survey vtables by RTTI name (`vtsurvey`, `slotsbyname`), vectors (`vectorroot`, `heapvectors`) and pointer paths (`ptrpath`, `heapfind`).
 2. Find an entity by its ID, not its name (names repeat).

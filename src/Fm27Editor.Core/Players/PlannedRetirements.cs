@@ -16,6 +16,9 @@ public sealed class PlannedRetirements(IProcessMemory memory, OffsetProfile prof
     /// <summary>True when the profile names the manager (slot and vtable); the structure checks below refuse anything that is not it.</summary>
     public bool IsSupported => profile.RetirementManagerRva is not null && profile.RetirementManagerVtable is not null;
 
+    /// <summary>Person id of an entry FMRTE blanked (cancelled) in place.</summary>
+    public const uint Blank = uint.MaxValue;
+
     internal uint ManagerVtable => profile.RetirementManagerVtable ?? throw new InvalidOperationException("Planned retirements are not available for this build");
 
     public IReadOnlyDictionary<uint, PlannedRetirement> ReadAll() => Snapshot().ByPerson;
@@ -46,7 +49,11 @@ public sealed class PlannedRetirements(IProcessMemory memory, OffsetProfile prof
             entries.Add(entry);
             uint person = BitConverter.ToUInt32(entry, 0);
             var record = new PlannedRetirement(person, ReadDate(entry));
-            if (person == 0 || !byPointer.TryAdd(pointer, record) || !byPerson.TryAdd(person, record))
+            if (person == 0 || !byPointer.TryAdd(pointer, record))
+                throw new StaleObjectException("Retirement list contains duplicate entries");
+            // FMRTE cancels a retirement by blanking the entry in place (person -1, dates 1/1/1900) and leaves it listed:
+            // it plans nothing, so it is kept out of the by-person map.
+            if (person != Blank && !byPerson.TryAdd(person, record))
                 throw new StaleObjectException("Retirement list contains duplicate entries");
         }
         uint previous = 0;
@@ -54,7 +61,8 @@ public sealed class PlannedRetirements(IProcessMemory memory, OffsetProfile prof
         {
             uint person = BitConverter.ToUInt32(indexed, i * 16);
             ulong pointer = BitConverter.ToUInt64(indexed, i * 16 + 8);
-            if (person <= previous || !byPointer.TryGetValue(pointer, out var record) || record.PersonId != person)
+            // A blanked entry still sits in the index under the person it belonged to.
+            if (person <= previous || !byPointer.TryGetValue(pointer, out var record) || (record.PersonId != person && record.PersonId != Blank))
                 throw new StaleObjectException("Retirement index does not match its entries");
             previous = person;
         }

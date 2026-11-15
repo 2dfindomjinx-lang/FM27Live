@@ -11,6 +11,9 @@ public sealed record StaffRecord
     public required ulong Address { get; init; }
     public required ulong StaffAddress { get; init; }
     public int Id { get; init; }
+    /// <summary>The person index an unhappiness motive's person field holds for this staff member; null when the build's
+    /// profile has no <c>staff.personIndex</c>.</summary>
+    public int? PersonIndex { get; init; }
     public string? FullName { get; init; }
     public string? FirstName { get; init; }
     public string? LastName { get; init; }
@@ -137,6 +140,7 @@ public sealed class StaffRepository(IProcessMemory memory, OffsetProfile profile
             Address = person,
             StaffAddress = staff,
             Id = BitConverter.ToInt32(p, s.Id),
+            PersonIndex = s.PersonIndex is { } pix ? BitConverter.ToInt32(p, pix) : null,
             FullName = reader.StringAt(BitConverter.ToUInt64(p, s.FullName)),
             FirstName = reader.EntryString(BitConverter.ToUInt64(p, s.FirstName)),
             LastName = reader.EntryString(BitConverter.ToUInt64(p, s.LastName)),

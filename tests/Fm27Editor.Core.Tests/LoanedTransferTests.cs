@@ -12,7 +12,7 @@ public sealed class LoanedTransferTests
         Holder = 0x21000000, Loan = 0x22000000, ParentClub = 0x30000000, BorrowClub = 0x31000000,
         BuyerClub = 0x32000000, ParentTeam = 0x40000000, BorrowTeam = 0x41000000, BuyerTeam = 0x42000000,
         ParentSquad = 0x50000000, BorrowSquad = 0x51000000, BuyerSquad = 0x52000000,
-        ParentFinance = 0x60000000, BuyerFinance = 0x61000000, Other = 0x70000000, Root = 0x72000000;
+        ParentFinance = 0x60000000, BuyerFinance = 0x61000000, BorrowFinance = 0x62000000, Other = 0x70000000, Root = 0x72000000;
 
     // Steam IGE capture of Mark Shelton's actual loan contract before the transfer, 14/11/2026.
     const string SheltonLoan = "F8DC98F0FA7F0000C84B1E5EEF01000020C28854EF01000020C28854EF010000CA080000000001000000000000000000000000000000000000000000FFFFFFFFFFFFFFFFC21AEA079700EB07C21AEA0701006C070300030000000A3DF61D0000040000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFFFF0000008C0C0000000000008C0C00000000000006010000200000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFFAE080000AE080000CA0800000000000000000000FFFFFFFF000420000004000001006C0701006C07A4031DFE00070E0EFFFF0000";
@@ -45,7 +45,7 @@ public sealed class LoanedTransferTests
             Convert.FromHexString(loanSnapshot).CopyTo(loan, 0);
             Put(loan, 0, Module + Profile.FutureTransfers!.LoanContractVtable);
             Put(loan, 8, Player + 0x288); Put(loan, 0x10, BorrowTeam); Put(loan, 0x18, BorrowTeam);
-            MakeClub(ParentClub, ParentFinance); MakeClub(BuyerClub, BuyerFinance); MakeClub(BorrowClub, 0);
+            MakeClub(ParentClub, ParentFinance); MakeClub(BuyerClub, BuyerFinance); MakeClub(BorrowClub, BorrowFinance);
             MakeTeam(ParentTeam, ParentClub, ParentSquad, [Player, Other]);
             MakeTeam(BorrowTeam, BorrowClub, BorrowSquad, [Other, Player, Other + 8]);
             MakeTeam(BuyerTeam, BuyerClub, BuyerSquad, [Other + 16]);
@@ -149,15 +149,27 @@ public sealed class LoanedTransferTests
         Assert.Equal(ParentTeam, w.Q(Contract + 0x10));
     }
 
-    [Fact]
-    public void Loan_with_an_agreed_purchase_price_is_refused_without_writing()
+    [Theory]
+    [InlineData("27.0.1+2503222-steam.json", -1)]
+    [InlineData("27.0.1+2503222-steam.json", 22)]
+    [InlineData("27.0.1+2494687-gamepass.json", -1)]
+    [InlineData("27.0.1+2494687-gamepass.json", 22)]
+    public void Immediate_move_with_unconfirmed_purchase_does_not_charge_borrowing_club(string profile, int marker)
     {
-        var w = new World("27.0.1+2503222-steam.json");
-        // Sarr's IGE move also changed the borrowing club's finances by the agreed purchase price.
+        var w = new World(profile);
         Assert.True(w.Memory.TryWrite(Loan + 0xC0, BitConverter.GetBytes(23623378)));
-        int writes = w.Memory.Writes;
-        Assert.Throws<InvalidOperationException>(() => w.Plan());
-        Assert.Equal(writes, w.Memory.Writes);
+        Assert.True(w.Memory.TryWrite(Loan + 0xC4, BitConverter.GetBytes(marker)));
+        byte[] borrowerBefore = w.Memory.Read(BorrowFinance, 0x900);
+        var plan = w.Plan();
+        w.Service.Apply(plan);
+        Assert.Equal(borrowerBefore, w.Memory.Read(BorrowFinance, 0x900));
+        Assert.Equal(48715078, BitConverter.ToInt32(w.Memory.Read(BuyerFinance + 0xC, 4)));
+        Assert.Equal(151284922, BitConverter.ToInt32(w.Memory.Read(ParentFinance + 0xC, 4)));
+        Assert.Equal(0UL, w.Q(Player + 0x338));
+        Assert.Equal(BuyerTeam, w.Q(Player + 0x130));
+        Assert.Equal(ParentSquad + 8, w.Q(ParentTeam + 0x40));
+        Assert.Equal(BorrowSquad + 16, w.Q(BorrowTeam + 0x40));
+        Assert.Equal(BuyerSquad + 16, w.Q(BuyerTeam + 0x40));
     }
 
     [Fact]
@@ -221,15 +233,27 @@ public sealed class LoanedTransferTests
         Assert.Equal(0UL, w.Q(Player + 0x320)); Assert.Equal(0UL, w.Q(Root + 8));
     }
 
-    [Fact]
-    public void Future_transfer_with_a_purchase_option_is_refused_without_writing()
+    [Theory]
+    [InlineData("27.0.1+2503222-steam.json", -1)]
+    [InlineData("27.0.1+2503222-steam.json", 22)]
+    [InlineData("27.0.1+2494687-gamepass.json", -1)]
+    [InlineData("27.0.1+2494687-gamepass.json", 22)]
+    public void Future_move_with_unconfirmed_purchase_does_not_charge_borrowing_club(string profile, int marker)
     {
-        var w = new World("27.0.1+2503222-steam.json", CoulibalyLoan);
+        var w = new World(profile, CoulibalyLoan);
         Assert.True(w.Memory.TryWrite(Loan + 0xC0, BitConverter.GetBytes(23623378)));
-        int writes = w.Memory.Writes;
+        Assert.True(w.Memory.TryWrite(Loan + 0xC4, BitConverter.GetBytes(marker)));
+        byte[] borrowerBefore = w.Memory.Read(BorrowFinance, 0x900);
         var creator = new FutureTransferCreator(w.Memory, w.Profile, Module);
-        Assert.Throws<InvalidOperationException>(() => creator.Prepare(w.Record, BuyerTeam, 128061376, new(2026, 12, 15), new(2026, 12, 17)));
-        Assert.Equal(writes, w.Memory.Writes);
+        var plan = creator.Prepare(w.Record, BuyerTeam, 128061376, new(2026, 12, 15), new(2026, 12, 17));
+        creator.Apply(plan, w.Allocate);
+        Assert.Equal(borrowerBefore, w.Memory.Read(BorrowFinance, 0x900));
+        Assert.Equal(0UL, w.Q(Player + 0x338));
+        Assert.Equal(ParentTeam, w.Q(Player + 0x130));
+        var offers = new TransferProposalReader(w.Memory, w.Profile, Module).Read(w.Record);
+        var future = Assert.Single(new FutureTransferReader(w.Memory, w.Profile, Module).Read(w.Record, offers));
+        Assert.Equal(128061376, future.Offer.Value);
+        Assert.Equal(new DateOnly(2026, 12, 17), future.Date);
     }
 
     [Fact]

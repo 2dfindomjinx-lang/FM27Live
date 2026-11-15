@@ -21,6 +21,9 @@ public sealed class StaffOffsets
     public required IReadOnlyDictionary<ManagerAttribute, int> ManagerAttributes { get; init; }
 
     public required int Id { get; init; }
+    /// <summary>int32 person index of the person part: the number an unhappiness motive's person field holds for a staff
+    /// member, the same field <c>player.personIndex</c> is on a player. Null on builds where it was not measured.</summary>
+    public int? PersonIndex { get; init; }
     public required int FullName { get; init; }
     public required int FirstName { get; init; }
     public required int LastName { get; init; }
@@ -84,6 +87,7 @@ public sealed class StaffOffsets
             DateOfBirth = Hex(e, "dateOfBirth"), Job = Hex(e, "job"), JobPerson = Hex(e, "jobPerson"), JobTeam = Hex(e, "jobTeam"),
             JobCode = Hex(e, "jobCode"), HomeReputation = Hex(e, "homeReputation"), CurrentReputation = Hex(e, "currentReputation"),
             WorldReputation = Hex(e, "worldReputation"), CurrentAbility = Hex(e, "currentAbility"), PotentialAbility = Hex(e, "potentialAbility"),
+            PersonIndex = e.TryGetProperty("personIndex", out _) ? Hex(e, "personIndex") : null,
             Attributes = attrs,
             KnowledgeHolder = e.TryGetProperty("knowledgeHolder", out _) ? Hex(e, "knowledgeHolder") : null,
             KnowledgeValue = e.TryGetProperty("knowledgeValue", out _) ? Hex(e, "knowledgeValue") : null,
@@ -126,6 +130,7 @@ public sealed class StaffOffsets
         int[] v = [PersonListOffset, Id, FullName, FirstName, LastName, CommonName, Nation, Personality, DateOfBirth, Job,
             JobPerson, JobTeam, JobCode, HomeReputation, CurrentReputation, WorldReputation, CurrentAbility, PotentialAbility];
         for (int i = 1; i < Keys.Length; i++) H(Keys[i], v[i]);
+        if (PersonIndex is { } pix) H("personIndex", pix);
         w.WriteStartObject("managerAttributes");
         foreach (var (a, o) in ManagerAttributes.OrderBy(kv => kv.Key)) H(a.ToString(), o);
         w.WriteEndObject();

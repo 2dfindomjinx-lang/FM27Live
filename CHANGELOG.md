@@ -5,7 +5,7 @@
 Checked on Steam `27.0.1+2503222` and Game Pass `27.0.1+2494687`.
 
 ### Transfers
-- **Transfer a player on loan:** Move now removes the player from both old squads. A future transfer ends the loan immediately and returns the player to the parent club while the deal waits, as observed in IGE. Both paths support the measured three-club case without purchase, buy-back or other contract clauses; other cases remain unavailable pending verification.
+- **Transfer a player on loan:** Move now removes the player from both old squads. A future transfer ends the loan immediately and returns the player to the parent club while the deal waits, as observed in IGE. Both paths accept an agreed purchase price without charging the borrowing club for an unconfirmed purchase. Buy-back, purchase-after-matches, other contract clauses and unmeasured squad layouts remain unavailable. The purchase-price change has been tested live on Steam; Game Pass has been tested with fake memory only.
 
 - **Free agents** can be moved:
   - with Move now, the player joins at once on a copy of the destination squad's first contract, as FMRTE does;
@@ -26,8 +26,35 @@ Checked on Steam `27.0.1+2503222` and Game Pass `27.0.1+2494687`.
 - **Update now**: when a new release is out, the editor downloads it, checks it against the release checksum, replaces itself
   and restarts. Builds before this one still need one manual download.
 - **Vietnamese UI (`Tiếng Việt`)**: added global `Language` option in **Settings** (`English` default / `Tiếng Việt`) covering screens, menus, dialogs, columns, filters, Mass Edit, presets, status messages, and FM27 terms.
-- **Players → Retiring** sub-tab: lists players with planned retirements, retiring after their current club spell, or the `Will retire at top` trait, with live search and reason filtering.
-- **Player grid bulk actions**: multi-select (`Ctrl`/`Shift`) and right-click context menu on player grids (`Players`, `Retiring`, `Squad`, `Club` squads, `Nation` squads) for bulk **Prevent retirement**, **Freeze/Unfreeze**, **State**, **Presets**, **Contract Actions**, **Transfer/Loan Status**, **Development Speed**, and **Mass Edit**, recorded as a single undo group.
+- **View Players Retirements** and **View Future Transfers** (toolbar, next to Mass Edit) open their own tab, as in FMRTE:
+  - Retire Date lists everyone the game plans to retire, players and staff: name, age, nation, club, date.
+  - Future Transfers lists every pending future transfer: player, from, to, transfer or loan, fee, date.
+- **Multi-select in every list:** Shift+click selects a range, press-and-drag selects the rows the pointer passes, Ctrl adds or
+  removes rows. Right-click gives bulk actions:
+  - on player lists (Players, Squads, Retire Date, Future Transfers): Prevent retirement, Freeze/Unfreeze, State, Presets,
+    Contract, Transfer/Loan Status, Development Speed, Mass Edit;
+  - on Staff: Freeze/Unfreeze;
+  - on every other list: Open and Copy name.
+
+  Each bulk action is one undo entry.
+- Fixed a crash at start in the Vietnamese UI build (the search panel's Group button).
+
+### Players
+- **Prevent retirement** now also clears the player's own retirement flags. Before, FM still showed the player as retiring.
+  - The flags are +0x2A0 bit 0x01 and "Retiring after spell at current club"; FMRTE clears the first one too.
+  - It still removes the planned retirement and sets the keep-playing trait, as before.
+  - It no longer stops with an error when FMRTE has already cancelled someone's retirement in the same save.
+
+### Calibration
+- New anchors:
+  - the offer list read straight from its root;
+  - Man Utd's Players Sold and Transfer Expenditure (month and season);
+  - the club staff department lists (all teams, first team, U21, U18);
+  - staff team and contract end;
+  - Sarr's loan;
+  - eight planned retirements from FMRTE's list.
+- `calibrate loanverify` is gone: its checks are part of `calibrate verify`.
+- Game Pass 593 passed / 0 failed / 3 skipped. Steam 587 / 0 / 1 before the eight retirement anchors were added (not yet rerun).
 
 ## 1.3.0
 

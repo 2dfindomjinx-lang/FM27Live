@@ -73,6 +73,8 @@ try
         "staffpersonmasscheck" => StaffPersonalityMassCheck(Enum.Parse<StaffPersonality>(args[1], true), Enum.Parse<MassEditMode>(args[2], true), int.Parse(args[3]), args[4..].Select(int.Parse).ToArray()),
         "clubmasscheck" => ClubMassCheck(Enum.Parse<ClubField>(args[1], true), Enum.Parse<MassEditMode>(args[2], true), long.Parse(args[3]), args[4..].Select(int.Parse).ToArray()),
         "retirements" => Retirements(args[1..].Select(int.Parse).ToArray()),
+        "retireflags" => RetireFlags(),
+        "futurelist" => FutureList(),
         "keepplaying" => KeepPlaying(int.Parse(args[1]), args.Contains("--write")),
         "keepplayingbatch" => KeepPlayingBatch(args[1..]),
         "forceaccept" => ForceAcceptCommand(args[1..]),
@@ -694,6 +696,37 @@ int StaffWageMassCommand(int delta, string[] args)
         if (contract.Wage != change.After) throw new StaleObjectException("Wage readback differs");
         Console.WriteLine($"{person.Id}: read back {contract.Wage}");
     }
+    return 0;
+}
+
+// futurelist    every pending future transfer (the Players screen's Future Transfers tab)
+int FutureList()
+{
+    using var session = Attach(writable: false);
+    var list = new FutureTransferReader(session.Memory, session.Profile, session.ModuleBase).ReadAll(session.Players.LoadAll());
+    foreach (var (p, t) in list) Console.WriteLine($"{p.Id,-10} {p.DisplayName,-26} {t.Offer.Type,-8} {t.Offer.From} -> {t.Offer.To}  fee {t.Offer.Value:N0}  on {t.Date:yyyy-MM-dd}");
+    Console.WriteLine($"{list.Count} future transfers");
+    return 0;
+}
+
+// retireflags   players whose retirement flags are set (+0x2A0 bit 0x01, +0x2A1 bit 0x80), with their planned date
+int RetireFlags()
+{
+    using var session = Attach(writable: false);
+    var reader = new PlannedRetirements(session.Memory, session.Profile, session.ModuleBase);
+    var plans = reader.ReadAll();
+    var fields = new PlayerFieldAccess(session.Memory, session.Profile, session.ModuleBase);
+    int flagged = 0;
+    foreach (var p in session.Players.LoadAll())
+    {
+        long planned = fields.Read(p, PlayerField.RetirementPlanned) ?? 0, after = fields.Read(p, PlayerField.RetiringAfterSpellAtCurrentClub) ?? 0;
+        uint person = reader.PersonId(p);
+        bool listed = plans.TryGetValue(person, out var plan);
+        if (planned == 0 && after == 0 && !listed) continue;
+        flagged++;
+        Console.WriteLine($"{p.Id,-10} {p.DisplayName,-28} 2A0.01={planned} 2A1.80={after} planned={(listed ? plan!.Date?.ToString("yyyy-MM-dd") ?? "?" : "-")}");
+    }
+    Console.WriteLine($"{flagged} players, {plans.Count} planned retirements");
     return 0;
 }
 

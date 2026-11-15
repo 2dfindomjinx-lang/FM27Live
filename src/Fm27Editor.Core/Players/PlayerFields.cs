@@ -44,6 +44,9 @@ public enum PlayerField
     HairLength,
     /// <summary>0 Unknown, else Skin Tone n.</summary>
     SkinColour,
+    /// <summary>Bit 0x01 of player +0x2A0: set on every player with a planned retirement in the calibration save
+    /// (Benzema, Galhardo, Iličič, Zimmermann, Aspas, Boyd) and cleared by FMRTE's keep-playing write on Benzema (15/11/2026).</summary>
+    RetirementPlanned,
 }
 
 /// <summary>Reads and writes mapped player fields; writes check the player vtable and the caller's snapshot, then read back.</summary>

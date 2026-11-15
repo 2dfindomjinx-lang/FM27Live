@@ -89,13 +89,15 @@ public sealed partial class MainWindow
         };
         DockPanel.SetDock(rightActions, Dock.Right);
 
-        unifiedGroupToggleBtn = Loc.Bind(new Button
+        // A local, not the field: Bind runs apply at once, before the field is assigned (that crashed the app at start).
+        var groupToggle = new Button
         {
             Classes = { "meta-link" },
             FontSize = 13,
             Foreground = unifiedGroupByType ? UiKit.Brush("#C084FC") : UiKit.TextMuted,
             Cursor = new Cursor(StandardCursorType.Hand),
-        }, () => unifiedGroupToggleBtn!.Content = Loc.S(unifiedGroupByType ? "Grouped ✓" : "Group by type"));
+        };
+        unifiedGroupToggleBtn = Loc.Bind(groupToggle, () => groupToggle.Content = Loc.S(unifiedGroupByType ? "Grouped ✓" : "Group by type"));
         unifiedGroupToggleBtn.Click += (_, _) =>
         {
             unifiedGroupByType = !unifiedGroupByType;
@@ -277,6 +279,9 @@ public sealed partial class MainWindow
         left.Children.Add(ToolBtn("M8.5,13.5L11,16.5L14.5,12L19,18H5M21,19V5C21,3.89 20.1,3 19,3H5A2,2 0 0,0 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19Z", "Choose graphics folder", () => _ = ChooseGraphicsAsync()));
         left.Children.Add(favouritesFilter);
         left.Children.Add(ToolBtn("M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.12,5.12L18.87,8.87M3,17.25V21H6.75L17.81,9.93L14.06,6.18L3,17.25Z", "Mass Edit (Ctrl+M)", OpenMassEdit));
+        // Calendar: the players about to retire; arrows: the pending future transfers (FMRTE has both on its toolbar).
+        left.Children.Add(ToolBtn("M19,19H5V8H19M16,1V3H8V1H6V3H5C3.89,3 3,3.89 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5C21,3.89 20.1,3 19,3H18V1M17,12H12V17H17V12Z", "View Players Retirements", ShowRetirementsTab));
+        left.Children.Add(ToolBtn("M21,9L17,5V8H10V10H17V13M7,11L3,15L7,19V16H14V14H7V11Z", "View Future Transfers", ShowFutureTransfersTab));
         left.Children.Add(BuildThemeToggle());
         left.Children.Add(BuildSettingsButton());
 

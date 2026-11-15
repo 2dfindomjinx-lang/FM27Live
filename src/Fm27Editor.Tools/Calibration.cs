@@ -542,6 +542,26 @@ public static class Calibration
                     if (c.SquadNumber is { } sn) f["SquadNumber"] = I(sn);
                     if (c.LoyaltyBonus is { } lb) f["LoyaltyBonus"] = I(lb);
                 }
+                var currentLoan = session.ReadCurrentLoan(p);
+                f["CurrentLoan.Status"] = currentLoan.Status.ToString();
+                if (currentLoan.Status == CurrentLoanStatus.Present)
+                {
+                    f["CurrentLoan.BorrowingClub"] = session.TransferDeals.TeamName(currentLoan.BorrowingTeamAddress) ?? "";
+                    if (currentLoan.Contract is { } loanContract)
+                    {
+                        f["CurrentLoan.Wage"] = I(loanContract.Wage);
+                        f["CurrentLoan.Started"] = Iso(loanContract.Started);
+                        f["CurrentLoan.Expires"] = Iso(loanContract.Expires);
+                    }
+                    if (currentLoan.Signed is { } signed) f["CurrentLoan.Signed"] = Iso(signed);
+                    if (currentLoan.Amounts is { } amounts)
+                    {
+                        f["CurrentLoan.AgreedPrice"] = I(amounts.AgreedPrice);
+                        f["CurrentLoan.BuyBackFee"] = I(amounts.BuyBackFee);
+                        f["CurrentLoan.MonthlyFee"] = I(amounts.MonthlyFee);
+                        f["CurrentLoan.UnusedMonthlyFee"] = I(amounts.UnusedMonthlyFee);
+                    }
+                }
                 // Values as FMRTE's player pages show them (1-20 attributes, positions, hidden personality).
                 f["Born"] = Iso(p.DateOfBirth);
                 f["Height"] = I(p.Height);
@@ -553,6 +573,12 @@ public static class Calibration
                 foreach (var pos in Enum.GetValues<PlayerPosition>()) f[$"Position.{pos}"] = I(p.Position(pos));
                 foreach (var pa in Enum.GetValues<PersonalityAttribute>()) f[$"Personality.{pa}"] = I(p.PersonalityValue(pa));
                 foreach (var (field, value) in session.PlayerFields.ReadAll(p)) f[$"Field.{field}"] = I(value);
+                // The game's planned retirement (retirement manager), as FMRTE's "View Players Retirements" lists it.
+                if (session.Profile.RetirementManagerRva is not null)
+                {
+                    var retire = new PlannedRetirements(session.Memory, session.Profile, session.ModuleBase);
+                    f["PlannedRetirement"] = retire.ReadAll().TryGetValue(retire.PersonId(p), out var pr) ? Iso(pr.Date) : "";
+                }
                 var today = session.ReadGameDate() ?? DateOnly.MaxValue;
                 var raw = new UnhappinessReader(session.Memory, session.Profile, session.ModuleBase).ReadRaw(p);
                 var all = session.ReadUnhappiness(p);
@@ -598,6 +624,25 @@ public static class Calibration
                     f[$"Proposals[{i}].Status"] = Fm27Editor.Core.Calibration.FmrteLabels.ProposalStatusOf(o.Status);
                     f[$"Proposals[{i}].StatusCode"] = I(o.Status);
                 }
+                // How many of those offers sit in the game's offer list at [module + listRootRva] + listOffset, at the index of
+                // their ID. Read straight from the profile's root with no heap-scan fallback, so a wrong root shows up here
+                // even when the offers above were still found another way (Steam's root was wrong until 14/11/2026).
+                if (session.Profile.Proposals is { } po && session.Memory.TryRead(session.ModuleBase + po.ListRootRva, new byte[8]))
+                {
+                    var rootBytes = new byte[8];
+                    ulong root = session.Memory.TryRead(session.ModuleBase + po.ListRootRva, rootBytes) ? BitConverter.ToUInt64(rootBytes) : 0;
+                    var header = new byte[16];
+                    int inList = 0;
+                    if (root != 0 && session.Memory.TryRead(root + (ulong)po.ListOffset, header))
+                    {
+                        ulong begin = BitConverter.ToUInt64(header, 0), end = BitConverter.ToUInt64(header, 8);
+                        var slot = new byte[8];
+                        foreach (var o in offers)
+                            if (o.Id >= 0 && begin + (ulong)o.Id * 8 < end && session.Memory.TryRead(begin + (ulong)o.Id * 8, slot) && BitConverter.ToUInt64(slot) == o.Address)
+                                inList++;
+                    }
+                    f["Proposals.InGameOfferList"] = I(inList);
+                }
                 return (f, null);
             }
             case "club":
@@ -610,6 +655,41 @@ public static class Calibration
                 if (club.FirstTeam is { } first)
                     foreach (var (field, value) in session.ClubFields.ReadAll(club.Address, first.Address)) f[$"Field.{field}"] = I(value);
                 f["raw.Address"] = $"0x{club.Address:X}";
+                // The club's staff department lists (the vectors a staff move writes to): member count and names, sorted.
+                if (session.Profile.Club is { } ko)
+                    foreach (var (dept, offset) in new[] { ("Medical", ko.MedicalStaff), ("Coaching", ko.CoachingStaff), ("Scouting", ko.ScoutingStaff) })
+                    {
+                        var h = new byte[16];
+                        if (offset is not { } at || !session.Memory.TryRead(club.Address + (ulong)at, h)) continue;
+                        ulong b = BitConverter.ToUInt64(h, 0), e = BitConverter.ToUInt64(h, 8);
+                        if (b == 0 || e < b || e - b > 8 * 512) continue;
+                        var items = new byte[e - b];
+                        if (items.Length > 0 && !session.Memory.TryRead(b, items)) continue;
+                        var members = Enumerable.Range(0, items.Length / 8).Select(i => BitConverter.ToUInt64(items, i * 8))
+                            .Select(a => staff.FirstOrDefault(x => x.StaffAddress == a) is { } m ? (Environment.GetEnvironmentVariable("DUMP_JOBS") == "1" ? $"{m.DisplayName} [{m.JobCode} {m.TeamName}]" : m.DisplayName) : $"0x{a:X}").OrderBy(x => x, StringComparer.Ordinal).ToList();
+                        f[$"Staff.{dept}.Count"] = I(members.Count);
+                        // FM's Staff > Overview counts only the first team's staff (no U21 / U18).
+                        var addresses = Enumerable.Range(0, items.Length / 8).Select(i => BitConverter.ToUInt64(items, i * 8)).ToHashSet();
+                        f[$"Staff.{dept}.FirstTeam"] = I(staff.Count(x => addresses.Contains(x.StaffAddress) && x.TeamName == club.DisplayName));
+                        foreach (var suffix in new[] { "U21", "U18" })
+                            f[$"Staff.{dept}.{suffix}"] = I(staff.Count(x => addresses.Contains(x.StaffAddress) && x.TeamName == $"{club.DisplayName} {suffix}"));
+                        f[$"Staff.{dept}"] = string.Join(", ", members);
+                    }
+                // Transfer money of the month and season, as FM's Finances screen shows it (income: Players Sold; expenditure:
+                // Transfer Fees). The season players-sold figure is FFP's "Transfer Income".
+                if (session.Profile.Club?.Finance is { } fo && club.Finance != 0)
+                {
+                    foreach (var (label, offset) in new[] { ("PlayersSoldMonth", fo.PlayersSold), ("PlayersSoldSeason", fo.PlayersSoldSeason),
+                                                            ("TransferSpendMonth", fo.TransferSpendMonth), ("TransferSpendSeason", fo.SpentThisSeason) })
+                    {
+                        var v = new byte[4];
+                        var vt = new byte[8];
+                        // Small clubs keep a compact finance object without these fields (Chesterfield): skip them there.
+                        if (offset is { } at && session.Memory.TryRead(club.Finance, vt) &&
+                            fo.Holds((uint)(BitConverter.ToUInt64(vt) - session.ModuleBase), at, 4) == true &&
+                            session.Memory.TryRead(club.Finance + (ulong)at, v)) f[$"Finance.{label}"] = I(BitConverter.ToInt32(v));
+                    }
+                }
                 if (club.FirstTeam is { } ft) f["raw.FirstTeam"] = $"0x{ft.Address:X}";
                 // Captain / Vice Captain: the first team's slot holds a person block (player + relations.playerPerson).
                 if (club.FirstTeam is { } team && session.Profile.Team is { } to && session.Profile.Relations is { } ro)
@@ -663,6 +743,19 @@ public static class Calibration
                 if (st.License is { } lic) f["License"] = StaffDetailsMassEdit.Licenses.FirstOrDefault(l => l.Value == lic).Name ?? lic.ToString();
                 if (st.Roles is { } rs) foreach (var r in Enum.GetValues<StaffRole>()) f[$"Roles.{StaffDetailsMassEdit.RoleLabel(r)}"] = I(rs[(int)r]);
                 f["Nationality"] = st.Nationality?.Name ?? "";
+                if (session.Profile.RetirementManagerRva is not null)
+                {
+                    var retire = new PlannedRetirements(session.Memory, session.Profile, session.ModuleBase);
+                    uint personIndex = st.PersonIndex is { } pix ? (uint)pix : BitConverter.ToUInt32(session.Memory.Read(st.Address + 0x8, 4));
+                    f["PlannedRetirement"] = retire.ReadAll().TryGetValue(personIndex, out var sr) ? Iso(sr.Date) : "";
+                }
+                // The club contract a staff move writes (person + staff.job): team, weekly wage, expiry, as FM's Staff > All Staff shows.
+                f["Team"] = st.TeamName ?? "";
+                if (session.StaffContracts.Read(st) is { } sc)
+                {
+                    f["Contract.Wage"] = I(sc.Wage);
+                    f["Contract.Expires"] = sc.Expires is { } ex ? Iso(ex) : "";
+                }
                 f["Born"] = Iso(st.DateOfBirth);
                 f["CurrentAbility"] = I(st.CurrentAbility);
                 f["PotentialAbility"] = I(st.PotentialAbility);

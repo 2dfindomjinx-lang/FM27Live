@@ -43,6 +43,29 @@ internal sealed partial class StaffScreen(IScreenHost host, IStaffPanels panels)
     : EntityScreen<StaffRecord, StaffRow, StaffDraft>(host, "staff", "Staff", "staff", "Search staff name or ID...")
 {
     const string AllClubs = "All clubs", AllJobs = "All jobs";
+
+    /// <summary>Freeze / Unfreeze for every staff member selected in the list, as one history entry.</summary>
+    protected override IEnumerable<(string Label, Action<IReadOnlyList<StaffRecord>> Run)> ContextActions()
+    {
+        if (Host.Backend.Freezer is not { } freezer) yield break;
+        yield return ("Freeze", targets => Bulk("Freeze", targets, s => freezer.SetStaff(s, FrozenStaff.AllAttributes(s))));
+        yield return ("Unfreeze", targets => Bulk("Unfreeze", targets, s => freezer.RemoveStaff(s.Id)));
+    }
+
+    void Bulk(string label, IReadOnlyList<StaffRecord> targets, Action<StaffRecord> op)
+    {
+        int done = 0;
+        var failed = new List<string>();
+        using (Host.Backend.Edits.Group("Staff", Loc.S("Bulk Edit"), Loc.S(label)))
+            foreach (var s in targets)
+            {
+                try { Host.Backend.Edits.Execute(() => op(s)); done++; }
+                catch (Exception ex) { failed.Add($"{s.DisplayName}: {UserMessage.For(ex)}"); }
+            }
+        Host.SetStatus(failed.Count == 0
+            ? Loc.F("{0}: applied to {1:N0} staff", Loc.S(label), done)
+            : Loc.F("{0}: {1:N0} ok, {2:N0} failed ({3})", Loc.S(label), done, failed.Count, string.Join("; ", failed.Take(3))));
+    }
     readonly ComboBox genderFilter = new() { ItemsSource = new[] { "Men", "Women", "All" }, SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch, MaxDropDownHeight = 260 };
     readonly ComboBox clubFilter = new() { HorizontalAlignment = HorizontalAlignment.Stretch };
     readonly ComboBox jobFilter = new() { HorizontalAlignment = HorizontalAlignment.Stretch };

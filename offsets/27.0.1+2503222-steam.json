@@ -175,6 +175,11 @@
         "type": "byte",
         "mask": "0x80"
       },
+      "RetirementPlanned": {
+        "path": "0x2A0",
+        "type": "byte",
+        "mask": "0x01"
+      },
       "Ethnicity": {
         "path": "0x315",
         "type": "byte"
@@ -1129,6 +1134,7 @@
     "personListRootRva": "0x5820858",
     "personListOffset": "0x0",
     "directStaffVector": true,
+    "personIndex": "0x8",
     "kinds": [
       {
         "personVtable": "0x4E908B8",

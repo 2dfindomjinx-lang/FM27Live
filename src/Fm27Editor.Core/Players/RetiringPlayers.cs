@@ -10,6 +10,8 @@ public enum RetirementReason
     PlannedRetirement = 1 << 0,
     RetiringAfterSpell = 1 << 1,
     WillRetireAtTop = 1 << 2,
+    /// <summary>The player's own retirement flag (+0x2A0 bit 0x01), which FM uses to show a player as retiring.</summary>
+    RetiringFlag = 1 << 3,
 }
 
 public sealed record RetiringPlayer(PlayerRecord Player, DateOnly? RetirementDate, RetirementReason Reasons);
@@ -46,6 +48,11 @@ public sealed class RetiringPlayerReader(IProcessMemory memory, OffsetProfile pr
                 && fieldAccess.Read(p, PlayerField.RetiringAfterSpellAtCurrentClub) == 1)
             {
                 reasons |= RetirementReason.RetiringAfterSpell;
+            }
+            if (profile.PlayerFields?.ContainsKey(PlayerField.RetirementPlanned) == true
+                && fieldAccess.Read(p, PlayerField.RetirementPlanned) == 1)
+            {
+                reasons |= RetirementReason.RetiringFlag;
             }
             if (p.PreferredMoveBits is { } bits && (bits & WillRetireAtTopBit) != 0)
             {

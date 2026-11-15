@@ -101,9 +101,9 @@ public sealed class TransferClauseReader(IProcessMemory memory, OffsetProfile pr
     }
 
     /// <summary>
-    /// 27.0.1+ keeps clause records in heap blocks with no reachable club vector: every record is found by its
-    /// vtable once per reader and filtered by the club pointer inside it. Checked against FMRTE 27 on 27.0.1+2494687
-    /// (Arda Güler, Fenerbahçe: FMRTE wrote the sell-on percentage at record+0x22).
+    /// For a profile with <c>scan</c> set: every record is found by its vtable once per reader and filtered by the club
+    /// pointer inside it. No current profile uses it: Game Pass 27.0.1+2494687 was set to scan, but its club vectors hold
+    /// every clause record the scan finds (6,011 of 6,011, CLI <c>clausecheck</c>, 16/11/2026), so it reads them as Steam does.
     /// </summary>
     IReadOnlyList<TransferClause> Scanned(ulong clubAddress, TransferClauseOffsets t)
     {

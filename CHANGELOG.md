@@ -17,8 +17,10 @@ Checked on Steam `27.0.1+2503222` and Game Pass `27.0.1+2494687`.
   - FM keeps a finished-transfer record for the buying club. The buyer's FFP updates once game time moves on.
 - Move to club: the team is chosen in a list next to the club, and the first team is picked by default.
 - Move to club: selling to or from a club whose budget or balance is already at the maximum no longer fails with an overflow; the value stays at the maximum.
+- Game Pass: transfer clauses are read from each club's own list, as on Steam, instead of a 5-second memory scan; Load Game drops from about 9 to 4 seconds. Club pages show the clauses on the club's players (they showed the ones owed to the club), and Move to club can add a sell-on on Game Pass too.
 
 ### App
+- Kits: opening a club whose kit has Item Style 0 no longer marks the page unsaved.
 - Vietnamese UI: aligned selected football terms with the supplied FM27 language file, filled missing form labels,
   and separated player Balance, club finances, training facilities and kit colours by context. Long labels now wrap
   in forms, section lists, table headers and preferred-move checkboxes. Global Save and pending-edit stars recognise

@@ -121,9 +121,9 @@ public sealed record NationPreferenceOffsets(int Team, uint TeamVtable, int Vect
 /// </summary>
 public sealed class TransferClauseOffsets
 {
-    /// <summary>Pointer inside the club object to the holder (older builds only).</summary>
+    /// <summary>Pointer inside the club object to the holder of the club's clause vector.</summary>
     public required int Pointer { get; init; }
-    /// <summary>True when clauses are found by their vtables in the heap instead of the club's vector (27.0.1+).</summary>
+    /// <summary>True when clauses are found by their vtables in the heap instead of the club's vector (a multi-second scan).</summary>
     public bool Scan { get; init; }
     public required uint SellOnVtableRva { get; init; }
     public uint? AppearanceFeeVtableRva { get; init; }

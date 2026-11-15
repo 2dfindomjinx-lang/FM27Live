@@ -863,7 +863,7 @@
     },
     "transferClauses": {
       "pointer": "0xB0",
-      "scan": true,
+      "scan": false,
       "sellOnVtable": "0x49D8468",
       "appearanceFeeVtable": "0x4AE6078",
       "competitionBonusVtable": "0x4AE5F18"

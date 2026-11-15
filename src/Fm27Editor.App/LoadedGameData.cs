@@ -63,18 +63,32 @@ internal sealed class LoadedGameData(GameSession session)
         var data = new LoadedGameData(session) { GameDate = session.ReadGameDate() };
         // Deals and agreement regions otherwise read the same multi-gigabyte heap independently.
         bool needsRegions = session.Profile.AgreementRegionVtable is not null && session.Profile.Nation?.ListRootRva is not null;
-        var vtables = session.TransferDeals.VtableAddresses.ToList();
         ulong regionVtable = needsRegions ? session.ModuleBase + session.Profile.AgreementRegionVtable!.Value : 0;
-        if (needsRegions) vtables.Add(regionVtable);
-        var index = new Lazy<IReadOnlyList<HeapVtableMatch>>(() => HeapVtableScanner.Scan(session.Memory, vtables.ToArray()));
-        // Start the raw heap pass alongside catalogue materialization, but join it before publication.
+        IReadOnlyList<ulong>? ownedDeals = null;
+        bool ownedRegions = false;
+        var index = new Lazy<IReadOnlyList<HeapVtableMatch>>(() =>
+        {
+            ownedDeals = session.TransferDeals.TryReadOwnedCandidates();
+            ownedRegions = !needsRegions || session.NationAgreements.TryReadOwnedRegions() is not null;
+            if (ownedDeals is not null && ownedRegions)
+            {
+                FlightRecorder.Current?.Log("load", "owned indexes: transfer deals and agreement regions; heap scan avoided");
+                return [];
+            }
+            var missing = new List<ulong>();
+            if (ownedDeals is null) missing.AddRange(session.TransferDeals.VtableAddresses);
+            if (!ownedRegions) missing.Add(regionVtable);
+            FlightRecorder.Current?.Log("load", $"owned indexes: fallback; deals {ownedDeals is null}; regions {!ownedRegions}");
+            return HeapVtableScanner.Scan(session.Memory, missing.ToArray());
+        });
+        // Discover owned indexes (or scan as fallback) alongside catalogues; join before publication.
         // Lazy retains any scan exception; the reporting stages below surface it without retrying.
         var discovery = Task.Run(() =>
         {
             var watch = Stopwatch.StartNew();
             try { _ = index.Value; return (Exception?)null; }
             catch (Exception ex) { return ex; }
-            finally { FlightRecorder.Current?.Log("load", $"shared heap scan elapsed: {watch.ElapsedMilliseconds} ms"); }
+            finally { FlightRecorder.Current?.Log("load", $"shared discovery elapsed: {watch.ElapsedMilliseconds} ms"); }
         });
         try
         {
@@ -117,9 +131,9 @@ internal sealed class LoadedGameData(GameSession session)
                 });
             }
         finally { discovery.GetAwaiter().GetResult(); }
-        report.Run("shared heap discovery join", "Reading…", () => _ = index.Value, () => index.Value.Count);
+        report.Run("shared discovery join", "Reading…", () => _ = index.Value, () => index.Value.Count);
         var dealVtables = session.TransferDeals.VtableAddresses;
-        data.LoadTransferDeals(report, () => index.Value.Where(m => dealVtables.Contains(m.Vtable)).Select(m => m.Address).ToArray());
+        data.LoadTransferDeals(report, () => ownedDeals ?? index.Value.Where(m => dealVtables.Contains(m.Vtable)).Select(m => m.Address).ToArray());
         if (needsRegions)
             report.Run("agreement regions", "Reading…", () => session.NationAgreements.PreloadRegions(() =>
                 index.Value.Where(m => m.Vtable == regionVtable).Select(m => m.Address).ToArray()));

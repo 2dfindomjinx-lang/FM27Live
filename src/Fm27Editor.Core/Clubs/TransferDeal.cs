@@ -118,6 +118,9 @@ public sealed class TransferDealReader(IProcessMemory memory, OffsetProfile prof
     /// <summary>Every writable-memory object carrying a deal vtable (FM Studio scans the heap the same way).</summary>
     public IReadOnlyList<ulong> VtableAddresses => Array.AsReadOnly(vtables);
 
+    /// <summary>Validated manager-owned candidates, or null when a complete owned index cannot be established.</summary>
+    public IReadOnlyList<ulong>? TryReadOwnedCandidates() => OwnedTransferDeals.Read(memory, profile, moduleBase, vtables);
+
     public IReadOnlyList<ulong> Scan() => HeapVtableScanner.Scan(memory, vtables).Select(m => m.Address).ToArray();
     /// <summary>Club a team pointer belongs to, or null when the pointer is not a team of this build.</summary>
     public ulong ClubOf(ulong team)

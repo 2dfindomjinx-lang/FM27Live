@@ -32,7 +32,7 @@ public sealed class NationAgreements(IProcessMemory memory, OffsetProfile profil
     {
         if (regionLoadError is not null) throw new InvalidOperationException("Agreement region index is unavailable. Load Game to refresh it.", regionLoadError);
         if (_regions is not null) return _regions;
-        try { return Regions(discover()); }
+        try { return TryReadOwnedRegions() ?? Regions(discover()); }
         catch (Exception ex) { regionLoadError = ex; throw; }
     }
 
@@ -43,34 +43,76 @@ public sealed class NationAgreements(IProcessMemory memory, OffsetProfile profil
         if (_regions is not null) return _regions;
         if (profile.AgreementRegionVtable is not { } regionVtable || profile.Nation?.ListRootRva is not { } rootRva)
             return _regions = [];
-        var holderBytes = new byte[0x810];
+        return TryReadOwnedRegions() ?? (_regions = ScannedRegions(regionVtable, heapCandidates));
+    }
+    /// <summary>
+    /// Fully validated region vector in a profile-owned database holder. Null means discovery is uncertain;
+    /// it never turns an unreadable, ambiguous or empty candidate into an empty catalogue.
+    /// </summary>
+    public IReadOnlyList<AgreementRegion>? TryReadOwnedRegions()
+    {
+        if (regionLoadError is not null) throw new InvalidOperationException("Agreement region index is unavailable. Load Game to refresh it.", regionLoadError);
+        if (_regions is not null) return _regions;
+        if (profile.AgreementRegionVtable is not { } regionVtable) return null;
+        var slots = new List<ulong>();
+        if (profile.Nation?.ListRootRva is { } nationRoot)
+            for (long delta = -0x20; delta <= 0x20; delta += 8)
+                if ((long)nationRoot + delta >= 0) slots.Add(moduleBase + (ulong)((long)nationRoot + delta));
+        // The shared database holder can also be reached through the already measured stadium root.
+        if (profile.Stadium is { } stadium) slots.Add(moduleBase + stadium.ListRootRva);
+        var seen = new HashSet<ulong>();
+        var candidates = new List<(ulong Slot, ulong Holder, ulong Header, byte[] HeaderBytes, ulong Begin, byte[] Pointers, List<AgreementRegion> Rows, List<byte[]> Records)>();
+        bool unknown = false;
         Span<byte> pointer = stackalloc byte[8];
-        List<AgreementRegion> best = [];
-        for (long delta = -0x20; delta <= 0x20; delta += 8)
+        foreach (ulong slot in slots.Distinct())
         {
-            if ((long)rootRva + delta < 0 || !memory.TryRead(moduleBase + (ulong)((long)rootRva + delta), pointer)) continue;
+            if (!memory.TryRead(slot, pointer)) continue;
             ulong holder = BitConverter.ToUInt64(pointer);
-            if (holder == 0 || !memory.TryRead(holder, holderBytes)) continue;
-            for (int at = 0; at + 24 <= holderBytes.Length; at += 8)
+            if (holder < 0x10000 || !seen.Add(holder)) continue;
+            var prefix = new byte[0x810]; // Same bounded database prefix used by the existing nation discovery.
+            if (!memory.TryRead(holder, prefix)) continue;
+            for (int at = 0; at + 24 <= prefix.Length; at += 8)
             {
-                ulong begin = BitConverter.ToUInt64(holderBytes, at), end = BitConverter.ToUInt64(holderBytes, at + 8), capacity = BitConverter.ToUInt64(holderBytes, at + 16);
-                if (begin == 0 || end <= begin || capacity < end || (end - begin) % 8 != 0) continue;
-                ulong count = (end - begin) / 8;
-                if (count <= (ulong)best.Count || count > 64) continue;
-                var bytes = new byte[(int)count * 8];
-                if (!memory.TryRead(begin, bytes)) continue;
-                var regions = new List<AgreementRegion>();
-                for (int i = 0; i < (int)count; i++)
+                ulong begin = BitConverter.ToUInt64(prefix, at), end = BitConverter.ToUInt64(prefix, at + 8), capacity = BitConverter.ToUInt64(prefix, at + 16);
+                if (begin < 0x10000 || end <= begin || capacity < end || (end - begin) % 8 != 0 || (capacity - begin) % 8 != 0 || (end - begin) / 8 > 64) continue;
+                var pointers = new byte[(int)(end - begin)];
+                if (!memory.TryRead(begin, pointers)) { unknown = true; continue; }
+                var rows = new List<AgreementRegion>();
+                var records = new List<byte[]>();
+                var ids = new HashSet<int>();
+                bool invalid = false, unreadable = false;
+                for (int i = 0; i < pointers.Length; i += 8)
                 {
-                    if (ReadRegion(BitConverter.ToUInt64(bytes, i * 8)) is not { } region) break;
-                    regions.Add(region);
+                    ulong address = BitConverter.ToUInt64(pointers, i);
+                    if (address < 0x10000) { invalid = true; continue; }
+                    var bytes = new byte[24];
+                    if (!memory.TryRead(address, bytes)) { unreadable = true; continue; }
+                    int id = BitConverter.ToInt32(bytes, 0x10);
+                    if (BitConverter.ToUInt64(bytes) != moduleBase + regionVtable || id is < 1 or > 255 || !ids.Add(id)) { invalid = true; continue; }
+                    rows.Add(new(address, id, RegionName(id)));
+                    records.Add(bytes);
                 }
-                if (regions.Count == (int)count && regions.Select(r => r.Id).Distinct().Count() == regions.Count) best = regions;
+                if (invalid) continue;
+                if (unreadable) { unknown = true; continue; }
+                candidates.Add((slot, holder, holder + (ulong)at, prefix.AsSpan(at, 24).ToArray(), begin, pointers, rows, records));
             }
         }
-        // 27.0.1+ keeps the region catalogue only in the database table (no vector next to the nation list),
-        // so fall back to every heap object of the region class, keyed by its ID.
-        return _regions = best.Count > 0 ? best.OrderBy(r => r.Id).ToList() : ScannedRegions(regionVtable, heapCandidates);
+        if (unknown || candidates.Count == 0) return null;
+        var selected = candidates[0];
+        if (candidates.Any(c => !c.Pointers.AsSpan().SequenceEqual(selected.Pointers))) return null;
+        // Re-read the entire publication path and records without a bulk cache before retaining any catalogue.
+        var rootCheck = new byte[8];
+        var headerCheck = new byte[24];
+        var pointerCheck = new byte[selected.Pointers.Length];
+        if (!memory.TryRead(selected.Slot, rootCheck) || BitConverter.ToUInt64(rootCheck) != selected.Holder
+            || !memory.TryRead(selected.Header, headerCheck) || !headerCheck.AsSpan().SequenceEqual(selected.HeaderBytes)
+            || !memory.TryRead(selected.Begin, pointerCheck) || !pointerCheck.AsSpan().SequenceEqual(selected.Pointers)) return null;
+        for (int i = 0; i < selected.Rows.Count; i++)
+        {
+            var bytes = new byte[24];
+            if (!memory.TryRead(selected.Rows[i].Address, bytes) || !bytes.AsSpan().SequenceEqual(selected.Records[i])) return null;
+        }
+        return _regions = selected.Rows.OrderBy(r => r.Id).ToList();
     }
 
     List<AgreementRegion> ScannedRegions(uint regionVtable, IReadOnlyList<ulong>? candidates)

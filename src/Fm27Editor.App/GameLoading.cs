@@ -84,8 +84,6 @@ public sealed partial class MainWindow
             careerCatalogue ??= [];
             report.Run("future transfers", "Reading…", () => futureAllRows = ReadFutureTransferRows(data), () => futureAllRows.Count);
             report.Run("retirements", "Reading…", () => retiringAllRows = ReadRetiringRows(data), () => retiringAllRows.Count);
-            if (session.Profile.AgreementRegionVtable is not null && session.Profile.Nation?.ListRootRva is not null)
-                report.Run("agreement regions", "Reading…", () => session.NationAgreements.Regions());
             if (session.Profile.Proposals is not null)
                 report.Run("transfer proposals", "Reading…", session.Proposals.EnsureLoaded);
             if (session.Profile.Club?.TransferClauses is { Scan: true })

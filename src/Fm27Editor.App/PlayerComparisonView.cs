@@ -96,7 +96,7 @@ public sealed partial class MainWindow
             bar.HorizontalAlignment = r.Left > r.Right ? HorizontalAlignment.Right : HorizontalAlignment.Left;
             Control[] cells =
             [
-                new TextBlock { Text = Loc.S(r.Label), VerticalAlignment = VerticalAlignment.Center },
+                new TextBlock { Text = Loc.Attribute(r.Label), TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center },
                 new TextBlock { Text = r.Left.ToString(Inv), HorizontalAlignment = HorizontalAlignment.Right, FontWeight = r.Left > r.Right ? FontWeight.Bold : FontWeight.Normal },
                 r.Left > r.Right ? bar : new Border(), r.Right > r.Left ? bar : new Border(),
                 new TextBlock { Text = r.Right.ToString(Inv), HorizontalAlignment = HorizontalAlignment.Right, FontWeight = r.Right > r.Left ? FontWeight.Bold : FontWeight.Normal },

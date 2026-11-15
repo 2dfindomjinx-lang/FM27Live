@@ -464,7 +464,7 @@ public sealed partial class MainWindow
         public Border Button = null!;
     }
 
-    readonly StackPanel moduleBar = new() { Orientation = Orientation.Horizontal, Spacing = 2 };
+    readonly WrapPanel moduleBar = new() { Orientation = Orientation.Horizontal };
     readonly StackPanel entityStrip = new() { Orientation = Orientation.Horizontal, Spacing = 0 };
     readonly ScrollViewer entityScroll = new()
     {
@@ -834,8 +834,8 @@ public sealed partial class MainWindow
         DockPanel.SetDock(sticky, Dock.Bottom);
         var header = new ContentControl { Margin = new Thickness(10, 8, 10, 7) };
         DockPanel.SetDock(header, Dock.Top);
-        var rail = new ContentControl { Width = 140, Margin = new Thickness(10, 0, 0, 8), VerticalAlignment = VerticalAlignment.Top };
-        var body = new Grid { ColumnDefinitions = new ColumnDefinitions("150,*") };
+        var rail = new ContentControl { Margin = new Thickness(10, 0, 0, 8), VerticalAlignment = VerticalAlignment.Top };
+        var body = new Grid { ColumnDefinitions = new ColumnDefinitions("200,*") };
         body.Children.Add(rail);
         Grid.SetColumn(scroll, 1); body.Children.Add(scroll);
         var root = new DockPanel { Background = UiKit.WindowBg, Children = { header, sticky, body } };
@@ -1484,8 +1484,7 @@ public sealed partial class MainWindow
         // Every tab's own Save button is hidden; this one button runs them all (and the entity's own Save), once each.
         var subSaves = bodyHost.Content is Visual root
             ? root.GetVisualDescendants().OfType<Button>()
-                .Where(b => !ReferenceEquals(b, primary) && b.IsEnabled && b.Content is string label &&
-                    (label is "Save changes" or "Save contract" or "Save loan" or "Save"))
+                .Where(b => !ReferenceEquals(b, primary) && b.IsEnabled && SectionHost.IsSaveButton(b))
                 .ToArray()
             : [];
         bool ranAny = false;

@@ -650,7 +650,7 @@ public sealed partial class MainWindow
             existing.TryGetValue(attr, out var frozen);
             var line = new Grid { ColumnDefinitions = new ColumnDefinitions("*,68,108,108") };
             var label = PlayerFields.All.First(f => f.Id == attr.ToString()).Label;
-            line.Children.Add(new TextBlock { Text = Loc.S(label), VerticalAlignment = VerticalAlignment.Center });
+            line.Children.Add(new TextBlock { Text = Loc.Attribute(label), TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center });
             var hold = new CheckBox { IsChecked = frozen is not null, HorizontalAlignment = HorizontalAlignment.Center, MinWidth = 0, Padding = new Thickness(0) };
             var increase = new CheckBox { IsChecked = frozen?.Mode == FreezeMode.AllowIncrease, HorizontalAlignment = HorizontalAlignment.Center, MinWidth = 0, Padding = new Thickness(0) };
             var decrease = new CheckBox { IsChecked = frozen?.Mode == FreezeMode.AllowDecrease, HorizontalAlignment = HorizontalAlignment.Center, MinWidth = 0, Padding = new Thickness(0) };

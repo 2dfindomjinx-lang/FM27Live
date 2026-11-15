@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 namespace Fm27Editor.Core.Memory;
 
 /// <summary>ReadProcessMemory / WriteProcessMemory on an opened process handle.</summary>
-public sealed partial class WindowsProcessMemory : IProcessMemory, IMemoryRegions, IRemoteAllocator, IMemoryWriteObserver, IDisposable
+public sealed partial class WindowsProcessMemory : IConcurrentMemoryReads, IMemoryRegions, IRemoteAllocator, IMemoryWriteObserver, IDisposable
 {
     const uint QueryInformation = 0x0400, VmRead = 0x0010, VmWrite = 0x0020, VmOperation = 0x0008;
 
@@ -68,7 +68,7 @@ public sealed partial class WindowsProcessMemory : IProcessMemory, IMemoryRegion
             bool heap = info.Type == Private && protect == ReadWrite;
             bool moduleData = info.Type == Image && (protect == ReadWrite || protect == WriteCopy) && start >= imageStart && start < imageEnd;
             if (info.State == Commit && (heap || moduleData))
-                yield return new MemoryRegion(start, (ulong)info.RegionSize, moduleData);
+                yield return new MemoryRegion(start, (ulong)info.RegionSize, moduleData) { IsGuard = (info.Protect & 0x100) != 0 };
             address = info.BaseAddress + info.RegionSize;
             if (address <= 0) yield break;
         }

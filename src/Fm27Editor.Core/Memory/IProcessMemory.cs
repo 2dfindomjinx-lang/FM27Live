@@ -18,7 +18,10 @@ public interface IScatterReadMemory
 
 public readonly record struct MemoryReadRequest(ulong Address, Memory<byte> Destination);
 
-/// <summary>Optional capability: a memory whose committed writable pages can be enumerated for a heap scan.</summary>
+/// <summary>A provider that supports simultaneous read-only calls from independent worker threads.</summary>
+public interface IConcurrentMemoryReads : IProcessMemory { }
+
+/// <summary>Optional enumeration of writable regions for read-only discovery (heap scans); omissions do not prove absence.</summary>
 public interface IMemoryRegions
 {
     /// <summary>Committed regions that are writable data: private heap pages and, inside
@@ -66,4 +69,8 @@ public static class ProcessMemoryExtensions
 
 public sealed class MemoryAccessException(string message) : Exception(message);
 
-public readonly record struct MemoryRegion(ulong Start, ulong Size, bool IsModuleData);
+public readonly record struct MemoryRegion(ulong Start, ulong Size, bool IsModuleData)
+{
+    /// <summary>OS guard pages are reserved access traps, not readable object storage.</summary>
+    public bool IsGuard { get; init; }
+}

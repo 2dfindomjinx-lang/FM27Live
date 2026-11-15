@@ -21,7 +21,7 @@ public sealed partial class MainWindow
         for (int i = 0; i < boxes.Length; i++)
         {
             if (i % 2 == 0) grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-            boxes[i] = new CheckBox { Content = PreferredMovesLabels.Display(i), IsChecked = (current >> i & 1) != 0 };
+            boxes[i] = new CheckBox { Content = new TextBlock { Text = PreferredMovesLabels.Display(i), TextWrapping = Avalonia.Media.TextWrapping.Wrap }, HorizontalContentAlignment = HorizontalAlignment.Stretch, Margin = new Thickness(0, 2, 12, 2), IsChecked = (current >> i & 1) != 0 };
             Grid.SetRow(boxes[i], i / 2); Grid.SetColumn(boxes[i], i % 2);
             grid.Children.Add(boxes[i]);
             boxes[i].IsCheckedChanged += (_, _) => Changed();

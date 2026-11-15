@@ -62,7 +62,7 @@ internal sealed partial class MassEditWindow : Window
     readonly List<CheckBox> moveBoxes = [];
     int[] moveStates = [];
     readonly List<(string Scope, ScrollViewer View)> sectionViews = [];
-    readonly TextBlock target = new() { FontSize = 12.5, Foreground = UiKit.TextPrimary, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
+    readonly TextBlock target = new() { FontSize = 12.5, Foreground = UiKit.TextPrimary, VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap };
     readonly Button clear = new() { Content = Loc.S("Clear all") };
     readonly Button choose = new() { Content = Loc.S("Choose who to edit..."), IsEnabled = false };
     IReadOnlyList<PlayerRecord>? chosenPlayers;
@@ -301,7 +301,7 @@ internal sealed partial class MassEditWindow : Window
         for (int i = 0; i < names.Length; i++)
         {
             int index = i;
-            var box = new CheckBox { Content = Loc.S(names[i]), FontSize = 12.5, IsThreeState = true, IsChecked = null };
+            var box = new CheckBox { Content = new TextBlock { Text = Loc.S(names[i]), TextWrapping = TextWrapping.Wrap }, HorizontalContentAlignment = HorizontalAlignment.Stretch, FontSize = 12.5, IsThreeState = true, IsChecked = null };
             box.Click += (_, e) =>
             {
                 // FMRTE order: filled (don't change) -> empty (off) -> ticked (on) -> filled.
@@ -435,7 +435,7 @@ internal sealed partial class MassEditWindow : Window
     static Control Labeled(string label, Control control)
     {
         var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("*,150,230"), ColumnSpacing = 10, Margin = new Thickness(4, 1) };
-        var text = new TextBlock { Text = Loc.S(label), FontSize = 12.5, VerticalAlignment = VerticalAlignment.Center, Foreground = UiKit.TextSecondary, TextTrimming = TextTrimming.CharacterEllipsis };
+        var text = new TextBlock { Text = Loc.S(label), FontSize = 12.5, VerticalAlignment = VerticalAlignment.Center, Foreground = UiKit.TextSecondary, TextWrapping = TextWrapping.Wrap };
         Grid.SetColumn(control, 2);
         grid.Children.Add(text);
         grid.Children.Add(control);
@@ -477,7 +477,7 @@ internal sealed partial class MassEditWindow : Window
     Control Row(string label, Control mode, Control value, string? suffix = null)
     {
         var grid = new Grid { ColumnDefinitions = new ColumnDefinitions(rowColumns), ColumnSpacing = 10, Margin = new Thickness(4, 1) };
-        var text = new TextBlock { Text = suffix is null ? Loc.S(label) : $"{Loc.S(label)}{suffix}", FontSize = 12.5, VerticalAlignment = VerticalAlignment.Center, Foreground = UiKit.TextSecondary, TextTrimming = TextTrimming.CharacterEllipsis };
+        var text = new TextBlock { Text = suffix is null ? Loc.S(label) : $"{Loc.S(label)}{suffix}", FontSize = 12.5, VerticalAlignment = VerticalAlignment.Center, Foreground = UiKit.TextSecondary, TextWrapping = TextWrapping.Wrap };
         Grid.SetColumn(mode, 1);
         Grid.SetColumn(value, 2);
         grid.Children.Add(text);
@@ -492,6 +492,7 @@ internal sealed partial class MassEditWindow : Window
         var initial = Math.Clamp(0L, min, max);
         var value = new NumericUpDown { Minimum = min, Maximum = max, Increment = 1, Value = initial, FontSize = 12.5, FormatString = "0", IsEnabled = false, HorizontalAlignment = HorizontalAlignment.Stretch };
         if (rowColumns != "*,150,230") { value.ShowButtonSpinner = false; value.HorizontalContentAlignment = HorizontalAlignment.Right; }
+        label = kind == Kind.PlayerAttribute ? Loc.Attribute(label) : kind == Kind.ClubField ? Loc.ClubField(label) : label;
         panel.Children.Add(Row(label, mode, value));
         var row = new FieldRow(kind, index, group, label, min, max, mode, value, () => (long)(value.Value ?? 0), () => value.Value = initial);
         fields.Add(row);

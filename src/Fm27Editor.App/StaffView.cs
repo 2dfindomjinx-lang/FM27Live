@@ -302,9 +302,10 @@ internal sealed partial class StaffScreen(IScreenHost host, IStaffPanels panels)
 
         static TextBlock Text(string text, string color = "#CBD5E1", bool trim = false)
         {
-            var tb = new TextBlock { Text = text, FontSize = 13, Foreground = UiKit.Brush(color), VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.NoWrap };
+            var tb = new TextBlock { Text = text, FontSize = 13, Foreground = UiKit.Brush(color), VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap };
             if (trim)
             {
+                tb.TextWrapping = TextWrapping.NoWrap;
                 tb.TextTrimming = TextTrimming.CharacterEllipsis;
                 tb.HorizontalAlignment = HorizontalAlignment.Right;
                 tb.MaxWidth = 156;

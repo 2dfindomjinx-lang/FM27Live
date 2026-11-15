@@ -4,15 +4,16 @@ Guidance for anyone (human or automated) changing this repository. Code, identif
 
 ## 1. What this is
 
-A live editor for **Football Manager 27**, for offline single-player saves. It attaches to the running `fm.exe`, reads and writes the memory of
-`game_plugin.dll`, and never touches game files on disk. Supported builds are listed by the JSON profiles in `offsets/`
-(Game Pass / Microsoft Store and Steam builds of `27.0.0+2493426`).
+A live editor for **Football Manager 27**, for offline single-player saves. It attaches to the running game (`fm.exe` on Windows,
+`Football Manager 27` or `Football Manager Touch` on macOS), reads and writes the memory of `game_plugin`, and never touches game files
+on disk. Supported builds are listed by the JSON profiles in `offsets/`: Windows Steam and Game Pass, macOS Steam and Touch (`*-mac.json`).
 
 Writing game memory is a real action: use a throwaway save, keep a backup of the save, and expect the game to redraw only after you press Continue.
 
 ## 2. Requirements
 
-- Windows 10/11, .NET 10 SDK.
+- Windows 10/11 or macOS 13+ (Apple silicon), .NET 10 SDK. On macOS a small privileged helper (`src/Fm27Editor.Helper`, installed on
+  first connect) reads and writes the game; `scripts/package-mac.sh` builds the app bundle and the dmg (needs Xcode command-line tools).
 - Football Manager 27 running with a save loaded, for anything that reads or writes the game. Build and unit tests need no game.
 
 ## 3. Layout

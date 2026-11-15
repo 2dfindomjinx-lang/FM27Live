@@ -195,7 +195,9 @@ public sealed class TransferService(IProcessMemory memory, OffsetProfile profile
         var current = memory.Read(a, 4);
         long v = BitConverter.ToInt32(current) + delta;
         if (floorAtZero && v < 0) v = 0;
-        if (v < int.MinValue || v > int.MaxValue) throw new OverflowException($"{what} would overflow int32");
+        // The game keeps these as int32. A club whose budget or balance was already raised to the maximum (a player reported
+        // Man Utd's transfer budget near 2,147,483,647, so selling for 20M was refused) stays at the limit instead of wrapping.
+        v = Math.Clamp(v, int.MinValue, int.MaxValue);
         writes.Add(new PlannedWrite(a, current, BitConverter.GetBytes((int)v), what));
     }
 

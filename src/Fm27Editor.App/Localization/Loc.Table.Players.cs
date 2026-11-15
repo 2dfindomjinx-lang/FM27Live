@@ -27,7 +27,7 @@ public static partial class Loc
         m[" · usually {0}"] = " · thường là {0}";
         m[" — {0:N0} of {1:N0} players shown ({2:N0} hidden)"] = " — Đang hiện {0:N0} / {1:N0} cầu thủ (ẩn {2:N0})";
         m["Default Attr >="] = "Chỉ số mặc định >=";
-        m["PA … to …"] = "TN … đến …";
+        m["PA … to …"] = "PA … đến …";
         m["Select an attribute"] = "Chọn một chỉ số";
         m["No player with that id in this list."] = "Không có cầu thủ nào mang ID đó trong danh sách này.";
         m["Select a player first"] = "Hãy chọn một cầu thủ trước";
@@ -309,7 +309,7 @@ public static partial class Loc
         m["Save the language edits first"] = "Hãy lưu chỉnh sửa ngôn ngữ trước";
         m["Languages: enter a value 1–10"] = "Ngôn ngữ: nhập giá trị từ 1–10";
         m["Saved languages. Continue in FM to see updates."] = "Đã lưu ngôn ngữ. Nhấn Continue trong FM để thấy cập nhật.";
-        m["Preferred Moves"] = "Tuyệt kỹ cá nhân";
+        m["Preferred Moves"] = "Thói quen ưa thích";
         m["Saved preferred moves. Continue in FM to see updates."] = "Đã lưu tuyệt kỹ cá nhân. Nhấn Continue trong FM để thấy cập nhật.";
         m["Promise"] = "Lời hứa";
         m["Add promise"] = "Thêm lời hứa";
@@ -435,8 +435,8 @@ public static partial class Loc
         m["nations"] = "quốc gia";
         m["Contract Type"] = "Loại hợp đồng";
         m["Expired"] = "Đã hết hạn";
-        m["Expiring in 6 Months"] = "Còn 6 tháng";
-        m["Expiring in 1 Year"] = "Còn 1 năm";
+        m["Expiring in 6 Months"] = "Hết hạn trong 6 tháng";
+        m["Expiring in 1 Year"] = "Hết hạn trong 1 năm";
         m["Release clause"] = "Điều khoản giải phóng";
         m["Release clause fee"] = "Phí giải phóng";
         m["Technical/Gk"] = "Kỹ thuật / Thủ môn";
@@ -459,14 +459,14 @@ public static partial class Loc
         m["Left Foot"] = "Chân trái";
         m["Right Foot"] = "Chân phải";
         m["Tendency To Punch"] = "Xu hướng đấm bóng";
-        m["Coaching Attacking"] = "Huấn luyện Tấn công";
-        m["Coaching Defending"] = "Huấn luyện Phòng ngự";
-        m["Coaching Fitness"] = "Huấn luyện Thể lực";
+        m["Coaching Attacking"] = "Huấn luyện tấn công";
+        m["Coaching Defending"] = "Huấn luyện phòng ngự";
+        m["Coaching Fitness"] = "Huấn luyện thể lực";
         m["Coaching Goalkeeping"] = "Huấn luyện Thủ môn";
         m["Coaching Possession"] = "Huấn luyện Kiểm soát bóng";
         m["Coaching Player"] = "Huấn luyện Cầu thủ";
-        m["Coaching Tactical"] = "Huấn luyện Chiến thuật";
-        m["Coaching Technical"] = "Huấn luyện Kỹ thuật";
+        m["Coaching Tactical"] = "Huấn luyện chiến thuật";
+        m["Coaching Technical"] = "Huấn luyện kỹ thuật";
         m["People Management"] = "Quản lý nhân sự";
         m["Working With Youngsters"] = "Làm việc với cầu thủ trẻ";
         m["Dirtiness Allowance"] = "Mức chấp nhận chơi tiểu xảo";
@@ -488,12 +488,12 @@ public static partial class Loc
         m["Hardness Of Training"] = "Độ khắc nghiệt tập luyện";
         m["Mind Games"] = "Đòn tâm lý";
         m["Squad Rotation"] = "Xoay tua đội hình";
-        m["Judging Player Ability"] = "Đánh giá năng lực cầu thủ";
+        m["Judging Player Ability"] = "Đánh giá khả năng cầu thủ";
         m["Judging Player Potential"] = "Đánh giá tiềm năng cầu thủ";
         m["Judging Staff Ability"] = "Đánh giá năng lực nhân viên";
         m["Negotiating"] = "Đàm phán";
         m["Authority"] = "Uy quyền";
-        m["Motivating"] = "Truyền động lực";
+        m["Motivating"] = "Khả năng tạo động lực";
         m["Tactical Knowledge"] = "Kiến thức chiến thuật";
         m["Physiotherapy"] = "Vật lý trị liệu";
         m["Sports Science"] = "Khoa học thể thao";
@@ -501,7 +501,7 @@ public static partial class Loc
         m["Judging Team Data"] = "Phân tích dữ liệu đội bóng";
         m["Presenting Data"] = "Trình bày dữ liệu";
         m["Business"] = "Kinh doanh";
-        m["Interference"] = "Mức độ can thiệp";
-        m["Resources"] = "Nguồn lực tài chính";
+        m["Interference"] = "Sự can thiệp";
+        m["Resources"] = "Nguồn lực";
     }
 }

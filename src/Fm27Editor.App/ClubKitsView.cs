@@ -39,6 +39,24 @@ public sealed partial class MainWindow
     UpdateClubStatusFromDraft();
     }
 
+    /// <summary>
+    /// The pending Item Style for the text in the box, or null when nothing changed. In-game editor style counts: shirt/text/icon 56,
+    /// shorts 10, socks 15; a typed value outside 1..limit is clamped. The game's own value is never a change, even when it is
+    /// outside that range: Bayern's home shirt has style 0, and the box raising TextChanged as it loads used to clamp that 0
+    /// to 1 and mark the page unsaved (16/11/2026).
+    /// </summary>
+    internal static string? KitStyleDraft(string text, int original, int limit)
+    {
+        string style = text.Trim();
+        if (int.TryParse(style, System.Globalization.NumberStyles.Integer, Inv, out int parsed))
+        {
+            if (parsed == original) return null;
+            int clamped = Math.Clamp(parsed, 1, limit);
+            if (clamped != parsed) style = clamped.ToString(Inv);
+        }
+        return style == original.ToString(Inv) ? null : style;
+    }
+
     void SetKitDraft(ClubKitItem item, int? colourIndex, string text, Action? onDraftChanged = null)
     {
         if (!kitDrafts.TryGetValue(item.Club, out var drafts)) kitDrafts[item.Club] = drafts = [];
@@ -50,15 +68,7 @@ public sealed partial class MainWindow
         }
         else
         {
-            // In-game editor style counts: shirt/text/icon 56, shorts 10, socks 15.
-            string style = text.Trim();
-            if (int.TryParse(style, out int parsed))
-            {
-                int limit = StyleLimit(item);
-                int clamped = Math.Clamp(parsed, 1, limit);
-                if (clamped != parsed) style = clamped.ToString(Inv);
-            }
-            draft.Style = style == draft.Snapshot.Style.ToString(Inv) ? null : style;
+            draft.Style = KitStyleDraft(text, draft.Snapshot.Style, StyleLimit(item));
         }
         if (draft.Colours.Count == 0 && draft.Style is null) drafts.Remove(item.Slot);
         if (drafts.Count == 0) kitDrafts.Remove(item.Club);
@@ -177,7 +187,7 @@ public sealed partial class MainWindow
                 string text = kitDrafts.GetValueOrDefault(ownerAddress)?.GetValueOrDefault(item.Slot)?.Colours.GetValueOrDefault(i) ?? original;
                 var box = new TextBox { Text = text, Width = 110 };
                 box.TextChanged += (_, _) => { SetKitDraft(item, colourIndex, box.Text ?? "", onDraftChanged); onEdited(); };
-                panel.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { new TextBlock { Text = Loc.S(names[i]), Width = 148, VerticalAlignment = VerticalAlignment.Center }, ColourInput(box) } });
+                panel.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { new TextBlock { Text = Loc.KitColour(names[i]), TextWrapping = TextWrapping.Wrap, Width = 148, VerticalAlignment = VerticalAlignment.Center }, ColourInput(box) } });
             }
             var style = new TextBox { Text = kitDrafts.GetValueOrDefault(ownerAddress)?.GetValueOrDefault(item.Slot)?.Style ?? item.Style.ToString(Inv), Width = 110, HorizontalContentAlignment = HorizontalAlignment.Right };
             style.TextChanged += (_, _) => SetKitDraft(item, null, style.Text ?? "", onDraftChanged);

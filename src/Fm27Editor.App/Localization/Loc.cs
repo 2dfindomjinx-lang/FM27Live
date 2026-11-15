@@ -55,6 +55,18 @@ public static partial class Loc
         return english;
     }
 
+    // A financial balance and a player's balance are different FM concepts.
+    public static string Attribute(string english) => english == "Balance" ? T(english, "Thăng bằng") : S(english);
+
+    public static string KitColour(string english) => english switch
+    {
+        "Foreground" => T(english, "Màu chính"),
+        "Background" => T(english, "Màu nền"),
+        _ => S(english),
+    };
+
+    public static string ClubField(string english) => english == "Training" ? T(english, "Cơ sở tập luyện") : S(english);
+
     public static string F(string englishTemplate, params object?[] args)
         => string.Format(FormatCulture, S(englishTemplate), args);
 

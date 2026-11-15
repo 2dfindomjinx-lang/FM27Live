@@ -1278,7 +1278,7 @@ public sealed class AttributeFilterDialog : Window
                     FontSize = 13,
                     Foreground = UiKit.TextSecondary,
                     VerticalAlignment = VerticalAlignment.Center,
-                    TextWrapping = TextWrapping.NoWrap,
+                    TextWrapping = TextWrapping.Wrap,
                 };
 
                 var minBox = new TextBox
@@ -1504,7 +1504,7 @@ public sealed class AttributeFilterDialog : Window
             Limit(max, lo, hi);
             rangeInputs[key] = (min, max);
             string label = key.StartsWith("Personality:", StringComparison.Ordinal) ? key[12..] : key;
-            panel.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Width = 396, Margin = new Thickness(0, 0, 12, 6), Spacing = 6, Children = { new TextBlock { Text = Loc.S(label), Width = 190, VerticalAlignment = VerticalAlignment.Center }, min, max } });
+            panel.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Width = 396, Margin = new Thickness(0, 0, 12, 6), Spacing = 6, Children = { new TextBlock { Text = Loc.S(label), TextWrapping = TextWrapping.Wrap, Width = 190, VerticalAlignment = VerticalAlignment.Center }, min, max } });
         }
         void AddChoice(string key, IEnumerable<FilterChoice> options)
         {
@@ -1512,7 +1512,7 @@ public sealed class AttributeFilterDialog : Window
             long? selected = initialRanges.TryGetValue(key, out var range) ? range.Min : null;
             var combo = new ComboBox { ItemsSource = choices, SelectedItem = choices.FirstOrDefault(option => option.Value == selected), Width = 190, MinWidth = 190, MaxWidth = 190, ItemTemplate = ChoiceItem() };
             choiceInputs[key] = combo;
-            panel.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Width = 396, Margin = new Thickness(0, 0, 12, 6), Spacing = 6, Children = { new TextBlock { Text = Loc.S(key), Width = 190, TextWrapping = TextWrapping.NoWrap, VerticalAlignment = VerticalAlignment.Center }, combo } });
+            panel.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Width = 396, Margin = new Thickness(0, 0, 12, 6), Spacing = 6, Children = { new TextBlock { Text = Loc.S(key), Width = 190, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center }, combo } });
         }
         AddChoice("Ethnicity", new[] { new FilterChoice(null, "Unset") }.Concat(InformationLabels.Ethnicities.Select(value => new FilterChoice(value.Code, value.Name))));
         AddChoice("Treated As Non-EU In Italy", [new(null, "Any"), new(1, "Yes"), new(0, "No")]);
@@ -1525,7 +1525,7 @@ public sealed class AttributeFilterDialog : Window
         var panel = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(14, 10) };
         for (int bit = 0; bit < PreferredMovesAccess.Count; bit++)
         {
-            var box = new CheckBox { Content = PreferredMovesLabels.Display(bit), IsChecked = (initialPreferredMoves & (1UL << bit)) != 0, Width = 420, Margin = new Thickness(0, 0, 6, 6) };
+            var box = new CheckBox { Content = new TextBlock { Text = PreferredMovesLabels.Display(bit), TextWrapping = TextWrapping.Wrap }, HorizontalContentAlignment = HorizontalAlignment.Stretch, IsChecked = (initialPreferredMoves & (1UL << bit)) != 0, Width = 420, Margin = new Thickness(0, 0, 6, 6) };
             preferredMoveChecks.Add(box);
             panel.Children.Add(box);
         }
@@ -1631,7 +1631,7 @@ public sealed class AttributeFilterDialog : Window
     {
         Orientation = Orientation.Horizontal,
         Spacing = 8,
-        Children = { new TextBlock { Text = Loc.S(label), Width = 220, VerticalAlignment = VerticalAlignment.Center }, combo },
+        Children = { new TextBlock { Text = Loc.S(label), TextWrapping = TextWrapping.Wrap, Width = 220, VerticalAlignment = VerticalAlignment.Center }, combo },
     };
 
     readonly Dictionary<TextBox, (long Min, long Max)> limits = [];
@@ -1867,7 +1867,7 @@ public sealed class AttributeFilterDialog : Window
         };
         var nameText = new TextBlock
         {
-            Text = Loc.S(label),
+            Text = Loc.Attribute(label),
             FontSize = 13,
             VerticalAlignment = VerticalAlignment.Center,
             TextWrapping = TextWrapping.Wrap,

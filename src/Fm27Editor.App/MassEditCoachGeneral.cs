@@ -151,7 +151,7 @@ internal sealed partial class MassEditWindow
         names.AddRange(options.Select(o => Loc.S(o.Name)));
         var choice = new ComboBox { ItemsSource = names, SelectedIndex = 0, FontSize = 12.5, HorizontalAlignment = HorizontalAlignment.Stretch, MaxDropDownHeight = 420 };
         var grid = new Grid { ColumnDefinitions = new ColumnDefinitions(rowColumns), ColumnSpacing = 10, Margin = new Thickness(4, 1) };
-        var text = new TextBlock { Text = Loc.S(label), FontSize = 12.5, VerticalAlignment = VerticalAlignment.Center, Foreground = UiKit.TextSecondary };
+        var text = new TextBlock { Text = Loc.S(label), TextWrapping = Avalonia.Media.TextWrapping.Wrap, FontSize = 12.5, VerticalAlignment = VerticalAlignment.Center, Foreground = UiKit.TextSecondary };
         Grid.SetColumn(choice, 1);
         Grid.SetColumnSpan(choice, 2);
         grid.Children.Add(text);

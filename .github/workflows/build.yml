@@ -10,12 +10,8 @@ permissions:
   contents: read
 
 jobs:
-  build:
+  windows:
     runs-on: windows-latest
-    permissions:
-      contents: write      # create the release
-      id-token: write      # sign the build provenance
-      attestations: write
     steps:
       - uses: actions/checkout@v4
 
@@ -26,7 +22,7 @@ jobs:
       - name: Test
         run: dotnet test Fm27Editor.slnx -c Release
 
-      # Offset profiles are embedded in the exe, so each file runs on its own.
+      # Offset profiles are embedded in the exe, so each file runs on its own (Steam and Game Pass).
       - name: Publish
         shell: pwsh
         run: |
@@ -37,28 +33,71 @@ jobs:
           dotnet publish src/Fm27Editor.Tools/Fm27Editor.Tools.csproj @common -o out/tools
           New-Item -ItemType Directory release | Out-Null
           Copy-Item out/app/Fm27Editor.exe, out/tools/Fm27Editor.Tools.exe release/
-          Get-FileHash release/*.exe -Algorithm SHA256 |
-            ForEach-Object { "$($_.Hash.ToLower())  $(Split-Path $_.Path -Leaf)" } | Set-Content release/SHA256SUMS.txt
-          Get-Content release/SHA256SUMS.txt
 
       - uses: actions/upload-artifact@v4
         with:
           name: Fm27Editor-win-x64
           path: release/
 
+  mac:
+    runs-on: macos-latest      # Apple silicon
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Test
+        run: dotnet test tests/Fm27Editor.Core.Tests -c Release
+
+      # One app for every Mac game build with a profile (Steam and Touch); NativeAOT, ad-hoc signed, in a disk image.
+      - name: Package
+        run: |
+          version=0.0.0
+          if [ "${{ github.ref_type }}" = "tag" ]; then version="${GITHUB_REF_NAME#v}"; fi
+          VERSION="$version" DOTNET="$(command -v dotnet)" scripts/package-mac.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Fm27Editor-mac-arm64
+          path: dist/Fm27Editor-mac-arm64.dmg
+
+  release:
+    if: github.ref_type == 'tag'
+    needs: [windows, mac]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write      # create the release
+      id-token: write      # sign the build provenance
+      attestations: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: release
+          merge-multiple: true
+
+      - name: Checksums
+        run: |
+          cd release
+          sha256sum Fm27Editor.exe Fm27Editor.Tools.exe Fm27Editor-mac-arm64.dmg > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
       - name: Attest build provenance
-        if: github.ref_type == 'tag'
         uses: actions/attest-build-provenance@v2
         with:
-          subject-path: release/*.exe
+          subject-path: |
+            release/Fm27Editor.exe
+            release/Fm27Editor.Tools.exe
+            release/Fm27Editor-mac-arm64.dmg
 
       - name: Create release
-        if: github.ref_type == 'tag'
-        shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $notes = (Get-Content .github/release-notes.md -Raw).Replace('{TAG}', $env:GITHUB_REF_NAME).Replace('{SHA}', $env:GITHUB_SHA)
-          Set-Content notes.md $notes
-          gh release create "$env:GITHUB_REF_NAME" release/Fm27Editor.exe release/Fm27Editor.Tools.exe release/SHA256SUMS.txt `
-            --title "Football Manager 27 Editor $env:GITHUB_REF_NAME" --notes-file notes.md
+          sed -e "s/{TAG}/$GITHUB_REF_NAME/g" -e "s/{SHA}/$GITHUB_SHA/g" .github/release-notes.md > notes.md
+          gh release create "$GITHUB_REF_NAME" release/Fm27Editor.exe release/Fm27Editor.Tools.exe \
+            release/Fm27Editor-mac-arm64.dmg release/SHA256SUMS.txt \
+            --title "Football Manager 27 Editor $GITHUB_REF_NAME" --notes-file notes.md

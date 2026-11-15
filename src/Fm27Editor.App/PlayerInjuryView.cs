@@ -59,7 +59,7 @@ public sealed partial class MainWindow
             int line = 0;
             foreach (var (label, input) in new (string, Control)[] { ("Type", row.Type), ("Minimum Days", row.Minimum), ("Extra Days", row.Extra) })
             {
-                var text = new TextBlock { Text = Loc.S(label), VerticalAlignment = VerticalAlignment.Center };
+                var text = new TextBlock { Text = Loc.S(label), TextWrapping = Avalonia.Media.TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
                 Grid.SetRow(text, line); Grid.SetRow(input, line); Grid.SetColumn(input, 1);
                 grid.Children.Add(text); grid.Children.Add(input); line++;
                 if (input is TextBox box) box.TextChanged += (_, _) => Changed();

@@ -4,6 +4,11 @@
 
 Checked on Steam `27.0.1+2503222` and Game Pass `27.0.1+2494687`.
 
+### macOS
+- **The editor runs on macOS** (Apple silicon) with Football Manager 27 Steam `27.0.1+2503222` and Football Manager Touch
+  `27.0.0+2492889`, installed from a dmg. A small helper, installed once with your password, reads and writes the game;
+  Development Speed and Wonderkid Academy are patched as ARM64 code.
+
 ### Transfers
 - **Transfer a player on loan:** Move now removes the player from both old squads. A future transfer ends the loan immediately and returns the player to the parent club while the deal waits, as observed in IGE. Both paths accept an agreed purchase price without charging the borrowing club for an unconfirmed purchase. Buy-back, purchase-after-matches, other contract clauses and unmeasured squad layouts remain unavailable. The purchase-price change has been tested live on Steam; Game Pass has been tested with fake memory only.
 
@@ -16,9 +21,18 @@ Checked on Steam `27.0.1+2503222` and Game Pass `27.0.1+2494687`.
   - The selling club gets the fee as Transfer Income for the season.
   - FM keeps a finished-transfer record for the buying club. The buyer's FFP updates once game time moves on.
 - Move to club: the team is chosen in a list next to the club, and the first team is picked by default.
+- Move to club: selling to or from a club whose budget or balance is already at the maximum no longer fails with an overflow; the value stays at the maximum.
+- Game Pass: transfer clauses are read from each club's own list, as on Steam, instead of a 5-second memory scan; Load Game drops from about 9 to 4 seconds. Club pages show the clauses on the club's players (they showed the ones owed to the club), and Move to club can add a sell-on on Game Pass too.
 
 ### App
-- Load Game prepares entity lists, search and picker catalogues, retirement and future-transfer lists, and most shared lookups before reporting ready. Reloading from another module keeps its list populated. The Transfer Deals heap index remains a documented follow-up in LOAD-PERFORMANCE-STRATEGY.md.
+- Kits: opening a club whose kit has Item Style 0 no longer marks the page unsaved.
+- Vietnamese UI: aligned selected football terms with the supplied FM27 language file, filled missing form labels,
+  and separated player Balance, club finances, training facilities and kit colours by context. Long labels now wrap
+  in forms, section lists, table headers and preferred-move checkboxes. Global Save and pending-edit stars recognise
+  translated child Save buttons, including after switching language.
+
+- Load Game prepares entity lists, search and picker catalogues, retirement and future-transfer lists, and most shared lookups before reporting ready. Reloading from another module keeps its list populated.
+- Transfer Deals and agreement regions are read from the game's own transfer manager and database instead of a multi-gigabyte heap scan; the scan remains the fallback when that lookup can't be validated.
 - Bulk reads reuse nearby memory pages and shared names; work permits are discovered and fully validated inside the known transfer manager before falling back to a heap scan.
 - Search catalogues stay available for the loaded save. Reload and window close release old search results and stop their timers; the loading animation stops when hidden.
 - Wonderkid Academy has a Turn on / Turn off button that keeps its configuration and supports Undo.

@@ -1,5 +1,6 @@
 using Fm27Editor.Core.Game;
 using Fm27Editor.Core.Clubs;
+using Fm27Editor.Core.Diagnostics;
 using Fm27Editor.Core.Memory;
 using Fm27Editor.Core.Players;
 
@@ -7,7 +8,14 @@ namespace Fm27Editor.App;
 
 public static class UserMessage
 {
-    public static string For(Exception error) => error switch
+    /// <summary>The short text shown to the player. The full exception goes to the log, so a bug report shows where it failed.</summary>
+    public static string For(Exception error)
+    {
+        FlightRecorder.Current?.Log("error", error.ToString());
+        return Text(error);
+    }
+
+    static string Text(Exception error) => error switch
     {
         GameNotRunningException ex => Loc.S(ex.Message),
         SaveChangedException ex => Loc.S(ex.Message),

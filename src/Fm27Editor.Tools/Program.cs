@@ -120,6 +120,8 @@ try
         "find-offsets" => FindOffsets(args[1], args[2], args.SkipWhile(a => a != "--date").Skip(1).FirstOrDefault()),
         "transfer" => Transfer(args[1..]),
         "clauses" => args[1] == "fee" ? SellOnsWithFee() : Clauses(int.Parse(args[1])),
+        "clausecheck" => ClauseCheck(),
+        "sellonroundtrip" => SellOnRoundTrip(int.Parse(args[1]), int.Parse(args[2])),
         "income" => IncomeCommand(int.Parse(args[1]), args[2..]),
         "alloc" => AllocCommand(int.Parse(args[1])),
         "clubdebt" => ClubDebtCommand(args[1..]),
@@ -2263,6 +2265,99 @@ int Clauses(int clubId)
         Console.WriteLine($"  {c.Kind,-16} {(byId.TryGetValue(c.PlayerId, out var p) ? p.DisplayName : c.PlayerId.ToString()),-24} {c.Beneficiary?.DisplayName,-24} " +
                           $"fee {c.Amount?.ToString() ?? "-"} pct {c.Percentage?.ToString() ?? "-"} signed for {c.SignedFor?.ToString() ?? "-"} apps {c.AppearancesSoFar}/{c.Appearances} competition {c.Competition?.DisplayName ?? c.CompetitionIndex?.ToString()} ends {c.Ends:yyyy-MM-dd}");
     return 0;
+}
+
+// clausecheck   compare every clause record found by the heap scan with the records reachable from each club's own
+//               vector (club + profile pointer), by record address (read only)
+int ClauseCheck()
+{
+    using var session = Attach(writable: false);
+    var k = session.Profile.Club!;
+    var t = k.TransferClauses ?? throw new InvalidOperationException("Profile has no transfer clause offsets");
+    var mem = session.Memory;
+    ulong mb = session.ModuleBase;
+    var types = new[] { (ulong?)t.SellOnVtableRva, t.AppearanceFeeVtableRva, t.CompetitionBonusVtableRva }
+        .Where(v => v is not null).Select(v => mb + v!.Value).ToArray();
+    var watch = System.Diagnostics.Stopwatch.StartNew();
+    var scanned = Fm27Editor.Core.Memory.HeapVtableScanner.Scan(mem, types).Select(m => m.Address).ToHashSet();
+    Console.WriteLine($"heap scan: {scanned.Count} clause records in {watch.ElapsedMilliseconds} ms");
+    var players = session.Players.LoadAll();
+    var clubs = session.LoadClubs(players);
+    var clubOfPlayer = players.Where(p => p.Id is not null && p.Club is not null).GroupBy(p => p.Id!.Value)
+        .ToDictionary(g => g.Key, g => g.First().Club!.Address);
+    int playerHere = 0, playerElsewhere = 0, playerUnknown = 0;
+    watch.Restart();
+    var vectored = new HashSet<ulong>();
+    int holders = 0, badVectors = 0, foreign = 0, ownClub = 0, otherClub = 0;
+    foreach (var club in clubs)
+    {
+        ulong holder = mem.ReadUInt64(club.Address + (ulong)t.Pointer);
+        if (holder == 0) continue;
+        holders++;
+        ulong begin = mem.ReadUInt64(holder), end = mem.ReadUInt64(holder + 8), cap = mem.ReadUInt64(holder + 16);
+        if (end < begin || cap < end || (end - begin) % 8 != 0 || (end - begin) / 8 > 512) { badVectors++; continue; }
+        for (ulong p = begin; p < end; p += 8)
+        {
+            ulong c = mem.ReadUInt64(p);
+            if (c == 0) continue;
+            ulong type = mem.ReadUInt64(c);
+            if (!types.Contains(type)) { foreign++; continue; }
+            vectored.Add(c);
+            // The scan path filters a club's clauses by the club pointer inside the record (+0x30 on competition bonuses).
+            int clubField = t.CompetitionBonusVtableRva is { } cb && type == mb + cb ? 0x30 : 0x10;
+            if (mem.ReadUInt64(c + (ulong)clubField) == club.Address) ownClub++; else otherClub++;
+            // The player's Contract card reads the clauses of the player's current club only.
+            if (!clubOfPlayer.TryGetValue(BitConverter.ToInt32(mem.Read(c + 8, 4)), out ulong current)) playerUnknown++;
+            else if (current == club.Address) playerHere++;
+            else
+            {
+                if (playerElsewhere++ < 12)
+                {
+                    var who = players.First(p => p.Id == BitConverter.ToInt32(mem.Read(c + 8, 4)));
+                    ulong loan = session.Profile.FutureTransfers?.CurrentLoanHolder is { } lh ? mem.ReadUInt64(who.Address + (ulong)lh) : 0;
+                    Console.WriteLine($"  elsewhere: {who.DisplayName} contract club {who.Club?.DisplayName} | vector club {club.DisplayName} | loan holder 0x{loan:X}");
+                }
+            }
+        }
+    }
+    Console.WriteLine($"club vectors: {clubs.Count} clubs, {holders} holders, {badVectors} invalid, {foreign} non-clause items, {vectored.Count} clause records in {watch.ElapsedMilliseconds} ms");
+    var onlyScan = scanned.Except(vectored).ToList();
+    var onlyVector = vectored.Except(scanned).ToList();
+    Console.WriteLine($"only in heap scan: {onlyScan.Count}; only in club vectors: {onlyVector.Count}");
+    Console.WriteLine($"records whose club field is the vector's club: {ownClub}; another club: {otherClub}");
+    Console.WriteLine($"player's current club is the vector's club: {playerHere}; another club: {playerElsewhere}; player not found: {playerUnknown}");
+    foreach (var a in onlyScan.Take(20))
+    {
+        var b = mem.Read(a, 0x38);
+        ulong vt = BitConverter.ToUInt64(b) - mb;
+        Console.WriteLine($"  scan-only 0x{a:X} vtable +0x{vt:X} player {BitConverter.ToInt32(b, 8)} club@10 0x{BitConverter.ToUInt64(b, 0x10):X} club@30 0x{BitConverter.ToUInt64(b, 0x30):X}");
+    }
+    return onlyScan.Count == 0 && onlyVector.Count == 0 ? 0 : 1;
+}
+
+// sellonroundtrip <club id> <beneficiary club id>   add a 10% sell-on on the club's first player, read it back through the
+//                 club's vector, remove it and check the vector is as before (writes; the record block stays allocated)
+int SellOnRoundTrip(int clubId, int beneficiaryId)
+{
+    using var session = Attach(writable: true);
+    var all = session.Players.LoadAll();
+    var clubs = session.LoadClubs(all);
+    var club = clubs.Single(c => c.Id == clubId);
+    var beneficiary = clubs.Single(c => c.Id == beneficiaryId);
+    var player = all.First(p => p.Club?.Address == club.Address && p.Id is not null);
+    ulong holder = session.Memory.ReadUInt64(club.Address + (ulong)session.Profile.Club!.TransferClauses!.Pointer);
+    var before = session.Memory.Read(holder, 24);
+    int count = session.ReadTransferClauses(club.Address).Count;
+    ulong record = session.AddSellOn(club.Address, player.Id!.Value, beneficiary.Address, 10);
+    var added = session.ReadTransferClauses(club.Address).SingleOrDefault(c => c.Address == record);
+    Console.WriteLine($"{club.DisplayName}: {count} clauses before; added 0x{record:X} for {player.DisplayName}: " +
+        (added is null ? "NOT READ BACK" : $"{added.Kind} {added.Percentage}% to {added.Beneficiary?.DisplayName}"));
+    if (added is null) return 1;
+    session.TransferClauses.RemoveSellOn(club.Address, added);
+    bool restored = session.Memory.Read(holder, 24).AsSpan().SequenceEqual(before);
+    int after = session.ReadTransferClauses(club.Address).Count;
+    Console.WriteLine($"removed; {after} clauses; vector header {(restored ? "as before" : "MOVED (buffer was reallocated)")}");
+    return after == count && added.Percentage == 10 && added.Beneficiary?.Address == beneficiary.Address ? 0 : 1;
 }
 
 // alloc <bytes>   check that the editor can allocate memory inside the game process

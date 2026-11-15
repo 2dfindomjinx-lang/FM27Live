@@ -62,9 +62,7 @@ public sealed record TransferDeal(
 public sealed class TransferDealReader(IProcessMemory memory, OffsetProfile profile, ulong moduleBase)
 {
     /// <summary>Deal class vtable RVAs: the profile's transfer vtable (Game Pass and Steam each name their own), plus two from FM Studio.</summary>
-    readonly ulong[] vtables = profile.Proposals is { } p
-        ? [moduleBase + p.TransferVtable, moduleBase + 74_494_248, moduleBase + 83_071_720]
-        : [moduleBase + 74_494_248, moduleBase + 83_071_720];
+    readonly ulong[] vtables = [moduleBase + (profile.Proposals?.TransferVtable ?? 74_494_248), moduleBase + 74_494_248, moduleBase + 83_071_720];
 
     const int PersonOffset = 0x38, BuyingTeamOffset = 0x40, SellingTeamOffset = 0x50;
     const int FeeOffset = 0x58, DayCounterOffset = 0x5C, AcceptFlagOffset = 0x84, StatusOffset = 0x88;
@@ -118,48 +116,12 @@ public sealed class TransferDealReader(IProcessMemory memory, OffsetProfile prof
     }
 
     /// <summary>Every writable-memory object carrying a deal vtable (FM Studio scans the heap the same way).</summary>
-    public IReadOnlyList<ulong> Scan()
-    {
-        if (memory is not IMemoryRegions regions)
-            throw new NotSupportedException("Transfer-deal discovery requires writable-memory region enumeration");
-        var found = new List<ulong>();
-        var buffer = new byte[1 << 22];
-        foreach (var region in regions.EnumerateWritableRegions())
-        {
-            if (region.IsModuleData) continue;
-            for (ulong offset = 0; offset + 8 <= region.Size; offset += (ulong)buffer.Length)
-            {
-                int length = (int)Math.Min((ulong)buffer.Length, region.Size - offset);
-                var chunk = buffer.AsSpan(0, length);
-                ulong address = region.Start + offset;
-                if (!memory.TryRead(address, chunk))
-                {
-                    // A broad read can fail across a protection/allocation boundary. Recover exact smaller
-                    // ranges, but never present a partial candidate index as a completed scan.
-                    for (int at = 0; at < length; at += 4096)
-                    {
-                        int take = Math.Min(4096, length - at);
-                        if (!memory.TryRead(address + (ulong)at, chunk.Slice(at, take)))
-                            throw new MemoryAccessException($"Cannot complete transfer-deal discovery at 0x{address + (ulong)at:X}");
-                    }
-                }
-                var words = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, ulong>(chunk);
-                int word = 0;
-                while (word < words.Length)
-                {
-                    int next = vtables.Length == 3
-                        ? words[word..].IndexOfAny(vtables[0], vtables[1], vtables[2])
-                        : words[word..].IndexOfAny(vtables[0], vtables[1]);
-                    if (next < 0) break;
-                    word += next;
-                    found.Add(address + (ulong)word * 8);
-                    word++;
-                }
-            }
-        }
-        return found;
-    }
+    public IReadOnlyList<ulong> VtableAddresses => Array.AsReadOnly(vtables);
 
+    /// <summary>Validated manager-owned candidates, or null when a complete owned index cannot be established.</summary>
+    public IReadOnlyList<ulong>? TryReadOwnedCandidates() => OwnedTransferDeals.Read(memory, profile, moduleBase, vtables);
+
+    public IReadOnlyList<ulong> Scan() => HeapVtableScanner.Scan(memory, vtables).Select(m => m.Address).ToArray();
     /// <summary>Club a team pointer belongs to, or null when the pointer is not a team of this build.</summary>
     public ulong ClubOf(ulong team)
     {

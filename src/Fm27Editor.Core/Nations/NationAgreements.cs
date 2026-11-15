@@ -25,97 +25,129 @@ public sealed class NationAgreements(IProcessMemory memory, OffsetProfile profil
     public const int RecordSize = 0x30, RegionSlot = 0x18, AgreementSlot = 0x20, FromOffset = 0x28, UntilOffset = 0x2C;
     const int MaxRows = 64, MaxName = 200;
     List<AgreementRegion>? _regions;
+    Exception? regionLoadError;
+
+    /// <summary>Load-time discovery retains errors too, so opening a tab cannot retry a failed heap sweep.</summary>
+    public IReadOnlyList<AgreementRegion> PreloadRegions(Func<IReadOnlyList<ulong>> discover)
+    {
+        if (regionLoadError is not null) throw new InvalidOperationException("Agreement region index is unavailable. Load Game to refresh it.", regionLoadError);
+        if (_regions is not null) return _regions;
+        try { return TryReadOwnedRegions() ?? Regions(discover()); }
+        catch (Exception ex) { regionLoadError = ex; throw; }
+    }
 
     /// <summary>Region catalogue in the game database; unknown names remain numeric IDs.</summary>
-    public IReadOnlyList<AgreementRegion> Regions()
+    public IReadOnlyList<AgreementRegion> Regions(IReadOnlyList<ulong>? heapCandidates = null)
     {
+        if (regionLoadError is not null) throw new InvalidOperationException("Agreement region index is unavailable. Load Game to refresh it.", regionLoadError);
         if (_regions is not null) return _regions;
         if (profile.AgreementRegionVtable is not { } regionVtable || profile.Nation?.ListRootRva is not { } rootRva)
             return _regions = [];
-        var holderBytes = new byte[0x810];
+        return TryReadOwnedRegions() ?? (_regions = ScannedRegions(regionVtable, heapCandidates));
+    }
+    /// <summary>
+    /// Fully validated region vector in a profile-owned database holder. Null means discovery is uncertain;
+    /// it never turns an unreadable, ambiguous or empty candidate into an empty catalogue.
+    /// </summary>
+    public IReadOnlyList<AgreementRegion>? TryReadOwnedRegions()
+    {
+        if (regionLoadError is not null) throw new InvalidOperationException("Agreement region index is unavailable. Load Game to refresh it.", regionLoadError);
+        if (_regions is not null) return _regions;
+        if (profile.AgreementRegionVtable is not { } regionVtable) return null;
+        var slots = new List<ulong>();
+        if (profile.Nation?.ListRootRva is { } nationRoot)
+            for (long delta = -0x20; delta <= 0x20; delta += 8)
+                if ((long)nationRoot + delta >= 0) slots.Add(moduleBase + (ulong)((long)nationRoot + delta));
+        // The shared database holder can also be reached through the already measured stadium root.
+        if (profile.Stadium is { } stadium) slots.Add(moduleBase + stadium.ListRootRva);
+        var seen = new HashSet<ulong>();
+        var candidates = new List<(ulong Slot, ulong Holder, ulong Header, byte[] HeaderBytes, ulong Begin, byte[] Pointers, List<AgreementRegion> Rows, List<byte[]> Records, bool Child)>();
+        bool unknownTop = false, unknownChild = false;
         Span<byte> pointer = stackalloc byte[8];
-        List<AgreementRegion> best = [];
-        var visited = new HashSet<ulong>();
-        for (long delta = -0x20; delta <= 0x20; delta += 8)
+        var holders = new List<(ulong Slot, ulong Holder, bool Child)>();
+        foreach (ulong root in slots.Distinct())
         {
-            if ((long)rootRva + delta < 0 || !memory.TryRead(moduleBase + (ulong)((long)rootRva + delta), pointer)) continue;
-            ulong holder = BitConverter.ToUInt64(pointer);
-            if (holder == 0) continue;
-            if (visited.Add(holder)) best = RegionsInHolder(holder, holderBytes, best);
-            // Use the same measured indirection as the nation's list, while retaining the original holder too.
-            if (profile.Nation.ListObjectOffset is not { } childOffset ||
-                !memory.TryRead(holder + (ulong)childOffset, pointer)) continue;
-            ulong child = BitConverter.ToUInt64(pointer);
-            if (child != 0 && visited.Add(child)) best = RegionsInHolder(child, holderBytes, best);
+            if (!memory.TryRead(root, pointer)) continue;
+            ulong top = BitConverter.ToUInt64(pointer);
+            if (top < 0x10000) continue;
+            holders.Add((root, top, false));
+            // Mac 27.0.1 keeps the database tables one object further in, at the nation list's child offset (0x88);
+            // the child's pointer slot is then the publication path that is re-read before caching.
+            if (profile.Nation?.ListObjectOffset is { } childOffset && memory.TryRead(top + (ulong)childOffset, pointer)
+                && BitConverter.ToUInt64(pointer) is var child && child >= 0x10000)
+                holders.Add((top + (ulong)childOffset, child, true));
         }
-        // 27.0.1+ keeps the region catalogue only in the database table (no vector next to the nation list),
-        // so fall back to every heap object of the region class, keyed by its ID.
-        return _regions = best.Count > 0 ? best.OrderBy(r => r.Id).ToList() : ScannedRegions(regionVtable);
-    }
-
-    List<AgreementRegion> RegionsInHolder(ulong holder, byte[] holderBytes, List<AgreementRegion> best)
-    {
-        if (!memory.TryRead(holder, holderBytes)) return best;
-        for (int at = 0; at + 24 <= holderBytes.Length; at += 8)
+        foreach (var (slot, holder, isChild) in holders)
         {
-            ulong begin = BitConverter.ToUInt64(holderBytes, at), end = BitConverter.ToUInt64(holderBytes, at + 8), capacity = BitConverter.ToUInt64(holderBytes, at + 16);
-            if (begin == 0 || end <= begin || capacity < end || (end - begin) % 8 != 0) continue;
-            ulong count = (end - begin) / 8;
-            if (count <= (ulong)best.Count || count > 64) continue;
-            var bytes = new byte[(int)count * 8];
-            if (!memory.TryRead(begin, bytes)) continue;
-            var regions = new List<AgreementRegion>();
-            for (int i = 0; i < (int)count; i++)
+            if (!seen.Add(holder)) continue;
+            var prefix = new byte[0x810]; // Same bounded database prefix used by the existing nation discovery.
+            if (!memory.TryRead(holder, prefix)) continue;
+            for (int at = 0; at + 24 <= prefix.Length; at += 8)
             {
-                if (ReadRegion(BitConverter.ToUInt64(bytes, i * 8)) is not { } region) break;
-                regions.Add(region);
-            }
-            if (regions.Count == (int)count && regions.Select(r => r.Id).Distinct().Count() == regions.Count) best = regions;
-        }
-        return best;
-    }
-
-    List<AgreementRegion> ScannedRegions(uint regionVtable)
-    {
-        if (memory is not IMemoryRegions regions) return [];
-        ulong vtable = moduleBase + regionVtable;
-        var byId = new Dictionary<int, AgreementRegion>();
-        var buffer = new byte[1 << 22];
-        foreach (var region in regions.EnumerateWritableRegions())
-        {
-            if (region.IsModuleData) continue;
-            for (ulong offset = 0; offset + 8 <= region.Size; offset += (ulong)buffer.Length)
-            {
-                int length = (int)Math.Min((ulong)buffer.Length, region.Size - offset);
-                if (!memory.TryRead(region.Start + offset, buffer.AsSpan(0, length))) break;
-                var words = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, ulong>(buffer.AsSpan(0, length));
-                int word = 0;
-                while (word < words.Length)
+                ulong begin = BitConverter.ToUInt64(prefix, at), end = BitConverter.ToUInt64(prefix, at + 8), capacity = BitConverter.ToUInt64(prefix, at + 16);
+                if (begin < 0x10000 || end <= begin || capacity < end || (end - begin) % 8 != 0 || (capacity - begin) % 8 != 0 || (end - begin) / 8 > 64) continue;
+                var pointers = new byte[(int)(end - begin)];
+                if (!memory.TryRead(begin, pointers)) { if (isChild) unknownChild = true; else unknownTop = true; continue; }
+                var rows = new List<AgreementRegion>();
+                var records = new List<byte[]>();
+                var ids = new HashSet<int>();
+                bool invalid = false, unreadable = false;
+                for (int i = 0; i < pointers.Length; i += 8)
                 {
-                    int next = words[word..].IndexOf(vtable);
-                    if (next < 0) break;
-                    int i = (word + next) * 8;
-                    word += next + 1;
-                    ulong address = region.Start + offset + (ulong)i;
-                    if (i + 0x18 > length)
-                    {
-                        // A record can straddle two scan chunks. Validate the exact object instead of losing it.
-                        if (ReadRegion(address) is { } tail) byId.TryAdd(tail.Id, tail);
-                        continue;
-                    }
-                    int id = BitConverter.ToInt32(buffer, i + 0x10);
-                    if (id is >= 1 and <= 255) byId.TryAdd(id, new AgreementRegion(address, id, RegionName(id)));
+                    ulong address = BitConverter.ToUInt64(pointers, i);
+                    if (address < 0x10000) { invalid = true; continue; }
+                    var bytes = new byte[24];
+                    if (!memory.TryRead(address, bytes)) { unreadable = true; continue; }
+                    int id = BitConverter.ToInt32(bytes, 0x10);
+                    if (BitConverter.ToUInt64(bytes) != moduleBase + regionVtable || id is < 1 or > 255 || !ids.Add(id)) { invalid = true; continue; }
+                    rows.Add(new(address, id, RegionName(id)));
+                    records.Add(bytes);
                 }
+                if (invalid) continue;
+                if (unreadable) { if (isChild) unknownChild = true; else unknownTop = true; continue; }
+                candidates.Add((slot, holder, holder + (ulong)at, prefix.AsSpan(at, 24).ToArray(), begin, pointers, rows, records, isChild));
             }
         }
+        // When the profile names the child object that holds the database tables (Mac) and it has a valid catalogue, only
+        // that object counts: the parent may hold a shorter vector of the same records. Otherwise every candidate must agree.
+        bool useChild = candidates.Any(c => c.Child);
+        if (useChild) candidates.RemoveAll(c => !c.Child);
+        if ((useChild ? unknownChild : unknownTop || unknownChild) || candidates.Count == 0) return null;
+        var selected = candidates[0];
+        if (candidates.Any(c => !c.Pointers.AsSpan().SequenceEqual(selected.Pointers))) return null;
+        // Re-read the entire publication path and records without a bulk cache before retaining any catalogue.
+        var rootCheck = new byte[8];
+        var headerCheck = new byte[24];
+        var pointerCheck = new byte[selected.Pointers.Length];
+        if (!memory.TryRead(selected.Slot, rootCheck) || BitConverter.ToUInt64(rootCheck) != selected.Holder
+            || !memory.TryRead(selected.Header, headerCheck) || !headerCheck.AsSpan().SequenceEqual(selected.HeaderBytes)
+            || !memory.TryRead(selected.Begin, pointerCheck) || !pointerCheck.AsSpan().SequenceEqual(selected.Pointers)) return null;
+        for (int i = 0; i < selected.Rows.Count; i++)
+        {
+            var bytes = new byte[24];
+            if (!memory.TryRead(selected.Rows[i].Address, bytes) || !bytes.AsSpan().SequenceEqual(selected.Records[i])) return null;
+        }
+        return _regions = selected.Rows.OrderBy(r => r.Id).ToList();
+    }
+
+    List<AgreementRegion> ScannedRegions(uint regionVtable, IReadOnlyList<ulong>? candidates)
+    {
+        var byId = new Dictionary<int, AgreementRegion>();
+        candidates ??= HeapVtableScanner.Scan(memory, moduleBase + regionVtable).Select(m => m.Address).ToArray();
+        foreach (ulong address in candidates)
+            if (ReadRegion(address, requireReadable: true) is { } region) byId.TryAdd(region.Id, region);
         return byId.Values.OrderBy(r => r.Id).ToList();
     }
-
-    AgreementRegion? ReadRegion(ulong address)
+    AgreementRegion? ReadRegion(ulong address, bool requireReadable = false)
     {
         if (profile.AgreementRegionVtable is null || address == 0) return null;
         var bytes = new byte[24];
-        if (!memory.TryRead(address, bytes) || BitConverter.ToUInt64(bytes) != moduleBase + profile.AgreementRegionVtable.Value) return null;
+        if (!memory.TryRead(address, bytes))
+        {
+            if (requireReadable) throw new MemoryAccessException("An agreement region candidate could not be read");
+            return null;
+        }
+        if (BitConverter.ToUInt64(bytes) != moduleBase + profile.AgreementRegionVtable.Value) return null;
         int id = BitConverter.ToInt32(bytes, 0x10);
         if (id is < 1 or > 255) return null;
         return new(address, id, RegionName(id));

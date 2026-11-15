@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Builds dist/Fm27Editor.app: a self-contained NativeAOT bundle for Apple silicon, ad-hoc signed.
-# Usage: scripts/package-mac.sh   (RID=osx-x64 for Intel)
+# Builds dist/Fm27Editor.app (a self-contained NativeAOT bundle, ad-hoc signed) and dist/Fm27Editor-mac-<arch>.dmg.
+# One bundle serves every Mac game build with a profile in offsets/ (Steam and Touch).
+# Usage: scripts/package-mac.sh   (RID=osx-x64 for Intel; VERSION=1.4.0 sets the version; DOTNET=path picks dotnet)
 set -euo pipefail
 
 # bash 3.2 mishandles the script's own stdin while dotnet runs; a scripted build is never interactive.
@@ -9,7 +10,8 @@ exec < /dev/null
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$root"
 
-dotnet="$HOME/.dotnet/dotnet"
+dotnet="${DOTNET:-$(command -v dotnet || echo "$HOME/.dotnet/dotnet")}"
+version="${VERSION:-0.0.0}"
 rid="${RID:-osx-arm64}"
 app="$root/dist/Fm27Editor.app"
 publish="$root/dist/publish-$rid"
@@ -18,12 +20,13 @@ rm -rf "$app" "$publish" "$root/dist/aot-roots.props"
 
 # The AOT compiler crashes on a stale PDB ("Read out of bounds"), so drop the app's Release intermediates first.
 rm -rf src/Fm27Editor.App/obj/Release src/Fm27Editor.App/bin/Release
-mkdir -p src/Fm27Editor.App/obj/Release/net10.0/osx-arm64/native
+mkdir -p "src/Fm27Editor.App/obj/Release/net10.0/$rid/native"
 
 "$dotnet" publish src/Fm27Editor.App/Fm27Editor.App.csproj \
     -c Release \
     -r "$rid" \
     -p:PublishAot=true \
+    -p:Version="$version" \
     -o "$publish"
 
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
@@ -54,8 +57,10 @@ for extra in LICENSE README.md; do
 done
 
 icon_src="$root/src/Fm27Editor.App/Assets/icon.png"
+# The rounded black tile needs Python with Pillow; without it the icon is made from the plain PNG.
 if [ -f "$icon_src" ]; then
     icon_black="$root/dist/icon_black.png"
+    if ! python3 -c "import PIL" 2>/dev/null; then cp "$icon_src" "$icon_black"; else
     python3 - "$icon_src" "$icon_black" <<'PY'
 import sys
 from PIL import Image, ImageDraw
@@ -74,6 +79,7 @@ offset = (size - inner) // 2
 canvas.alpha_composite(src_resized, (offset, offset))
 canvas.save(sys.argv[2])
 PY
+    fi
     iconset="$root/dist/app.iconset"
     rm -rf "$iconset"
     mkdir -p "$iconset"
@@ -86,7 +92,7 @@ PY
     rm -rf "$iconset" "$icon_black"
 fi
 
-cat > "$app/Contents/Info.plist" <<'PLIST'
+cat > "$app/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -106,9 +112,9 @@ cat > "$app/Contents/Info.plist" <<'PLIST'
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.0.0</string>
+    <string>$version</string>
     <key>CFBundleVersion</key>
-    <string>1.0.0</string>
+    <string>$version</string>
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>LSMinimumSystemVersion</key>
@@ -121,4 +127,17 @@ codesign --force --deep --sign - "$app"
 codesign --verify --deep --strict "$app"
 rm -rf "$publish"
 
+# Disk image: the app next to a link to /Applications.
+arch=arm64
+[ "$rid" = "osx-x64" ] && arch=x64
+dmg="$root/dist/Fm27Editor-mac-$arch.dmg"
+staging="$root/dist/dmg"
+rm -rf "$staging" "$dmg"
+mkdir -p "$staging"
+cp -R "$app" "$staging/"
+ln -s /Applications "$staging/Applications"
+hdiutil create -volname "FM27 Editor" -srcfolder "$staging" -ov -format UDZO "$dmg" >/dev/null
+rm -rf "$staging"
+
 echo "built $app"
+echo "built $dmg"

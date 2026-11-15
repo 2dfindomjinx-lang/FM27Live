@@ -101,10 +101,11 @@ public sealed partial class MainWindow
             var text = new TextBlock
             {
                 Text = Loc.S(label),
+                MaxWidth = 190,
                 FontSize = 13,
                 Foreground = UiKit.TextSecondary,
                 VerticalAlignment = VerticalAlignment.Center,
-                TextWrapping = TextWrapping.NoWrap,
+                TextWrapping = TextWrapping.Wrap,
                 Margin = new Thickness(0, 0, 5, 0),
             };
             Control inner;

@@ -30,7 +30,7 @@ internal sealed class RefereeScreen(IScreenHost host)
     }
 
     static RefereeRow Row(RefereeRecord r) => new(r, r.DisplayName, r.CurrentAbility, r.PotentialAbility, r.Reputation, r.UniqueId);
-    protected override IReadOnlyList<RefereeRow> LoadRows(GameSession session) => session.ReadReferees().Select(Row)
+    protected override IReadOnlyList<RefereeRow> LoadRows(GameSession session, LoadedGameData? data) => (data?.Referees ?? session.ReadReferees()).Select(Row)
         .OrderByDescending(x => x.CA).ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase).ToList();
     protected override bool Matches(RefereeRow row, string q) => Fold(row.Name).Contains(q, StringComparison.Ordinal) || row.Id.ToString(Inv).Contains(q, StringComparison.Ordinal);
     protected override RefereeRecord RecordOf(RefereeRow row) => row.Referee;

@@ -86,39 +86,53 @@ public sealed partial class MainWindow
 
     void InvalidateRetiringPlayers() => retiringDirty = true;
 
+    void ShowLoadedRetirements()
+    {
+        if (retiringDirty) RefreshRetiringPlayers();
+        else ApplyRetiringFilter();
+    }
+
+    List<RetiringRow> ReadRetiringRows(LoadedGameData? data = null)
+    {
+        var session = data?.Session ?? backend.Session;
+        // The retirement reader validates its vector twice against live memory. Cache only the subsequent person lookups.
+        var reader = new PlannedRetirements(session.Memory, session.Profile, session.ModuleBase);
+        if (!reader.IsSupported) return [];
+        var planned = reader.ReadAll();
+        IReadOnlyList<PlayerRecord> players = data?.Players ?? rows.OfType<PlayerRecord>().ToArray();
+        if (data is null && players.Count == 0) players = session.Players.LoadAll();
+        using var reads = new BulkReadScope(session.Memory);
+        var personReader = new PlannedRetirements(reads.Memory, session.Profile, session.ModuleBase);
+        var result = new List<RetiringRow>();
+        var found = new HashSet<uint>();
+        foreach (var p in players)
+        {
+            uint person;
+            try { person = personReader.PersonId(p); } catch (MemoryAccessException) { continue; } catch (StaleObjectException) { continue; }
+            if (!planned.TryGetValue(person, out var plan) || !found.Add(person)) continue;
+            result.Add(new(p.DisplayName, p.Age, p.NationalityName, p.ClubName, plan.Date, p, null));
+        }
+        if (found.Count < planned.Count)
+        {
+            var today = data?.GameDate ?? session.ReadGameDate();
+            foreach (var s in data?.Staff ?? session.Staff.LoadAll())
+            {
+                uint person = s.PersonIndex is { } index ? (uint)index : BitConverter.ToUInt32(reads.Memory.Read(s.Address + 0x8, 4));
+                if (!planned.TryGetValue(person, out var plan) || !found.Add(person)) continue;
+                int? age = s.DateOfBirth is { } born && today is { } d ? d.Year - born.Year - (d < born.AddYears(d.Year - born.Year) ? 1 : 0) : null;
+                result.Add(new(s.DisplayName, age, s.Nationality?.Name ?? "", s.Club?.ShortName ?? s.Club?.Name ?? "", plan.Date, null, s));
+            }
+        }
+        return result.OrderBy(r => r.RetirementDate ?? DateOnly.MaxValue).ThenBy(r => r.Name, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
     void RefreshRetiringPlayers()
     {
-        retiringDirty = false;
         if (backend.State.Status != ConnectionStatus.Connected) { retiringAllRows = []; ApplyRetiringFilter(); return; }
         try
         {
-            var session = backend.Session;
-            var reader = new PlannedRetirements(session.Memory, session.Profile, session.ModuleBase);
-            var planned = reader.ReadAll();
-            var players = rows.OfType<PlayerRecord>().ToList();
-            if (players.Count == 0) players = session.Players.LoadAll().ToList();
-            var result = new List<RetiringRow>();
-            var found = new HashSet<uint>();
-            foreach (var p in players)
-            {
-                uint person;
-                try { person = reader.PersonId(p); } catch (Exception) { continue; }
-                if (!planned.TryGetValue(person, out var plan) || !found.Add(person)) continue;
-                result.Add(new(p.DisplayName, p.Age, p.NationalityName, p.ClubName, plan.Date, p, null));
-            }
-            if (found.Count < planned.Count)
-            {
-                var today = session.ReadGameDate();
-                foreach (var s in session.Staff.LoadAll())
-                {
-                    // A staff member's person index sits where a player's does (person part + 0x8).
-                    uint person = s.PersonIndex is { } index ? (uint)index : BitConverter.ToUInt32(session.Memory.Read(s.Address + 0x8, 4));
-                    if (!planned.TryGetValue(person, out var plan) || !found.Add(person)) continue;
-                    int? age = s.DateOfBirth is { } born && today is { } d ? d.Year - born.Year - (d < born.AddYears(d.Year - born.Year) ? 1 : 0) : null;
-                    result.Add(new(s.DisplayName, age, s.Nationality?.Name ?? "", s.Club?.ShortName ?? s.Club?.Name ?? "", plan.Date, null, s));
-                }
-            }
-            retiringAllRows = result.OrderBy(r => r.RetirementDate ?? DateOnly.MaxValue).ThenBy(r => r.Name, StringComparer.OrdinalIgnoreCase).ToList();
+            retiringAllRows = ReadRetiringRows();
+            retiringDirty = false;
             ApplyRetiringFilter();
         }
         catch (Exception ex) { status.Text = UserMessage.For(ex); }

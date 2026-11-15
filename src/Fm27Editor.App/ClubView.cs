@@ -175,7 +175,7 @@ public sealed partial class MainWindow : IClubPanels
         }
         else gameDateBadge.IsVisible = false;
         UpdateConnectionBadge();
-        connection.Text = $"{backend.State.Message} · {clubs.Count:N0}";
+        if (clubsActive) connection.Text = $"{backend.State.Message} · {clubs.Count:N0}";
     }
 
     void IClubPanels.Reconnected()
@@ -420,7 +420,7 @@ public sealed partial class MainWindow : IClubPanels
                 ulong nationAddr = BitConverter.ToUInt64(nationPtrBuf);
                 if (nationAddr != 0)
                 {
-                    nationCatalogue ??= session.Nations.LoadAll().Where(n => n.DisplayName.Length > 0).OrderBy(n => n.DisplayName, StringComparer.OrdinalIgnoreCase).ToList();
+                    nationCatalogue ??= (backend.Data?.Nations ?? session.Nations.LoadAll()).Where(n => n.DisplayName.Length > 0).OrderBy(n => n.DisplayName, StringComparer.OrdinalIgnoreCase).ToList();
                     clubNation = nationCatalogue.FirstOrDefault(n => n.Address == nationAddr);
                 }
             }
@@ -962,7 +962,7 @@ public sealed partial class MainWindow : IClubPanels
             {
                 transferOffers = await Task.Run(() =>
                 {
-                    var staff = session.Staff.LoadAll();
+                    var staff = backend.Data?.Staff ?? session.Staff.LoadAll();
                     return session.Proposals.ReadForClub(club.Address, playerRecords, staff);
                 });
                 table = ClubListBuilder.BuildTransferCenter(transferOffers.Select(o => new ClubTransferOfferRow(
@@ -1036,10 +1036,10 @@ public sealed partial class MainWindow : IClubPanels
             var result = await Task.Run(() =>
             {
                 // An item index means a competition's index, a nation's position, a continent's position or a club, by its marker.
-                competitions ??= VisionCompetitionNames(session.Competitions.LoadAll());
+                competitions ??= VisionCompetitionNames((backend.Data?.Competitions ?? session.Competitions.LoadAll()));
                 if (nations is null || continents is null)
                 {
-                    var nationList = session.Nations.LoadAll();
+                    var nationList = (backend.Data?.Nations ?? session.Nations.LoadAll());
                     nations ??= nationList.Select((n, i) => (i, n.DisplayName)).ToDictionary(x => x.i, x => x.DisplayName);
                     continents ??= session.NationLinks.Continents(nationList).Select((c, i) => (i, c.Name)).ToDictionary(x => x.i, x => x.Name);
                 }
@@ -1191,7 +1191,7 @@ public sealed partial class MainWindow : IClubPanels
                         ClubVisionTargetChoice? picked = null;
                         if (targetKind == ClubVisionItemKind.Competition)
                         {
-                            var list = session.Competitions.LoadAll();
+                            var list = (backend.Data?.Competitions ?? session.Competitions.LoadAll());
                             picked = await PickerDialog.Show(this, Loc.S("Choose competition"), q => list
                                 .Where(c => !string.IsNullOrWhiteSpace(c.DisplayName))
                                 .Where(c => PickerSearch.Hit(q, c.DisplayName, c.ShortName, c.Id))
@@ -1200,7 +1200,7 @@ public sealed partial class MainWindow : IClubPanels
                         }
                         else if (targetKind == ClubVisionItemKind.Nation)
                         {
-                            var list = session.Nations.LoadAll();
+                            var list = (backend.Data?.Nations ?? session.Nations.LoadAll());
                             picked = await PickerDialog.Show(this, Loc.S("Choose nation"), q => list.Select((n, i) => (n, i))
                                 .Where(x => !string.IsNullOrWhiteSpace(x.n.DisplayName))
                                 .Where(x => PickerSearch.Hit(q, x.n.DisplayName, x.n.ShortName))
@@ -1209,7 +1209,7 @@ public sealed partial class MainWindow : IClubPanels
                         }
                         else if (targetKind == ClubVisionItemKind.Continent)
                         {
-                            var list = session.NationLinks.Continents(session.Nations.LoadAll());
+                            var list = session.NationLinks.Continents((backend.Data?.Nations ?? session.Nations.LoadAll()));
                             picked = await PickerDialog.Show(this, Loc.S("Choose continent"), q => list.Select((c, i) => (c, i))
                                 .Where(x => !string.IsNullOrWhiteSpace(x.c.Name))
                                 .Where(x => PickerSearch.Hit(q, x.c.Name))
@@ -1415,7 +1415,7 @@ public sealed partial class MainWindow : IClubPanels
             ClubVisionTargetChoice? picked = null;
             if (kind == ClubVisionItemKind.Competition)
             {
-                var list = session.Competitions.LoadAll();
+                var list = (backend.Data?.Competitions ?? session.Competitions.LoadAll());
                 picked = await PickerDialog.Show(this, Loc.S("Choose competition"), q =>
                     list.Where(c => !string.IsNullOrWhiteSpace(c.DisplayName))
                         .Where(c => PickerSearch.Hit(q, c.DisplayName, c.ShortName, c.Id))
@@ -1424,7 +1424,7 @@ public sealed partial class MainWindow : IClubPanels
             }
             else if (kind == ClubVisionItemKind.Nation)
             {
-                var list = session.Nations.LoadAll();
+                var list = (backend.Data?.Nations ?? session.Nations.LoadAll());
                 picked = await PickerDialog.Show(this, Loc.S("Choose nation"), q =>
                     list.Select((n, i) => (n, i)).Where(x => !string.IsNullOrWhiteSpace(x.n.DisplayName))
                         .Where(x => PickerSearch.Hit(q, x.n.DisplayName, x.n.ShortName))
@@ -1433,7 +1433,7 @@ public sealed partial class MainWindow : IClubPanels
             }
             else if (kind == ClubVisionItemKind.Continent)
             {
-                var list = session.NationLinks.Continents(session.Nations.LoadAll());
+                var list = session.NationLinks.Continents((backend.Data?.Nations ?? session.Nations.LoadAll()));
                 picked = await PickerDialog.Show(this, Loc.S("Choose continent"), q =>
                     list.Select((c, i) => (c, i)).Where(x => !string.IsNullOrWhiteSpace(x.c.Name))
                         .Where(x => PickerSearch.Hit(q, x.c.Name))
@@ -1796,7 +1796,7 @@ public sealed partial class MainWindow : IClubPanels
             if (!regionalCompetitionsLoading)
             {
                 regionalCompetitionsLoading = true;
-                _ = Task.Run(() => session.Competitions.LoadAll()
+                _ = Task.Run(() => (backend.Data?.Competitions ?? session.Competitions.LoadAll())
                         .Where(c => !string.IsNullOrWhiteSpace(c.Name))
                         .GroupBy(c => c.Id).ToDictionary(g => g.Key, g => g.First().Name!))
                     .ContinueWith(t => Avalonia.Threading.Dispatcher.UIThread.Post(() =>
@@ -2199,7 +2199,7 @@ public sealed partial class MainWindow : IClubPanels
     {
         var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
         IReadOnlyList<ClubEntry> clubs;
-        try { clubs = session.LoadClubs([]); } catch { clubs = []; }
+        try { clubs = clubCache ?? session.LoadClubs([]); } catch { clubs = []; }
         ClubEntry? chosenRival = null;
         var pick = new Button { Width = 300, HorizontalContentAlignment = HorizontalAlignment.Left, Content = Loc.S("Choose club…") };
         pick.Click += async (_, _) =>

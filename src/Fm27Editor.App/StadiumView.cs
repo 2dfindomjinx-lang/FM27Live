@@ -4,6 +4,7 @@ using Avalonia.Data;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Fm27Editor.Core.Game;
+using Fm27Editor.Core.Memory;
 using Fm27Editor.Core.Stadiums;
 
 namespace Fm27Editor.App;
@@ -51,10 +52,11 @@ internal sealed class StadiumScreen(IScreenHost host)
         grid.Columns.Add(id);
     }
 
-    protected override IReadOnlyList<StadiumRow> LoadRows(GameSession session)
+    protected override IReadOnlyList<StadiumRow> LoadRows(GameSession session, LoadedGameData? data)
     {
-        var writer = session.StadiumWriter;
-        return session.Stadiums.LoadAll()
+        using var reads = new BulkReadScope(session.Memory);
+        var writer = new StadiumWriter(reads.Memory, session.Profile, session.ModuleBase);
+        return (data?.Stadiums ?? session.Stadiums.LoadAll())
             .Select(s => new StadiumRow(s, s.DisplayName, s.Id, s.Owner?.DisplayName ?? "",
                 (int)(writer.ReadFields(s.Address).TryGetValue(StadiumField.Capacity, out var c) ? c : 0)))
             .OrderByDescending(r => r.Capacity).ToList();
@@ -354,7 +356,7 @@ internal sealed class StadiumScreen(IScreenHost host)
             new("Information", "Information", informationPanel),
             new("Stadium Details", "Stadium Details", detailsPanel),
         };
-        Editor.Children.Add(SectionHost.Build("stadium", sections, sectionKey, key => sectionKey = key, RailHost));
+        Editor.Children.Add(SectionHost.Build("stadium", sections, sectionKey, key => sectionKey = key, RailHost, Host.Window));
     }
 
     /// <summary>A value with a Change button, as FMRTE shows Owner and Location (a link to the owner when there is one).</summary>
@@ -383,12 +385,11 @@ internal sealed class StadiumScreen(IScreenHost host)
             .OrderBy(x => x.DisplayName, StringComparer.OrdinalIgnoreCase).Take(200).Select(x => (x.DisplayName, x)).ToList();
     });
 
-    IReadOnlyList<Fm27Editor.Core.Players.CityRecord>? cities;
 
     async Task<Fm27Editor.Core.Players.CityRecord?> ChooseCityAsync()
     {
         var session = Host.Backend.Session;
-        var all = cities ??= await Task.Run(() => session.Cities.LoadAll());
+        var all = Host.Backend.Data?.Cities ?? await Task.Run(() => session.Cities.LoadAll());
         var nations = Host.NationCatalogue.GroupBy(n => n.Address).ToDictionary(g => g.Key, g => g.First().DisplayName);
         return await PickerDialog.Show(Host.Window, Loc.S("Change Stadium Location"), q =>
         {

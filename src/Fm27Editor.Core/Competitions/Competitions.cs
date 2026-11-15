@@ -28,6 +28,12 @@ public sealed class CompetitionRepository(IProcessMemory memory, OffsetProfile p
     /// <param name="players">Supplies the players for the team fallback; called only when the list slot is unusable.</param>
     public IReadOnlyList<CompetitionRecord> LoadAll(Func<IReadOnlyList<PlayerRecord>>? players = null)
     {
+        using var reads = new BulkReadScope(memory);
+        return new CompetitionRepository(reads.Memory, profile, moduleBase).LoadAllCore(players);
+    }
+
+    IReadOnlyList<CompetitionRecord> LoadAllCore(Func<IReadOnlyList<PlayerRecord>>? players)
+    {
         var c = C;
         if (c.ListRootRva is not { } rva || c.ListOffset is not { } off) throw new InvalidOperationException("Profile has no competition list");
         ulong root = TryPointer(moduleBase + (ulong)rva) ?? 0;

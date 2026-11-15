@@ -4,6 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Fm27Editor.Core.Players;
+using Fm27Editor.Core.Memory;
 using Fm27Editor.Core.Settings;
 
 namespace Fm27Editor.App;
@@ -81,19 +82,30 @@ public sealed partial class MainWindow
 
     void InvalidateFutureTransfers() => futureDirty = true;
 
+    void ShowLoadedFutureTransfers()
+    {
+        if (futureDirty) RefreshFutureTransfers();
+        else ApplyFutureFilter();
+    }
+
+    List<FutureTransferRow> ReadFutureTransferRows(LoadedGameData? data = null)
+    {
+        var session = data?.Session ?? backend.Session;
+        IReadOnlyList<PlayerRecord> all = data?.Players ?? rows.OfType<PlayerRecord>().ToArray();
+        if (data is null && all.Count == 0) all = session.Players.LoadAll();
+        using var reads = new BulkReadScope(session.Memory);
+        return new FutureTransferReader(reads.Memory, session.Profile, session.ModuleBase).ReadAll(all)
+            .Select(x => new FutureTransferRow(x.Player, x.Transfer))
+            .OrderBy(r => r.Transfer.Date).ThenBy(r => r.Name, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
     void RefreshFutureTransfers()
     {
-        futureDirty = false;
         if (backend.State.Status != ConnectionStatus.Connected) { futureAllRows = []; ApplyFutureFilter(); return; }
         try
         {
-            var session = backend.Session;
-            var all = rows.OfType<PlayerRecord>().ToList();
-            if (all.Count == 0) all = session.Players.LoadAll().ToList();
-            futureAllRows = new FutureTransferReader(session.Memory, session.Profile, session.ModuleBase).ReadAll(all)
-                .Select(x => new FutureTransferRow(x.Player, x.Transfer))
-                .OrderBy(r => r.Transfer.Date).ThenBy(r => r.Name, StringComparer.OrdinalIgnoreCase)
-                .ToList();
+            futureAllRows = ReadFutureTransferRows();
+            futureDirty = false;
             ApplyFutureFilter();
         }
         catch (Exception ex) { status.Text = UserMessage.For(ex); }

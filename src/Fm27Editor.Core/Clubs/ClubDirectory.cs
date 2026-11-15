@@ -32,6 +32,12 @@ public static class ClubDirectory
     /// </summary>
     public static IReadOnlyList<ClubEntry> FromPlayers(IProcessMemory memory, IEnumerable<Players.PlayerRecord> players, OffsetProfile profile, ulong moduleBase)
     {
+        using var reads = new BulkReadScope(memory);
+        return FromPlayersCore(reads.Memory, players, profile, moduleBase);
+    }
+
+    static IReadOnlyList<ClubEntry> FromPlayersCore(IProcessMemory memory, IEnumerable<Players.PlayerRecord> players, OffsetProfile profile, ulong moduleBase)
+    {
         var t = profile.Team ?? throw new InvalidOperationException("Profile has no team offsets");
         var c = profile.Contract ?? throw new InvalidOperationException("Profile has no contract offsets");
         var teams = new HashSet<ulong>();

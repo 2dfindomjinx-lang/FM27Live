@@ -93,10 +93,11 @@ internal sealed class NationScreen(IScreenHost host)
         }
     }
 
-    protected override IReadOnlyList<NationRow> LoadRows(GameSession session)
+    protected override IReadOnlyList<NationRow> LoadRows(GameSession session, LoadedGameData? data)
     {
-        var fields = session.NationFields;
-        return session.Nations.LoadAll().Select(n =>
+        using var reads = new BulkReadScope(session.Memory);
+        var fields = new NationFieldAccess(reads.Memory, session.Profile, session.ModuleBase);
+        return (data?.Nations ?? session.Nations.LoadAll()).Select(n =>
         {
             var v = fields.ReadAll(n.Address);
             return new NationRow(n, n.DisplayName, n.Id, v.TryGetValue(NationField.FifaPosition, out var a) ? a : null,
@@ -260,7 +261,7 @@ internal sealed class NationScreen(IScreenHost host)
 
         string[] tabNames = ["Information", "National Teams", "Squads", "Kits and Colours", "Relationships", "Transfer Preferences", "Staff"];
         var sections = tabNames.Select((name, index) => new SectionHost.Section(name, name, pages[index])).ToArray();
-        Editor.Children.Add(SectionHost.Build("nation", sections, tabNames[Math.Clamp(selectedPage, 0, tabNames.Length - 1)], key => selectedPage = Array.IndexOf(tabNames, key), RailHost));
+        Editor.Children.Add(SectionHost.Build("nation", sections, tabNames[Math.Clamp(selectedPage, 0, tabNames.Length - 1)], key => selectedPage = Array.IndexOf(tabNames, key), RailHost, Host.Window));
 
         var badges = new WrapPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
         if (n.Id is { } nid) badges.Children.Add(UiKit.MetaText($"ID {nid.ToString(Inv)}"));
@@ -535,7 +536,8 @@ internal sealed class NationScreen(IScreenHost host)
         var nationOptions = allNations.Select(x => new AgreementTargetOption(x.Address, x.DisplayName)).OrderBy(x => x.Name).ToArray();
         var continentOptions = continents.Select(x => new AgreementTargetOption(x.Address, x.Name)).ToArray();
         var regionOptions = session.NationAgreements.Regions().Select(x => new AgreementTargetOption(x.Address, x.Name)).ToArray();
-        if (agreementOrganisations is null || agreementOrganisations.Count == 0)
+        agreementOrganisations ??= Host.Backend.Data?.AgreementOrganisations;
+        if (agreementOrganisations is null)
         {
             var found = new Dictionary<ulong, AgreementTargetOption>();
             foreach (var nation in allNations)
@@ -894,7 +896,7 @@ internal sealed class NationScreen(IScreenHost host)
                 bool continentsVector = vector == NationPreferences.ContinentsVector;
                 IReadOnlyList<NationPreference> PreferenceRows() => continentsVector
                     ? session.NationPreferences.ReadContinents(n, continentList)
-                    : session.NationPreferences.Read(n, session.Nations.LoadAll());
+                    : session.NationPreferences.Read(n, Host.Backend.Data?.Nations ?? session.Nations.LoadAll());
                 if (draft.PreferenceTargets.TryGetValue(vector, out var targets))
                     foreach (var (address, target) in targets.ToArray())
                     {

@@ -67,34 +67,59 @@ public sealed class TransferProposalReader(IProcessMemory memory, OffsetProfile 
     {
         if (profile.Proposals is not { } o || profile.Relations is not { } rel || profile.Club is not { } club ||
             !Q(clubAddress, out var clubVtable) || clubVtable != moduleBase + club.ClubVtableRva) return [];
+        var vector = OfferVector(o);
+        if (vector.Valid && vector.Count == 0) return [];
         var persons = new Dictionary<ulong, (string Name, int? Id)>();
         foreach (var player in players) persons.TryAdd(player.Address + (ulong)rel.PlayerPerson, (player.DisplayName, player.Id));
         foreach (var person in staff) persons.TryAdd(person.Address, (person.DisplayName, person.Id));
         // New builds point offer.person at the player's database object instead of the person part,
         // so match those offers back through the players' own id lists.
-        var byOfferId = new Dictionary<int, (string Name, int? Id)>();
-        foreach (var player in players)
-        {
-            if (!Q(player.Address + (ulong)o.PlayerIds, out ulong header) || header == 0) continue;
-            if (!Q(header, out ulong begin) || !Q(header + 8, out ulong end) || begin == 0 || end < begin || (end - begin) % 4 != 0 || (end - begin) / 4 > MaxIds) continue;
-            var ids = memory.Read(begin, (int)(end - begin));
-            for (int i = 0; i + 4 <= ids.Length; i += 4)
-                byOfferId.TryAdd(BitConverter.ToInt32(ids, i), (player.DisplayName, player.Id));
-        }
+        Dictionary<int, (string Name, int? Id)> byOfferId;
+        using (var reads = new BulkReadScope(memory))
+            byOfferId = new TransferProposalReader(reads.Memory, profile, moduleBase).PlayerNamesByOfferId(o, players);
         var result = new List<ClubTransferOffer>();
-        foreach (var address in OffersCached(o).Values)
+        foreach (var (address, expectedId) in OfferAddresses(o, vector))
         {
             var bytes = new byte[o.Status + 1];
             if (!memory.TryRead(address, bytes)) continue;
             ulong seller = TeamClub(BitConverter.ToUInt64(bytes, o.Seller));
             ulong buyer = TeamClub(BitConverter.ToUInt64(bytes, o.Buyer));
             if (seller != clubAddress && buyer != clubAddress) continue;
-            if (ReadOffer(address) is not { } offer || !ShownByFmrte(offer.Status)) continue;
+            if (ReadOffer(address) is not { } offer || (expectedId is { } id && offer.Id != id) || !ShownByFmrte(offer.Status)) continue;
             ulong person = BitConverter.ToUInt64(bytes, o.Person);
             if (!persons.TryGetValue(person, out var match) || match.Name is null) byOfferId.TryGetValue(offer.Id, out match);
             result.Add(new(offer, match.Name, match.Id, person, seller, buyer));
         }
         return result;
+    }
+
+    Dictionary<int, (string Name, int? Id)> PlayerNamesByOfferId(ProposalOffsets o, IReadOnlyList<PlayerRecord> players)
+    {
+        var result = new Dictionary<int, (string Name, int? Id)>();
+        foreach (var player in players)
+        {
+            if (!Q(player.Address + (ulong)o.PlayerIds, out ulong header) || header == 0) continue;
+            if (!Q(header, out ulong begin) || !Q(header + 8, out ulong end) || begin == 0 || end < begin || (end - begin) % 4 != 0 || (end - begin) / 4 > MaxIds) continue;
+            var ids = memory.Read(begin, (int)(end - begin));
+            for (int i = 0; i + 4 <= ids.Length; i += 4)
+                result.TryAdd(BitConverter.ToInt32(ids, i), (player.DisplayName, player.Id));
+        }
+        return result;
+    }
+
+    IEnumerable<(ulong Address, int? ExpectedId)> OfferAddresses(ProposalOffsets o, (bool Valid, ulong Begin, long Count) vector)
+    {
+        if (vector.Valid)
+        {
+            var pointers = memory.Read(vector.Begin, checked((int)vector.Count * 8));
+            for (int id = 0; id < vector.Count; id++)
+                if (BitConverter.ToUInt64(pointers, id * 8) is var address and not 0) yield return (address, id);
+        }
+        else
+        {
+            // Keep the original live memory here: the fallback needs its region-enumeration capability.
+            foreach (var address in OffersCached(o).Values) yield return (address, null);
+        }
     }
 
     ulong TeamClub(ulong team)
@@ -178,10 +203,13 @@ public sealed class TransferProposalReader(IProcessMemory memory, OffsetProfile 
         if (o.ManagerRva is not { } slot || o.ManagerVtable is not { } vtable) return default;
         if (!Q(moduleBase + slot, out ulong manager) || manager == 0) return default;
         if (!Q(manager, out ulong managerVtable) || managerVtable != moduleBase + vtable) return default;
-        if (!Q(manager + (ulong)o.OfferVector, out ulong begin) || !Q(manager + (ulong)o.OfferVector + 8, out ulong end)) return default;
-        if (begin == 0 || end < begin || (end - begin) % 8 != 0) return default;
+        Span<byte> header = stackalloc byte[24];
+        if (!memory.TryRead(manager + (ulong)o.OfferVector, header)) return default;
+        ulong begin = BitConverter.ToUInt64(header), end = BitConverter.ToUInt64(header[8..]), capacity = BitConverter.ToUInt64(header[16..]);
+        if (begin == 0) return end == 0 && capacity == 0 ? (true, 0UL, 0L) : default;
+        if (end < begin || capacity < end || (end - begin) % 8 != 0 || (capacity - begin) % 8 != 0) return default;
         long count = (long)((end - begin) / 8);
-        return count is > 0 and <= MaxOffers ? (true, begin, count) : default;
+        return count is >= 0 and <= MaxOffers ? (true, begin, count) : default;
     }
 
     /// <summary>
@@ -237,7 +265,7 @@ public sealed class TransferProposalReader(IProcessMemory memory, OffsetProfile 
     Dictionary<int, ulong> ScanOffers(ProposalOffsets o)
     {
         var map = new Dictionary<int, ulong>();
-        if (memory is not WindowsProcessMemory windows) return map;
+        if (memory is not IMemoryRegions regions) return map;
         ulong transfer = moduleBase + o.TransferVtable,
             loan = o.LoanVtable == 0 ? 0 : moduleBase + o.LoanVtable,
             trial = o.TrialVtable == 0 ? 0 : moduleBase + o.TrialVtable,
@@ -245,7 +273,7 @@ public sealed class TransferProposalReader(IProcessMemory memory, OffsetProfile 
         // Reading the game's writable memory is I/O bound (about 4 GB, ~200 MB/s on one thread), so the one-off
         // scan reads regions in parallel. Matches are rare, so each worker collects locally and merges once.
         var hits = new List<(int Id, ulong Address)>();
-        Parallel.ForEach(windows.EnumerateWritableRegions().Where(r => !r.IsModuleData),
+        Parallel.ForEach(regions.EnumerateWritableRegions().Where(r => !r.IsModuleData),
             new ParallelOptions { MaxDegreeOfParallelism = Math.Clamp(Environment.ProcessorCount, 2, 8) }, region =>
         {
             var buffer = new byte[1 << 22];

@@ -630,6 +630,7 @@ internal sealed partial class MassEditWindow : Window
     (IReadOnlyList<PlayerRecord> Source, IReadOnlyList<NationRecord> Nations, IReadOnlyList<ClubEntry> Clubs) LoadSearchData()
     {
         // Advanced Search scans the whole catalogue, not the list that happens to be on screen.
+        if (backend.Data is { } data) return (data.Players, data.Nations, data.Clubs);
         var source = backend.Session.Players.LoadAll().ToArray();
         return (source, backend.Session.Nations.LoadAll(), backend.Session.LoadClubs(source));
     }

@@ -794,6 +794,8 @@ public static partial class Loc
         m["On: every new regen gets PA {0}-{1}."] = "Đang bật: mọi cầu thủ trẻ mới nhận TN {0}-{1}.";
         m["On: new regens from {0} get PA {1}-{2}."] = "Đang bật: cầu thủ trẻ mới từ {0} nhận TN {1}-{2}.";
         m["Wonderkid Academy turned off."] = "Đã tắt Học viện Thần đồng.";
+        m["Turn on"] = "Bật";
+        m["Turn off"] = "Tắt";
         m["Wonderkid Academy: reverted."] = "Học viện Thần đồng: đã hoàn tác.";
         m["Wonderkid Academy: settings updated."] = "Học viện Thần đồng: đã cập nhật cài đặt.";
         m["Wonderkid Academy: How to use"] = "Học viện Thần đồng: Hướng dẫn sử dụng";

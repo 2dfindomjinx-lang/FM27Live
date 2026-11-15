@@ -62,7 +62,7 @@ public sealed record TransferDeal(
 public sealed class TransferDealReader(IProcessMemory memory, OffsetProfile profile, ulong moduleBase)
 {
     /// <summary>Deal class vtable RVAs: the profile's transfer vtable (Game Pass and Steam each name their own), plus two from FM Studio.</summary>
-    IEnumerable<uint> VtableRvas => profile.Proposals is { } p ? [p.TransferVtable, 74_494_248, 83_071_720] : [74_494_248, 83_071_720];
+    readonly ulong[] vtables = [moduleBase + (profile.Proposals?.TransferVtable ?? 74_494_248), moduleBase + 74_494_248, moduleBase + 83_071_720];
 
     const int PersonOffset = 0x38, BuyingTeamOffset = 0x40, SellingTeamOffset = 0x50;
     const int FeeOffset = 0x58, DayCounterOffset = 0x5C, AcceptFlagOffset = 0x84, StatusOffset = 0x88;
@@ -74,7 +74,7 @@ public sealed class TransferDealReader(IProcessMemory memory, OffsetProfile prof
         Span<byte> head = stackalloc byte[8];
         if (!memory.TryRead(address, head)) return false;
         ulong vtable = BitConverter.ToUInt64(head);
-        return VtableRvas.Any(rva => vtable == moduleBase + rva);
+        return vtables.AsSpan().Contains(vtable);
     }
 
     public TransferDeal? Read(ulong address)
@@ -116,29 +116,12 @@ public sealed class TransferDealReader(IProcessMemory memory, OffsetProfile prof
     }
 
     /// <summary>Every writable-memory object carrying a deal vtable (FM Studio scans the heap the same way).</summary>
-    public IReadOnlyList<ulong> Scan()
-    {
-        if (memory is not WindowsProcessMemory windows) return [];
-        var found = new List<ulong>();
-        var buffer = new byte[1 << 22];
-        foreach (var region in windows.EnumerateWritableRegions())
-        {
-            if (region.IsModuleData) continue;
-            for (ulong offset = 0; offset + 8 <= region.Size; offset += (ulong)buffer.Length)
-            {
-                int length = (int)Math.Min((ulong)buffer.Length, region.Size - offset);
-                if (!memory.TryRead(region.Start + offset, buffer.AsSpan(0, length))) break;
-                for (int i = 0; i + 8 <= length; i += 8)
-                {
-                    ulong vtable = BitConverter.ToUInt64(buffer, i);
-                    if (VtableRvas.Any(rva => vtable == moduleBase + rva))
-                        found.Add(region.Start + offset + (ulong)i);
-                }
-            }
-        }
-        return found;
-    }
+    public IReadOnlyList<ulong> VtableAddresses => Array.AsReadOnly(vtables);
 
+    /// <summary>Validated manager-owned candidates, or null when a complete owned index cannot be established.</summary>
+    public IReadOnlyList<ulong>? TryReadOwnedCandidates() => OwnedTransferDeals.Read(memory, profile, moduleBase, vtables);
+
+    public IReadOnlyList<ulong> Scan() => HeapVtableScanner.Scan(memory, vtables).Select(m => m.Address).ToArray();
     /// <summary>Club a team pointer belongs to, or null when the pointer is not a team of this build.</summary>
     public ulong ClubOf(ulong team)
     {

@@ -181,48 +181,25 @@ public sealed partial class MainWindow
     async Task ReloadGameAsync()
     {
         if (busy) return;
-        unifiedCacheLoaded = false;
-        unifiedCacheTask = null;
-        unifiedClubs = [];
-        unifiedNations = [];
-        unifiedCompetitions = [];
-        unifiedStaff = [];
-        unifiedStadiums = [];
-        unifiedAwards = [];
-        unifiedReferees = [];
-        personNames = null;
-        unifiedCities = [];
-        WorkPermitTable.Forget();
-        status.Text = Loc.S("Loading game…");
-        watchedSave = null;
         await ConnectAsync();
-        if (backend.State.Status == ConnectionStatus.Connected)
-        {
-            // Loading a save frees every object, so tabs opened against the old one would only show stale addresses.
-            CloseDetailTab();
-            drafts.Clear();
-            playerScalarDrafts.Clear();
-            clubDrafts.Clear();
-            if (staleOverlay is not null) staleOverlay.IsVisible = false;
-            if (SaveIsLoaded() && backend.Session.CanWrite)
-            {
-                try
-                {
-                    int removed = await Task.Run(() => backend.Session.AcceleratedDevelopment.RemoveStale());
-                    status.Text = Loc.F("Development speed: removed {0} stale player row(s).", removed);
-                }
-                catch (Exception ex) { status.Text = Loc.F("Development speed cleanup failed: {0}", UserMessage.For(ex)); }
-                try
-                {
-                    if (await Task.Run(() => backend.Session.GoldenGenerationHook.SwitchOff()))
-                        ShowNotice("Wonderkid Academy switched off",
-                            "A save was loaded, so Wonderkid Academy was switched off. Your settings are kept: switch it on again in the Hook Manager if you want it for this save.",
-                            ("OK", true, null));
-                }
-                catch (Exception ex) { status.Text = Loc.F("Wonderkid Academy could not be switched off: {0}", UserMessage.For(ex)); }
-            }
-        }
     }
+
+    async Task FinishReloadAsync(GameLoadReport report)
+    {
+        if (!backend.Session.CanWrite) return;
+        await Task.Run(() => report.Run("development cleanup", "Reading…", () =>
+        {
+            int removed = backend.Session.AcceleratedDevelopment.RemoveStale();
+            Fm27Editor.Core.Diagnostics.FlightRecorder.Current?.Log("load", $"development cleanup: removed {removed} stale player rows");
+        }));
+        bool switchedOff = false;
+        await Task.Run(() => report.Run("academy cleanup", "Reading…", () => switchedOff = backend.Session.GoldenGenerationHook.SwitchOff()));
+        if (switchedOff)
+            ShowNotice("Wonderkid Academy switched off",
+                "A save was loaded, so Wonderkid Academy was switched off. Your settings are kept: switch it on again in the Hook Manager if you want it for this save.",
+                ("OK", true, null));
+    }
+
 }
 
 /// <summary>

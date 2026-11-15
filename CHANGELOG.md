@@ -23,6 +23,11 @@ Checked on Steam `27.0.1+2503222` and Game Pass `27.0.1+2494687`.
   in forms, section lists, table headers and preferred-move checkboxes. Global Save and pending-edit stars recognise
   translated child Save buttons, including after switching language.
 
+- Load Game prepares entity lists, search and picker catalogues, retirement and future-transfer lists, and most shared lookups before reporting ready. Reloading from another module keeps its list populated.
+- Transfer Deals and agreement regions are read from the game's own transfer manager and database instead of a multi-gigabyte heap scan; the scan remains the fallback when that lookup can't be validated.
+- Bulk reads reuse nearby memory pages and shared names; work permits are discovered and fully validated inside the known transfer manager before falling back to a heap scan.
+- Search catalogues stay available for the loaded save. Reload and window close release old search results and stop their timers; the loading animation stops when hidden.
+- Wonderkid Academy has a Turn on / Turn off button that keeps its configuration and supports Undo.
 - Unticking Move now defaults Transfer Date to the day after the current in-game date.
 
 - Load Game removes stale Development Speed rows whose addresses now belong to different players, and reports the count.

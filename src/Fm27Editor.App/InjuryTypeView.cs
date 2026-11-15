@@ -37,9 +37,9 @@ internal sealed class InjuryTypeScreen(IScreenHost host)
     static InjuryTypeRow Row(InjuryType type, InjuryTypeDetails d) =>
         new(type, d.Name ?? type.Name ?? "", d.UniqueId, d.MinimumDays, d.ExtraDays, SeriousnessName(d.Seriousness));
 
-    protected override IReadOnlyList<InjuryTypeRow> LoadRows(GameSession session)
+    protected override IReadOnlyList<InjuryTypeRow> LoadRows(GameSession session, LoadedGameData? data)
     {
-        var players = Host.Players();
+        var players = data?.Players ?? Host.Players();
         var template = players.Count > 0 ? session.InjuryTemplate(players[0], players) : null;
         var access = session.InjuryTypeFields;
         return session.InjuryTypes(template).Select(t => access.Read(t) is { } d ? Row(t, d) : null).OfType<InjuryTypeRow>()

@@ -156,12 +156,14 @@ internal sealed class CompetitionScreen(IScreenHost host)
 
     protected override void BeforeLoad() => cachedPlayers = Host.Players().ToArray();
 
-    protected override IReadOnlyList<CompetitionRow> LoadRows(GameSession session)
+    protected override void OnReconnected() => cachedPlayers = [];
+
+    protected override IReadOnlyList<CompetitionRow> LoadRows(GameSession session, LoadedGameData? data)
     {
         fallbackUsed = false;
         try
         {
-            return session.Competitions.LoadAll()
+            return (data?.Competitions ?? session.Competitions.LoadAll())
                 .Select(c => new CompetitionRow(c, c.DisplayName, c.Reputation, c.Id))
                 .OrderByDescending(r => r.Reputation).ThenBy(r => r.Name, StringComparer.OrdinalIgnoreCase).ToList();
         }
@@ -545,7 +547,7 @@ internal sealed class CompetitionScreen(IScreenHost host)
 
         string chosen = sections.Any(s => s.Key == sectionKey) ? sectionKey : sections[0].Key;
         sectionKey = chosen;
-        Editor.Children.Add(SectionHost.Build("competition", sections, chosen, key => sectionKey = key, RailHost));
+        Editor.Children.Add(SectionHost.Build("competition", sections, chosen, key => sectionKey = key, RailHost, Host.Window));
     }
 
     static Grid TwoColumnsWide(Control left, Control right)

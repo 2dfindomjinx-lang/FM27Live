@@ -19,6 +19,12 @@ public sealed class AwardRepository(IProcessMemory memory, OffsetProfile profile
 
     public IReadOnlyList<AwardRecord> LoadAll()
     {
+        using var reads = new BulkReadScope(memory);
+        return new AwardRepository(reads.Memory, profile, moduleBase).LoadAllCore();
+    }
+
+    IReadOnlyList<AwardRecord> LoadAllCore()
+    {
         var a = A;
         ulong root = memory.ReadUInt64(moduleBase + (ulong)a.ListRootRva);
         ulong begin = root == 0 ? 0 : memory.ReadUInt64(root + (ulong)a.ListOffset), end = root == 0 ? 0 : memory.ReadUInt64(root + (ulong)a.ListOffset + 8);

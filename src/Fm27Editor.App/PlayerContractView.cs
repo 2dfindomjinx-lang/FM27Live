@@ -265,12 +265,11 @@ public sealed partial class MainWindow
             if (Build(known) is { } knownCard) host.Content = knownCard; else host.IsVisible = false;
             return host;
         }
-        // 27.0.1+ finds clauses by scanning the game's heap (several seconds). Read them off the UI thread so opening
-        // the Contract tab stays instant; the card fills in when the read finishes.
+        // Load Game has prepared the shared clause index. Read this player's current clause records here.
         _ = Task.Run(() =>
         {
             var players = Players();
-            var competitions = backend.Session.LoadCompetitions(players);
+            var competitions = competitionCache ??= backend.Session.LoadCompetitions(players);
             var scan = backend.Session.Profile.Club?.TransferClauses?.Scan == true;
             var clauses = (scan
                 ? backend.Session.ReadAllTransferClauses(competitions)

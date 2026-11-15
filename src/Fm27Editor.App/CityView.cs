@@ -22,10 +22,10 @@ internal sealed class CityScreen(IScreenHost host)
         grid.Columns.Add(id);
     }
 
-    protected override IReadOnlyList<CityRow> LoadRows(GameSession session)
+    protected override IReadOnlyList<CityRow> LoadRows(GameSession session, LoadedGameData? data)
     {
-        var nations = session.Nations.LoadAll().ToDictionary(n => n.Address, n => n.DisplayName);
-        return session.Cities.LoadAll()
+        var nations = (data?.Nations ?? session.Nations.LoadAll()).ToDictionary(n => n.Address, n => n.DisplayName);
+        return (data?.Cities ?? session.Cities.LoadAll())
             .Select(c => new CityRow(c, c.Name, nations.GetValueOrDefault(c.Nation, ""), c.Id))
             .OrderBy(r => r.Name, StringComparer.OrdinalIgnoreCase).ToList();
     }
@@ -112,6 +112,8 @@ internal sealed class CityScreen(IScreenHost host)
 
     readonly Dictionary<CityLink, IReadOnlyList<CityLinkTarget>> linkCatalogues = [];
 
+    protected override void OnReconnected() => linkCatalogues.Clear();
+
     string LinkName(CityLink link, ulong target)
     {
         if (target == 0) return "";
@@ -159,8 +161,15 @@ internal sealed class CityScreen(IScreenHost host)
         }
         if (!linkCatalogues.TryGetValue(link, out var catalogue))
         {
-            var cities = Rows.Select(r => r.City).ToList();
-            linkCatalogues[link] = catalogue = await Task.Run(() => session.CityLinks.Catalogue(cities, link));
+            if (Host.Backend.Data is { } data && ReferenceEquals(data.Session, session))
+                catalogue = data.CityLinkCatalogues.GetValueOrDefault(link) ?? [];
+            else
+            {
+                var cities = Rows.Select(r => r.City).ToList();
+                catalogue = await Task.Run(() => session.CityLinks.Catalogue(cities, link));
+                if (!ReferenceEquals(Host.Backend.Session, session)) return null;
+            }
+            linkCatalogues[link] = catalogue;
         }
         string title = link switch { CityLink.Region => Loc.S("Change Local Region"), CityLink.Language => Loc.S("Change Language"), _ => Loc.S("Change Weather") };
         var target = await PickerDialog.Show(Host.Window, title, q =>

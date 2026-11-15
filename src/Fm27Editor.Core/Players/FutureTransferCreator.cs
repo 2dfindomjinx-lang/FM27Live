@@ -7,7 +7,8 @@ namespace Fm27Editor.Core.Players;
 /// <summary>Creation of a future transfer, traced on FMRTE for Game Pass 27.0.0+2493426. Call only with an attached, build-checked session.</summary>
 public sealed class FutureTransferCreator(IProcessMemory memory, OffsetProfile profile, ulong moduleBase)
 {
-    const int OfferSerial = 0x7D4, ChangedFlag = 0x50, ContractBytes = 200;
+    internal const int OfferSerial = 0x7D4;
+    const int ChangedFlag = 0x50, ContractBytes = 200;
     const int MaxOffers = 100_000, MaxPlayerOffers = 100;
 
     public sealed record Plan(PlayerRecord Player, ulong Buyer, ulong Seller, int Fee, DateOnly Today, DateOnly Date,

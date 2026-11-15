@@ -21,6 +21,7 @@ public interface IEditorBackend
 public sealed class EditorBackend : IEditorBackend, IDisposable
 {
     GameSession? session;
+    internal LoadedGameData? Data { get; private set; }
     public FreezeRunner? Freezer { get; private set; }
     public string? FreezeError { get; private set; }
     static string FreezePath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Fm27Editor", "frozen.json");
@@ -34,6 +35,7 @@ public sealed class EditorBackend : IEditorBackend, IDisposable
     public bool SaveChanged { get; set; }
     public async Task ConnectAsync(CancellationToken ct)
     {
+        Data = null;
         Freezer = null;
         FreezeError = null;
         session?.Dispose(); session = null;
@@ -42,8 +44,7 @@ public sealed class EditorBackend : IEditorBackend, IDisposable
             var attached = await Task.Run(() => GameSession.Attach(GameSession.LoadProfiles(Path.Combine(AppContext.BaseDirectory, "offsets")), true), ct);
             session = attached;
             SaveChanged = false;
-            // No heap scan is started here: the clause, region and work-permit scans each take several seconds and
-            // compete with the player read that follows the attach, so they run lazily the first time a screen needs them.
+            // The window owns the complete load barrier; catalogue reads and shared initialization follow this attach.
             var journal = new ChangeJournal();
             var recorder = FlightRecorder.Current;
             recorder?.Log("game", $"attached {attached.Profile.Build}; writable {attached.CanWrite}");
@@ -54,11 +55,6 @@ public sealed class EditorBackend : IEditorBackend, IDisposable
             };
             attached.Process.OnAllocate = journal.NoteAllocation;
             Edits = new EditService(attached.Writer, attached.Players, AcceptFrozenEdit, journal, p => PlayerChangeLabels.For(attached.Profile, p.Address)) { Blocked = () => SaveChanged };
-            if (attached.CanWrite)
-            {
-                try { Freezer = await Task.Run(() => new FreezeRunner(attached, FreezePath), ct); }
-                catch (Exception ex) when (ex is not OperationCanceledException) { FreezeError = ex.Message; }
-            }
             State = new(ConnectionStatus.Connected, attached.CanWrite ? attached.Profile.Build :
                 $"{attached.Profile.Build} (read-only)");
         }
@@ -66,6 +62,22 @@ public sealed class EditorBackend : IEditorBackend, IDisposable
         catch (Exception ex) when (ex is not OperationCanceledException) { State = new(ConnectionStatus.Disconnected, UserMessage.For(ex)); FlightRecorder.Current?.Log("game", "not connected: " + ex.Message); }
         StateChanged?.Invoke(this, EventArgs.Empty);
     }
+    internal async Task<LoadedGameData> LoadDataAsync(GameLoadReport report, CancellationToken ct)
+    {
+        var current = Session;
+        var loaded = await Task.Run(() => LoadedGameData.Read(current, report), ct);
+        if (!ReferenceEquals(session, current)) throw new InvalidOperationException("The game connection changed while loading");
+        return Data = loaded;
+    }
+
+    internal void InitializeFreezer(LoadedGameData data)
+    {
+        if (!ReferenceEquals(session, data.Session)) throw new InvalidOperationException("The game connection changed while loading");
+        if (!data.Session.CanWrite) return;
+        try { Freezer = new FreezeRunner(data.Session, FreezePath, data.Players, data.Clubs, data.Staff); }
+        catch (Exception ex) { FreezeError = ex.Message; throw; }
+    }
+
     public void TickFreezer()
     {
         if (SaveChanged || Freezer is not { } freezer || (freezer.Players.Count == 0 && freezer.Clubs.Count == 0 && freezer.Staff.Count == 0)) return;
@@ -97,7 +109,7 @@ public sealed class EditorBackend : IEditorBackend, IDisposable
         catch (Exception ex) { Freezer = null; FreezeError = ex.Message; }
     }
 
-    public void Dispose() { Freezer = null; session?.Dispose(); session = null; }
+    public void Dispose() { Data = null; Freezer = null; session?.Dispose(); session = null; }
 }
 
 /// <summary>A write was refused because the game now holds another save than the one the editor read.</summary>

@@ -9,6 +9,15 @@ public interface IProcessMemory
     bool TryWrite(ulong address, ReadOnlySpan<byte> data);
 }
 
+/// <summary>A provider that supports simultaneous read-only calls from independent worker threads.</summary>
+public interface IConcurrentMemoryReads : IProcessMemory { }
+
+/// <summary>Optional enumeration of writable regions for read-only discovery; omissions do not prove absence.</summary>
+public interface IMemoryRegions
+{
+    IEnumerable<MemoryRegion> EnumerateWritableRegions(ulong imageStart = 0, ulong imageEnd = 0);
+}
+
 public static class ProcessMemoryExtensions
 {
     public static byte[] Read(this IProcessMemory memory, ulong address, int length)
@@ -29,4 +38,8 @@ public static class ProcessMemoryExtensions
 
 public sealed class MemoryAccessException(string message) : Exception(message);
 
-public readonly record struct MemoryRegion(ulong Start, ulong Size, bool IsModuleData);
+public readonly record struct MemoryRegion(ulong Start, ulong Size, bool IsModuleData)
+{
+    /// <summary>OS guard pages are reserved access traps, not readable object storage.</summary>
+    public bool IsGuard { get; init; }
+}

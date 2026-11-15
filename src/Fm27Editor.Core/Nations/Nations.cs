@@ -38,6 +38,12 @@ public sealed class NationRepository(IProcessMemory memory, OffsetProfile profil
     /// <summary>Every nation in the game's nation vector, in its order.</summary>
     public IReadOnlyList<NationRecord> LoadAll()
     {
+        using var reads = new BulkReadScope(memory);
+        return new NationRepository(reads.Memory, profile, moduleBase).LoadAllCore();
+    }
+
+    IReadOnlyList<NationRecord> LoadAllCore()
+    {
         var n = N;
         if (n.ListRootRva is not { } rva || n.ListOffset is not { } off) throw new InvalidOperationException("Profile has no nation list");
         try

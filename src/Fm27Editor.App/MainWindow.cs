@@ -124,15 +124,15 @@ public sealed partial class MainWindow : Window
     void ShowRetirementsTab()
     {
         retiringView ??= BuildRetiringView();
-        OpenKindTab("list", 1, Loc.S("Retire Date"), retiringView, RefreshRetiringPlayers);
-        RefreshRetiringPlayers();
+        OpenKindTab("list", 1, Loc.S("Retire Date"), retiringView, ShowLoadedRetirements);
+        ShowLoadedRetirements();
     }
 
     void ShowFutureTransfersTab()
     {
         futureView ??= BuildFutureTransfersView();
-        OpenKindTab("list", 2, Loc.S("Future Transfers"), futureView, RefreshFutureTransfers);
-        RefreshFutureTransfers();
+        OpenKindTab("list", 2, Loc.S("Future Transfers"), futureView, ShowLoadedFutureTransfers);
+        ShowLoadedFutureTransfers();
     }
 
     StackPanel editor = new() { Spacing = 12, Margin = new Thickness(18, 14) };
@@ -166,10 +166,9 @@ public sealed partial class MainWindow : Window
         FontSize = 13;
         Foreground = UiKit.TextPrimary;
 
-        unifiedReleaseTimer = CreateUnifiedReleaseTimer();
         StartSaveWatcher();
         // A child tab's own pending edits star that tab (SectionHost) and the entity tab above it.
-        SectionHost.SectionEdited += (_, dirty) => { if (dirty) SetActiveTabDirty(true); };
+        SectionHost.SectionEdited += OnSectionEdited;
         KeyDown += (_, e) =>
         {
             if (e.Key == Avalonia.Input.Key.M && (e.KeyModifiers & Avalonia.Input.KeyModifiers.Control) != 0)
@@ -254,10 +253,11 @@ public sealed partial class MainWindow : Window
         modules.DisplayMemberBinding = new Binding("Title");
         modules.SelectionChanged += async (_, _) =>
         {
-            module = modules.SelectedItem as IEditorModule;
+            if (modules.SelectedItem is not IEditorModule chosen) return;
+            module = chosen;
             ConfigureColumns();
-            status.Text = "";
-            if (backend.State.Status == ConnectionStatus.Connected && module is not null && rows.Count == 0) await LoadAsync();
+            if (!busy) status.Text = "";
+            if (!busy && backend.State.Status == ConnectionStatus.Connected && rows.Count == 0 && backend.Data is null) await LoadAsync();
         };
         grid.SelectionChanged += (_, _) =>
         {
@@ -279,7 +279,21 @@ public sealed partial class MainWindow : Window
         ToolGrid.EnableRangeSelect(grid);
         Opened += (_, _) => { modules.SelectedIndex = 0; timer.Start(); };
         LanguageSetting.Changed += OnLanguageChanged;
-        Closed += (_, _) => { LanguageSetting.Changed -= OnLanguageChanged; timer.Stop(); backend.Dispose(); FlightRecorder.Current?.Close(); };
+        Closed += (_, _) =>
+        {
+            LanguageSetting.Changed -= OnLanguageChanged;
+            SectionHost.SectionEdited -= OnSectionEdited;
+            SectionHost.Release(this);
+            timer.Stop();
+            saveWatcher.Stop();
+            CloseUnified();
+            lastUnifiedResults.Clear();
+            HideLoading();
+            latestPlayerSearch.Cancel();
+            playerSearchIndex.Clear();
+            backend.Dispose();
+            FlightRecorder.Current?.Close();
+        };
         timer.Tick += async (_, _) => await CheckSelectedAsync();
         timer.Tick += (_, _) =>
         {
@@ -301,6 +315,11 @@ public sealed partial class MainWindow : Window
         refereeScreen = AddScreen(host => new RefereeScreen(host));
         AddScreen(host => new InjuryTypeScreen(host));
         ShowModule("Players");
+    }
+
+    void OnSectionEdited(string entity, bool dirty)
+    {
+        if (dirty && SectionHost.OwnedBy(entity, this)) SetActiveTabDirty(true);
     }
 
     void InitializeFilterControls()
@@ -474,8 +493,8 @@ public sealed partial class MainWindow : Window
     {
         lock (catalogueLock)
         {
-            nationCatalogue ??= backend.Session.Nations.LoadAll().Where(n => n.DisplayName.Length > 0).OrderBy(n => n.DisplayName, StringComparer.OrdinalIgnoreCase).ToList();
-            clubCache ??= backend.Session.LoadClubs(players);
+            nationCatalogue ??= (backend.Data?.Nations ?? backend.Session.Nations.LoadAll()).Where(n => n.DisplayName.Length > 0).OrderBy(n => n.DisplayName, StringComparer.OrdinalIgnoreCase).ToList();
+            clubCache ??= backend.Data?.Clubs ?? backend.Session.LoadClubs(players);
         }
     }
 
@@ -498,8 +517,8 @@ public sealed partial class MainWindow : Window
         var dialog = new AttributeFilterDialog(current, savedPresets, activePresetName, players,
             nations,
             clubs,
-            staffSource: connected ? () => backend.Session.Staff.LoadAll() : null,
-            clubSource: connected ? () => backend.Session.LoadClubs(players) : null,
+            staffSource: connected ? () => backend.Data?.Staff ?? backend.Session.Staff.LoadAll() : null,
+            clubSource: connected ? () => clubCache ?? backend.Session.LoadClubs(players) : null,
             staffRelations: statusReader is null ? null : staff => statusReader.Read(backend.Session.Owner(staff)).Entries,
             clubAccess: connected ? new Fm27Editor.Core.Clubs.ClubFieldAccess(backend.Session.Memory, backend.Session.Profile, backend.Session.ModuleBase) : null,
             today: connected ? backend.Session.ReadGameDate() : null);
@@ -835,11 +854,18 @@ public sealed partial class MainWindow : Window
     {
         if (busy) return;
         busy = true;
+        var elapsed = Stopwatch.StartNew();
+        var report = new GameLoadReport(SetLoadingDetail);
+        bool loaded = false;
+        FlightRecorder.Current?.Log("load", "started");
         ShowLoading(Loc.S("Connecting to the game…"));
         connection.Text = Loc.S("Connecting…"); connectionDot.Fill = Brush("#94A3B8");
         try
         {
+            ResetLoadedGame();
+            var attach = Stopwatch.StartNew();
             await backend.ConnectAsync(CancellationToken.None);
+            FlightRecorder.Current?.Log("load", $"attach: {attach.ElapsedMilliseconds} ms; {backend.State.Status}");
             Fm27Editor.Core.Settings.GameCurrency.TryApply();
             FlightRecorder.Current?.Log("game", $"connect result {backend.State.Status}: {backend.State.Message}");
             squadPresetUndo.Clear();
@@ -851,65 +877,57 @@ public sealed partial class MainWindow : Window
             if (backend.State.Status == ConnectionStatus.Connected)
             {
                 backend.Edits.ContextProvider = EditContext;
-                ShowLoading(Loc.S("Reading players…"));
-                await LoadAsync();
-                bool saveLoaded = SaveIsLoaded();
-                if (!saveLoaded) ShowNoSaveNotice(); else noSaveAtConnect = false;
-                if (saveLoaded)
+                if (!SaveIsLoaded()) ShowNoSaveNotice();
+                else
                 {
-                    // Everything a screen or search would otherwise read on its first click is read now, one list at a
-                    // time, under the loading screen. The work-permit table stays lazy: that heap scan is the slow one and
-                    // only the tabs that need it should pay for it.
-                    var loadedPlayers = rows.OfType<PlayerRecord>().ToArray();
-                    ShowLoading(Loc.S("Reading clubs and nations…"));
-                    await Task.Run(() => WarmCatalogues(loadedPlayers));
-                    ShowLoading(Loc.S("Reading search lists…"));
-                    await EnsureUnifiedCacheAsync(SetLoadingDetail);
-                    ShowLoading(Loc.S("Reading career plans…"));
-                    try { await Task.Run(() => WarmCareerCatalogue(loadedPlayers)); }
-                    catch (Exception ex) { FlightRecorder.Current?.Log("warm", $"career plans: {ex.Message}"); }
-                    ShowLoading(Loc.S("Reading…"));
-                    await Task.Run(() =>
-                    {
-                        // Each step on its own, so one that fails on this build does not skip the others.
-                        void Warm(string what, Action step)
-                        {
-                            try { step(); }
-                            catch (Exception ex) { FlightRecorder.Current?.Log("warm", $"{what}: {ex.Message}"); }
-                        }
-                        Warm("wonderkid academy site", () => backend.Session.GoldenGenerationHook.FindSite());
-                        Warm("development speed site", () => backend.Session.AcceleratedDevelopment.FindSite());
-                    });
-                    // Profiles still on the clause heap scan (Game Pass until measured live) warm it in the
-                    // background; Steam reads the club vector and skips this.
-                    if (backend.Session.Profile.Club?.TransferClauses is { Scan: true })
-                        _ = Task.Run(() => backend.Session.EnsureTransferClausesLoaded());
+                    noSaveAtConnect = false;
+                    var data = await backend.LoadDataAsync(report, CancellationToken.None);
+                    await LoadAsync(data);
+                    await PrepareLoadedGameAsync(data, report);
+                    await FinishReloadAsync(report);
+                    if (staleOverlay is not null) staleOverlay.IsVisible = false;
+                    loaded = true;
                 }
             }
             else { gameDateBadge.IsVisible = false; status.Text = Loc.S(backend.State.Message); }
-            if (backend.FreezeError is { } error) status.Text = Loc.F("Freezer unavailable: {0}", error);
+            if (report.Errors.Count > 0) status.Text = string.Join("; ", report.Errors);
+            else if (backend.FreezeError is { } error) status.Text = Loc.F("Freezer unavailable: {0}", error);
         }
-        finally { HideLoading(); busy = false; }
+        catch (Exception ex)
+        {
+            report.Fail("load", ex);
+            status.Text = UserMessage.For(ex);
+        }
+        finally
+        {
+            HideLoading();
+            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+            FlightRecorder.Current?.Log("load", $"{(loaded && report.Succeeded ? "ready" : "incomplete")}: {elapsed.ElapsedMilliseconds} ms; errors {report.Errors.Count}");
+            busy = false;
+        }
     }
 
-    async Task LoadAsync()
+    async Task LoadAsync(LoadedGameData? data = null)
     {
-        if (module is null) return;
+        module ??= Modules.Registered.OfType<PlayersModule>().Single();
         int current = ++generation;
         var elapsed = Stopwatch.StartNew();
         try
         {
-            var loaded = await module.LoadAsync(backend, CancellationToken.None);
+            var loaded = data is null
+                ? await module.LoadAsync(backend, CancellationToken.None)
+                : data.Players.OrderByDescending(p => p.CurrentAbility).Cast<object>().ToArray();
+            if (data is not null) RegenIds.Current = RegenIds.FirstCreatedId(data.Players.Where(p => p.Id is not null).Select(p => p.Id!.Value));
             if (current != generation) return;
             rows = loaded;
             InvalidateRetiringPlayers();
-            if (retiringGrid?.IsVisible == true) RefreshRetiringPlayers();
+            if (data is null && retiringGrid?.IsVisible == true) RefreshRetiringPlayers();
             InvalidateFutureTransfers();
-            if (futureGrid?.IsVisible == true) RefreshFutureTransfers();
+            if (data is null && futureGrid?.IsVisible == true) RefreshFutureTransfers();
             selected = null;
             drafts.Clear();
             contractDrafts.Clear();
-            clubCache = null; competitionCache = null; playerSource = null; languageCatalogue = null; nationCatalogue = null; cityCatalogue = null; careerCatalogue = null;
+            playerSource = loaded.OfType<PlayerRecord>().ToArray();
             editor.Children.Clear();
 
             if (backend.GameDate is { } gd)
@@ -923,13 +941,13 @@ public sealed partial class MainWindow : Window
             }
 
             PopulateFilterDropdowns();
-            Filter();
+            await FilterInternal(reportStatus: true, immediate: true);
             RebindPlayerTabs();
             UpdateConnectionBadge();
             if (rows.Count == 0) status.Text = Loc.S("0 players");
             FlightRecorder.Current?.Log("game", $"loaded {rows.Count} {module.Title} rows in {elapsed.ElapsedMilliseconds} ms");
         }
-        catch (Exception ex) { status.Text = UserMessage.For(ex); }
+        catch (Exception ex) { if (data is not null) throw; status.Text = UserMessage.For(ex); }
     }
 
     void ConfigureColumns()
@@ -1008,11 +1026,11 @@ public sealed partial class MainWindow : Window
         activeMinPa is not null || activeMaxPa is not null || activePositions.Count > 0 || activePositionRanges.Count > 0 ||
         activeNumericRanges.Count > 0 || activePreferredMoves != 0 || activeAttrThresholds.Count > 0 || activeRelationships.Count > 0;
 
-    async Task FilterInternal(bool reportStatus)
+    async Task FilterInternal(bool reportStatus, bool immediate = false)
     {
         int version = ++searchVersion;
         exportCsvButton.IsEnabled = exportJsonButton.IsEnabled = false;
-        if (module is null) return;
+        if (module is null) { if (immediate) throw new InvalidOperationException("The player module is unavailable"); return; }
         var currentRows = rows;
         var currentModule = module;
         IReadOnlyList<object>? result;
@@ -1027,10 +1045,11 @@ public sealed partial class MainWindow : Window
             try
             {
                 result = await latestPlayerSearch.RunAsync(
-                    ct => playerSearchIndex.Filter(currentRows, pm, filter, sort, ct), TimeSpan.FromMilliseconds(100));
+                    ct => playerSearchIndex.Filter(currentRows, pm, filter, sort, ct), immediate ? TimeSpan.Zero : TimeSpan.FromMilliseconds(100));
             }
-            catch (Exception ex) { status.Text = UserMessage.For(ex); return; }
-            if (result is null || version != searchVersion || !ReferenceEquals(rows, currentRows) || !ReferenceEquals(module, currentModule)) return;
+            catch (Exception ex) { if (immediate) throw; status.Text = UserMessage.For(ex); return; }
+            if (result is null || version != searchVersion || !ReferenceEquals(rows, currentRows) || !ReferenceEquals(module, currentModule))
+            { if (immediate) throw new InvalidOperationException("The player filter changed while loading"); return; }
             if (result is not null && NeedsContractDetailSearch(filter))
             {
                 try
@@ -1038,10 +1057,11 @@ public sealed partial class MainWindow : Window
                     var criteria = new ContractSearchCriteria(filter.ContractType, filter.AgreedPlayingTime) { Clauses = filter.Clauses };
                     var snapshot = result.OfType<PlayerRecord>().ToArray();
                     var found = await Task.Run(() => new ContractSearch(backend.Session.Contracts).Find(snapshot, criteria));
-                    if (version != searchVersion || !ReferenceEquals(rows, currentRows) || !ReferenceEquals(module, currentModule)) return;
+                    if (version != searchVersion || !ReferenceEquals(rows, currentRows) || !ReferenceEquals(module, currentModule))
+                    { if (immediate) throw new InvalidOperationException("The player filter changed while loading"); return; }
                     result = found.Matches.Cast<object>().ToArray();
                 }
-                catch (Exception ex) { status.Text = UserMessage.For(ex); return; }
+                catch (Exception ex) { if (immediate) throw; status.Text = UserMessage.For(ex); return; }
             }
         }
         else
@@ -1059,7 +1079,8 @@ public sealed partial class MainWindow : Window
             result = (await Task.Run(() => FilterByRelationships(candidates))).Cast<object>().ToArray();
         }
 
-        if (result is null) return;
+        if (result is null || version != searchVersion || !ReferenceEquals(rows, currentRows) || !ReferenceEquals(module, currentModule))
+        { if (immediate) throw new InvalidOperationException("The player filter changed while loading"); return; }
         var prevSelectedAddress = selected?.Address;
         updating = true;
         grid.ItemsSource = result;
@@ -1203,7 +1224,7 @@ public sealed partial class MainWindow : Window
             int? natId = nation.Id;
             if (natId is null or <= 0)
             {
-                nationCatalogue ??= backend.Session.Nations.LoadAll().Where(n => n.DisplayName.Length > 0).OrderBy(n => n.DisplayName, StringComparer.OrdinalIgnoreCase).ToList();
+                nationCatalogue ??= (backend.Data?.Nations ?? backend.Session.Nations.LoadAll()).Where(n => n.DisplayName.Length > 0).OrderBy(n => n.DisplayName, StringComparer.OrdinalIgnoreCase).ToList();
                 natId = nationCatalogue.FirstOrDefault(n => n.Address == nation.Address)?.Id
                     ?? nationCatalogue.FirstOrDefault(n => string.Equals(n.Name, player.NationalityName, StringComparison.OrdinalIgnoreCase))?.Id;
             }
@@ -1288,7 +1309,7 @@ public sealed partial class MainWindow : Window
             getSquadPlayers: null,
             onStatus: msg => status.Text = msg);
         var sectionHost = SectionHost.Build("player", sections, pendingSection,
-            key => actions.IsVisible = key == "Information", playerTab?.Rail);
+            key => actions.IsVisible = key == "Information", playerTab?.Rail, this);
         pendingSection = null;
         PublishSections(player);
         var bodyGrid = new Grid

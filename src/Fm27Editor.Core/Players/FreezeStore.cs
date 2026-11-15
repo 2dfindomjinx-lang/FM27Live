@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 using Fm27Editor.Core.Clubs;
 using Fm27Editor.Core.Game;
 using Fm27Editor.Core.Staff;
+using Fm27Editor.Core.Offsets;
 
 namespace Fm27Editor.Core.Players;
 
@@ -18,10 +19,13 @@ internal partial class FreezeJsonContext : JsonSerializerContext;
 public static class FreezeStore
 {
     /// <summary>Like FMLibreEditor, keys a career by storefront and its human-manager IDs.</summary>
-    public static string SaveKey(GameSession session)
+    public static string SaveKey(GameSession session) => SaveKey(session.Profile, session.Staff.LoadAll());
+
+    /// <summary>The same save identity, using the staff list already read by Load Game.</summary>
+    public static string SaveKey(OffsetProfile profile, IEnumerable<StaffRecord> staff)
     {
-        string store = session.Profile.Build.Contains("Game Pass", StringComparison.OrdinalIgnoreCase) ? "gamepass" : "steam";
-        int[] ids = session.Staff.LoadAll().Where(s => s.Kind.Manager).Select(s => s.Id).Order().ToArray();
+        string store = profile.Build.Contains("Game Pass", StringComparison.OrdinalIgnoreCase) ? "gamepass" : "steam";
+        int[] ids = staff.Where(s => s.Kind.Manager).Select(s => s.Id).Order().ToArray();
         if (ids.Length == 0 || ids.Any(id => id <= 0) || ids.Distinct().Count() != ids.Length)
             throw new InvalidOperationException("Cannot identify the save's human managers");
         return store + ":" + string.Join(',', ids);

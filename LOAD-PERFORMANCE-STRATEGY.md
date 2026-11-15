@@ -119,6 +119,7 @@ The final bounded SectionHost cleanup happened after these four timings. Its ful
 - All 293 upstream App tests passed in an isolated copy using the proven headless test host. Production and test method sources were unchanged. The normal upstream App test host fails AppKit initialization on Mac; no test was skipped or weakened.
 - Windows x64 self-contained publish succeeded.
 - No upstream offset JSON changed. Steam and Game Pass profile fixtures passed.
+- After PR creation, GitHub Actions ran the actual Windows test suite successfully: 1,296 Core + 293 App tests, zero failures or skips, on Windows Server 2025. Run: https://github.com/Jackhamerp24/Football-Manager-27-Editor/actions/runs/43687799782 . This supersedes the local platform-failure uncertainty above; the local comparison remains useful diagnostic history.
 - Live Windows Game Pass/Steam timing was not available and must not be claimed.
 
 ## Priority 1: finish Transfer Deals before claiming the original goal
@@ -208,3 +209,7 @@ Only then claim the original goal is achieved. Aim for 3 seconds; do not describ
 - [ ] No merge or branch-protection change occurs without the user's requested action.
 
 The original performance goal remains active/incomplete at this handoff. The user's screenshot showed that GitHub main has no branch protection; the request was to create a PR. No branch-protection setting has been changed.
+
+## Delivery
+
+Draft PR #2: https://github.com/Jackhamerp24/Football-Manager-27-Editor/pull/2 . It targets main and explicitly documents the remaining Transfer Deals work. The original performance goal is not marked complete.

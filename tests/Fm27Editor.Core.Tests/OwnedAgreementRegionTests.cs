@@ -51,6 +51,7 @@ public sealed class OwnedAgreementRegionTests
     [Theory]
     [InlineData("27.0.1+2503222-steam", 0x58120B0U, 0x4ECD708U)]
     [InlineData("27.0.0+2493426-gamepass", 0x56743C8U, 0x4D78508U)]
+    [InlineData("27.0.1+2494687-gamepass", 0x53A83C0U, 0x4AEAEF8U)]
     public void Profile_owned_vector_preserves_all_rows_without_heap_fallback(string build, uint root, uint vtable)
     {
         var (_, reader, _, _, _) = Fixture(build, root, vtable);

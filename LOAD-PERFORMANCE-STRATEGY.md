@@ -10,6 +10,38 @@ The implementation checkpoint is e9b7733, based on upstream main 6234cc2. The PR
 
 **A late audit found a remaining deferred Transfer Deals heap scan. The measured 3.6–4.2 second runs exclude that first-use scan. The original no-slow-tabs requirement is therefore not achieved yet. Do not describe this checkpoint as finished.**
 
+## Start here on another computer
+
+This handoff is portable. The absolute paths below identify the original workstation only; they are not required paths and must not be copied literally into commands on another computer.
+
+1. Clone the public repository and check out the PR branch:
+
+   ```bash
+   git clone https://github.com/Jackhamerp24/Football-Manager-27-Editor.git
+   cd Football-Manager-27-Editor
+   git fetch origin
+   git switch --track origin/codex/complete-load-performance
+   git status --short
+   git log -3 --oneline
+   ```
+
+   If the branch already exists locally, use `git switch codex/complete-load-performance` and update it without overwriting local changes. If PR #2 has already merged, start from current `main` and re-audit the remaining tasks; do not resurrect obsolete code from this document.
+
+2. Read `AGENTS.md`, this file and the current PR description/diff. Treat current source and CI results as authoritative; phase statuses and measurements in this handoff are historical evidence, not a guarantee about a newer commit.
+3. Use Windows 10/11 with the .NET 10 SDK for the portable upstream app and its normal desktop/native tests. Run:
+
+   ```bash
+   dotnet build Fm27Editor.slnx -c Release
+   dotnet test Fm27Editor.slnx -c Release
+   ```
+
+   Core fake-memory tests need no game. Live measurements require a supported Football Manager build with a save loaded. Keep the user's restriction: interact only with Load Game and the Wonderkid Academy popup unless the user changes that restriction.
+4. No local logs, captures, absolute memory addresses, credentials or access to this original computer are required to continue coding. The ignored `artifacts/` and `.slim/` evidence folders were NOT pushed. If a claim needs stronger evidence, reproduce the baseline from the checked-out source on the new computer and record fresh counts, hashes, errors and timings. Never reuse memory addresses from another process/save/session.
+5. This public PR contains the Windows/shared implementation. It does NOT contain the full macOS port or Mac helper. A Mac agent can inspect shared source and use a suitable isolated test host, but it must not assume the upstream checkout can run the measured Mac app. Continuing Mac-specific runtime work requires a separately supplied complete Mac checkout/patch, including its existing profiles, helper and packaging scripts. Do not invent missing platform code or copy only selected Mac files and call that a complete port.
+6. Creating/updating the existing PR requires the new machine's own GitHub authentication and repository write permission. Read-only code review and local implementation do not require the original author's credentials. Keep PR #2 as the shared continuation point; check for newer commits before pushing and do not merge without the user's instruction.
+
+The next agent should first state which environment it actually has (Windows live game, Mac port, or code/test-only), reproduce the applicable checks, and then take the next unfinished item below. Missing original captures are an evidence gap to reproduce, not a reason to mark the goal complete or block ordinary source work.
+
 ## Checkouts and artifacts
 
 - macOS working checkout: /Users/duong/Desktop/FM27-mac-kit, branch mac-swift. This had extensive pre-existing staged, unstaged and untracked Mac-port changes. Preserve their contents and staging; never reset or copy this checkout wholesale into upstream.

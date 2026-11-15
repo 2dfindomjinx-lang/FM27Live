@@ -9,9 +9,9 @@ public static class NationLabels
     // Development: England 1 Developed, Vietnam 2 Developing (FMRTE); other codes stay raw.
     static readonly Dictionary<long, string> Development = new() { [1] = "Developed", [2] = "Developing" };
 
-    public static string DevelopmentName(long code) => Development.TryGetValue(code, out var s) ? s : $"Level {code}";
-    public static string ImportanceName(long code) => code switch { 1 => "Very Important", 2 => "Important", 3 => "Unimportant", 4 => "No One Cares", _ => $"Level {code}" };
-    public static string GainNationalityTypeName(long code) => code switch { 1 => "Continuous", 2 => "Accumulative", _ => $"Level {code}" };
+    public static string DevelopmentName(long code) => Development.TryGetValue(code, out var s) ? Loc.S(s) : Loc.F("Level {0}", code);
+    public static string ImportanceName(long code) => code switch { 1 => Loc.S("Very Important"), 2 => Loc.S("Important"), 3 => Loc.S("Unimportant"), 4 => Loc.S("No One Cares"), _ => Loc.F("Level {0}", code) };
+    public static string GainNationalityTypeName(long code) => code switch { 1 => Loc.S("Continuous"), 2 => Loc.S("Accumulative"), _ => Loc.F("Level {0}", code) };
 
     public static readonly (string Title, (NationField Field, string Label)[] Items)[] Groups =
     [
@@ -50,7 +50,7 @@ public static class NationLabels
             var (min, max) = Range(f);
             if (!long.TryParse(text.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out long v) || v < min || v > max)
             {
-                error = $"{f}: enter a whole number {min}–{max}";
+                error = Loc.F("{0}: enter a whole number {1}–{2}", Loc.S(f.ToString()), min, max);
                 values = [];
                 return false;
             }

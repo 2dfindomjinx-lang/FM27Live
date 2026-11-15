@@ -32,13 +32,13 @@ public sealed partial class MainWindow
     {
         var panel = new StackPanel { Spacing = 8 };
         var others = rows.OfType<PlayerRecord>().ToList();
-        var pick = new Button { Width = 300, HorizontalContentAlignment = HorizontalAlignment.Left, Content = "Choose player…" };
+        var pick = new Button { Width = 300, HorizontalContentAlignment = HorizontalAlignment.Left, Content = Loc.S("Choose player…") };
         pick.Click += async (_, _) =>
         {
             var choices = others.Where(p => p.Address != player.Address
                 && p.Gender != Fm27Editor.Core.Offsets.Gender.Women && p.Club?.Gender != Fm27Editor.Core.Offsets.Gender.Women)
                 .Select(p => new RelationTarget($"{p.DisplayName} ({p.ClubName})", p.Address)).ToList();
-            var chosen = await PickerDialog.Show<RelationTarget>(this, "Compare with", q => choices.Where(t => PickerSearch.Hit(q, t.Label)).Select(t => (t.Label, t)).ToList());
+            var chosen = await PickerDialog.Show<RelationTarget>(this, Loc.S("Compare with"), q => choices.Where(t => PickerSearch.Hit(q, t.Label)).Select(t => (t.Label, t)).ToList());
             if (chosen is null) return;
             compareWith = chosen.Address;
             RenderEditor();
@@ -74,8 +74,8 @@ public sealed partial class MainWindow
                 Children =
                 {
                     new TextBlock { Text = p.DisplayName, FontSize = 16, FontWeight = FontWeight.Bold },
-                    new TextBlock { Text = $"{p.ClubName} · {p.NationalityName} · {p.Age} yrs", Foreground = Brush("#94A3B8") },
-                    new TextBlock { Text = p.Contract is { } c ? $"{Fm27Editor.Core.Settings.CurrencySetting.Format(c.Wage)} p/w · {DateSetting.Format(c.Expires)}" : "", Foreground = Brush("#94A3B8") },
+                    new TextBlock { Text = Loc.F("{0} · {1} · {2} yrs", p.ClubName ?? "", p.NationalityName ?? "", p.Age), Foreground = Brush("#94A3B8") },
+                    new TextBlock { Text = p.Contract is { } c ? Loc.F("{0} p/w · {1}", Fm27Editor.Core.Settings.CurrencySetting.Format(c.Wage), DateSetting.Format(c.Expires)) : "", Foreground = Brush("#94A3B8") },
                 },
             },
         };
@@ -96,7 +96,7 @@ public sealed partial class MainWindow
             bar.HorizontalAlignment = r.Left > r.Right ? HorizontalAlignment.Right : HorizontalAlignment.Left;
             Control[] cells =
             [
-                new TextBlock { Text = r.Label, VerticalAlignment = VerticalAlignment.Center },
+                new TextBlock { Text = Loc.S(r.Label), VerticalAlignment = VerticalAlignment.Center },
                 new TextBlock { Text = r.Left.ToString(Inv), HorizontalAlignment = HorizontalAlignment.Right, FontWeight = r.Left > r.Right ? FontWeight.Bold : FontWeight.Normal },
                 r.Left > r.Right ? bar : new Border(), r.Right > r.Left ? bar : new Border(),
                 new TextBlock { Text = r.Right.ToString(Inv), HorizontalAlignment = HorizontalAlignment.Right, FontWeight = r.Right > r.Left ? FontWeight.Bold : FontWeight.Normal },

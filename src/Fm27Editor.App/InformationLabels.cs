@@ -40,5 +40,5 @@ public static class InformationLabels
     ];
 
     public static string Name(IReadOnlyList<(int Code, string Name)> list, int code) =>
-        list.FirstOrDefault(x => x.Code == code).Name ?? $"Code {code}";
+        list.FirstOrDefault(x => x.Code == code).Name is { } name ? Loc.S(name) : Loc.F("Code {0}", code);
 }

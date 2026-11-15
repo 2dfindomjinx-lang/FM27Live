@@ -30,7 +30,8 @@ static class SectionHost
         public Section Section { get; } = section;
         bool dirty;
         public bool Dirty { get => dirty; set { if (dirty == value) return; dirty = value; PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(nameof(Label))); } }
-        public string Label => Dirty ? Section.Title + " *" : Section.Title;
+        public string Label => Dirty ? Loc.S(Section.Title) + " *" : Loc.S(Section.Title);
+        public void NotifyLabelChanged() => PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(nameof(Label)));
         public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
         public override string ToString() => Label;
     }
@@ -55,6 +56,11 @@ static class SectionHost
     static SectionHost()
     {
         InputElement.IsEnabledProperty.Changed.AddClassHandler<Button>((button, _) => OnSaveButtonChanged(button));
+        Fm27Editor.Core.Settings.LanguageSetting.Changed += () =>
+        {
+            foreach (var (_, items) in Rails.Values)
+                foreach (var entry in items) entry.NotifyLabelChanged();
+        };
     }
 
     static void OnSaveButtonChanged(Button button)

@@ -33,22 +33,22 @@ public static class CareerPlanLabels
         [(CareerItemType.Club, "Club"), (CareerItemType.Continent, "Continent"), (CareerItemType.Nation, "Nation"), (CareerItemType.Competition, "Competition")];
 
     public static string Name(IReadOnlyList<(int Code, string Name)> list, int code) =>
-        list.FirstOrDefault(x => x.Code == code).Name ?? $"Code {code}";
+        list.FirstOrDefault(x => x.Code == code).Name is { } name ? Loc.S(name) : Loc.F("Code {0}", code);
 }
 
 /// <summary>Transfer Proposals labels: FMRTE 27's Type text, and FM26's TransferOfferStatus names as FMRTE 27 shows them.</summary>
 public static class ProposalLabels
 {
-    public static string Type(ProposalType t) => t switch
+    public static string Type(ProposalType t) => Loc.S(t switch
     {
         ProposalType.Transfer => "Transfer", ProposalType.Loan => "Loan", ProposalType.Trial => "Trial", _ => "B Club Move",
-    };
+    });
 
     /// <summary>8, 10, 12, 19 seen in FMRTE 27; the rest are FM26's enum names.</summary>
     public static string Status(int code) => code switch
     {
-        0 => "Offer made", 1 => "Negotiating offer", 2 => "Offer rejected", 3 => "Cancelled", 5 => "Offer accepted by seller",
-        8 => "Player accepted", 10 => "Unknown status 1", 11 => "Player ready to sign", 12 => "Ready to sign", 15 => "Unknown status 2",
-        16 => "Unknown status 3", 18 => "Delayed", 19 => "Confirmed", 20 => "Completed", _ => $"Code {code}",
+        0 => Loc.S("Offer made"), 1 => Loc.S("Negotiating offer"), 2 => Loc.S("Offer rejected"), 3 => Loc.S("Cancelled"), 5 => Loc.S("Offer accepted by seller"),
+        8 => Loc.S("Player accepted"), 10 => Loc.S("Unknown status 1"), 11 => Loc.S("Player ready to sign"), 12 => Loc.S("Ready to sign"), 15 => Loc.S("Unknown status 2"),
+        16 => Loc.S("Unknown status 3"), 18 => Loc.S("Delayed"), 19 => Loc.S("Confirmed"), 20 => Loc.S("Completed"), _ => Loc.F("Code {0}", code),
     };
 }

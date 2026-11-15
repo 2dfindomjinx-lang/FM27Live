@@ -1,0 +1,77 @@
+using System.Globalization;
+using Avalonia;
+using Avalonia.Controls;
+using Fm27Editor.Core.Settings;
+
+namespace Fm27Editor.App;
+
+/// <summary>
+/// Centralized UI text and game-term localization table (English default / Tiếng Việt).
+/// Strings stay indexed by English key so English defaults and existing callers read naturally.
+/// </summary>
+public static partial class Loc
+{
+    static readonly Lazy<Dictionary<string, string>> AllViLazy = new(BuildAll);
+    static readonly Lazy<Dictionary<string, string>> ViMapCiLazy = new(BuildCaseInsensitive);
+    static Dictionary<string, string> AllVi => AllViLazy.Value;
+    static Dictionary<string, string> ViMapCi => ViMapCiLazy.Value;
+
+    static Dictionary<string, string> BuildAll()
+    {
+        var map = new Dictionary<string, string>(ViMap, StringComparer.Ordinal);
+        RegisterLabels(map);
+        RegisterMotives(map);
+        RegisterShell(map);
+        RegisterPlayers(map);
+        RegisterEntities(map);
+        return map;
+    }
+
+    static partial void RegisterLabels(Dictionary<string, string> m);
+    static partial void RegisterMotives(Dictionary<string, string> m);
+    static partial void RegisterShell(Dictionary<string, string> m);
+    static partial void RegisterPlayers(Dictionary<string, string> m);
+    static partial void RegisterEntities(Dictionary<string, string> m);
+
+    static Dictionary<string, string> BuildCaseInsensitive()
+    {
+        var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (k, v) in AllVi)
+            map.TryAdd(k, v);
+        return map;
+    }
+
+    public static bool IsVi => LanguageSetting.IsVietnamese;
+
+    public static CultureInfo FormatCulture => IsVi ? CultureInfo.GetCultureInfo("vi-VN") : CultureInfo.InvariantCulture;
+
+    public static string T(string english, string vietnamese) => IsVi ? vietnamese : english;
+
+    public static string S(string english)
+    {
+        if (!IsVi || string.IsNullOrEmpty(english)) return english;
+        if (AllVi.TryGetValue(english, out var exact)) return exact;
+        if (ViMapCi.TryGetValue(english, out var ci)) return ci;
+        return english;
+    }
+
+    public static string F(string englishTemplate, params object?[] args)
+        => string.Format(FormatCulture, S(englishTemplate), args);
+
+    public static IReadOnlyDictionary<string, string> VietnameseTable => AllVi;
+
+    /// <summary>Keeps a control property synced with language changes while attached to the visual tree.</summary>
+    public static T Bind<T>(T control, Action apply) where T : Visual
+    {
+        apply();
+        control.AttachedToVisualTree += (_, _) => { apply(); LanguageSetting.Changed += apply; };
+        control.DetachedFromVisualTree += (_, _) => LanguageSetting.Changed -= apply;
+        return control;
+    }
+
+    public static TextBlock BindText(TextBlock tb, string key) => Bind(tb, () => tb.Text = S(key));
+    public static Button BindContent(Button btn, string key) => Bind(btn, () => btn.Content = S(key));
+    public static T BindTip<T>(T ctl, string key) where T : Control => Bind(ctl, () => ToolTip.SetTip(ctl, S(key)));
+    public static T BindToolTip<T>(T ctl, string key) where T : Control => BindTip(ctl, key);
+    public static TextBox BindWatermark(TextBox tb, string key) => Bind(tb, () => tb.Watermark = S(key));
+}

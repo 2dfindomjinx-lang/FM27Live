@@ -17,7 +17,7 @@ internal sealed record NationRow(NationRecord Nation, string Name, int? Id, long
 }
 
 internal sealed record AgreementTargetOption(ulong Address, string Name) { public override string ToString() => Name; }
-internal sealed record AgreementTypeOption(AgreementKind Kind, string Name) { public override string ToString() => Name; }
+internal sealed record AgreementTypeOption(AgreementKind Kind, string Name) { public override string ToString() => Loc.S(Name); }
 
 /// <summary>A row the user asked to add to an agreement list: a copy of <see cref="Source"/> with its own type, target and dates.</summary>
 internal sealed class AgreementAddition(NationAgreementRow source, ulong sourceNation, byte[]? emptyHeader)
@@ -84,10 +84,10 @@ internal sealed class NationScreen(IScreenHost host)
 
     protected override void ConfigureColumns(DataGrid grid)
     {
-        grid.Columns.Add(new DataGridTextColumn { Header = "Nation", Binding = new Binding(nameof(NationRow.Name)), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
+        grid.Columns.Add(new DataGridTextColumn { Header = Loc.S("Nation"), Binding = new Binding(nameof(NationRow.Name)), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
         foreach (var (header, property) in new[] { ("ID", nameof(NationRow.Id)), ("FIFA", nameof(NationRow.Fifa)), ("Youth", nameof(NationRow.Youth)), ("Economy", nameof(NationRow.Economy)) })
         {
-            var column = new DataGridTextColumn { Header = header, Binding = new Binding(property), Width = new DataGridLength(header == "Economy" ? 94 : 84) };
+            var column = new DataGridTextColumn { Header = Loc.S(header), Binding = new Binding(property), Width = new DataGridLength(header == "Economy" ? 94 : 84) };
             column.CellStyleClasses.Add("numeric");
             grid.Columns.Add(column);
         }
@@ -213,9 +213,9 @@ internal sealed class NationScreen(IScreenHost host)
         continents = links.Continents(nations);
         var locationItems = new List<(string Label, Control Control)>();
         if (links.Capital(n.Address) is { } capital)
-            locationItems.Add(("Capital", new TextBlock { Text = capital.Name, FontSize = 13, FontWeight = FontWeight.Medium, Foreground = UiKit.TextPrimary, VerticalAlignment = VerticalAlignment.Center }));
+            locationItems.Add((Loc.S("Capital"), new TextBlock { Text = capital.Name, FontSize = 13, FontWeight = FontWeight.Medium, Foreground = UiKit.TextPrimary, VerticalAlignment = VerticalAlignment.Center }));
         if (links.Stadium(n.Address) is { } stadium)
-            locationItems.Add(("Stadium", new TextBlock { Text = stadium.DisplayName, FontSize = 13, FontWeight = FontWeight.Medium, Foreground = UiKit.TextPrimary, VerticalAlignment = VerticalAlignment.Center }));
+            locationItems.Add((Loc.S("Stadium"), new TextBlock { Text = stadium.DisplayName, FontSize = 13, FontWeight = FontWeight.Medium, Foreground = UiKit.TextPrimary, VerticalAlignment = VerticalAlignment.Center }));
         if (continents.Any(c => c.Address == continentNow))
         {
             var combo = new ComboBox { ItemsSource = continents.Select(c => c.Name).ToArray(), MinWidth = 152 };
@@ -227,13 +227,13 @@ internal sealed class NationScreen(IScreenHost host)
                 draft.Continent = chosen == continentNow ? null : chosen;
                 changed();
             };
-            locationItems.Add(("Continent", combo));
+            locationItems.Add((Loc.S("Continent"), combo));
         }
 
         for (int g = 0; g < NationLabels.Groups.Length; g++)
         {
             var (title, items) = NationLabels.Groups[g];
-            var cardItems = items.Where(i => values.ContainsKey(i.Field)).Select(i => (i.Label, Value(i.Field, values[i.Field]))).ToList();
+            var cardItems = items.Where(i => values.ContainsKey(i.Field)).Select(i => (Loc.S(i.Label), Value(i.Field, values[i.Field]))).ToList();
             if (g == 0) cardItems.InsertRange(0, locationItems);
             if (cardItems.Count == 0) continue;
             (g == 0 ? info[0] : team[(g - 1) % 2]).Children.Add(RowsCard(title, cardItems));
@@ -272,7 +272,7 @@ internal sealed class NationScreen(IScreenHost host)
         if (values.TryGetValue(NationField.YouthRating, out var youth))
         {
             if (badges.Children.Count > 0) badges.Children.Add(UiKit.MetaDot());
-            badges.Children.Add(UiKit.MetaText($"Youth {youth.ToString(Inv)}"));
+            badges.Children.Add(UiKit.MetaText(Loc.F("Youth {0}", youth.ToString(Inv))));
         }
         HeaderHost.Content = UiKit.EntityBanner(n.DisplayName, badges, null, Host.Graphics.Image("nation", n.Id, 72));
     }
@@ -298,7 +298,7 @@ internal sealed class NationScreen(IScreenHost host)
                     draft.Colours = entry.Item1 is null && entry.Item2 is null ? null : entry;
                     changed();
                 };
-                rows.Add((title, ColourInputControl.Create(box)));
+                rows.Add((Loc.S(title), ColourInputControl.Create(box)));
             }
             var card = RowsCard("Colours", rows);
             card.VerticalAlignment = VerticalAlignment.Top;
@@ -362,7 +362,7 @@ internal sealed class NationScreen(IScreenHost host)
         int idx = 0;
         if (session.NationTeams.AllowLicensedKits(teams[0].Address) is { } kitNow)
         {
-            var kits = new CheckBox { Content = "Allow Licensed Kits", IsChecked = draft.LicensedKits ?? kitNow, FontSize = 13, Foreground = UiKit.TextSecondary };
+            var kits = new CheckBox { Content = Loc.S("Allow Licensed Kits"), IsChecked = draft.LicensedKits ?? kitNow, FontSize = 13, Foreground = UiKit.TextSecondary };
             kits.IsCheckedChanged += (_, _) =>
             {
                 bool value = kits.IsChecked == true;
@@ -413,7 +413,7 @@ internal sealed class NationScreen(IScreenHost host)
         Control? transferCard = null;
         if (draft.TransferValuesSnapshot is { } transferValues)
         {
-            var fields = new List<(string, Control)> { ("Reputation", Heading("Transfer Value", true)) };
+            var fields = new List<(string, Control)> { (Loc.S("Reputation"), Heading(Loc.S("Transfer Value"), true)) };
             fields.AddRange(Enumerable.Range(0, NationTransferValuesReader.Count).Select(i =>
                 (TransferValueRanges[i], (Control)FieldBox(draft.TransferValues, i, transferValues.Values[i].ToString(Inv), 128, changed))));
             transferCard = CardRows("Transfer Values", fields);
@@ -428,7 +428,7 @@ internal sealed class NationScreen(IScreenHost host)
             list.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
             foreach (var (text, i) in new[] { "Nation", "Rating", "Scouting", "Min age", "Max age" }.Select((text, i) => (text, i)))
             {
-                var label = Heading(text, i >= 1);
+                var label = Heading(Loc.S(text), i >= 1);
                 Grid.SetColumn(label, i);
                 list.Children.Add(label);
             }
@@ -478,7 +478,7 @@ internal sealed class NationScreen(IScreenHost host)
             list.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
             foreach (var (text, i) in new[] { "Continent", "Rating", "Min age", "Max age" }.Select((text, i) => (text, i)))
             {
-                var label = Heading(text, i >= 1);
+                var label = Heading(Loc.S(text), i >= 1);
                 Grid.SetColumn(label, i);
                 list.Children.Add(label);
             }
@@ -565,7 +565,7 @@ internal sealed class NationScreen(IScreenHost host)
                 byte[]? emptyHeader = null;
                 if (source is null)
                 {
-                    if (vector != NationAgreements.NonForeignVector) { Host.SetStatus("Agreements: this list has no row to copy"); return; }
+                    if (vector != NationAgreements.NonForeignVector) { Host.SetStatus(Loc.S("Agreements: this list has no row to copy")); return; }
                     if (draft.AgreementAdds.TryGetValue(vector, out var existing) && existing.Count > 0)
                     {
                         source = existing[0].Source;
@@ -582,7 +582,7 @@ internal sealed class NationScreen(IScreenHost host)
                             sourceNation = other.Address;
                             break;
                         }
-                        if (source is null) { Host.SetStatus("Agreements: no Non-Foreign template is available"); return; }
+                        if (source is null) { Host.SetStatus(Loc.S("Agreements: no Non-Foreign template is available")); return; }
                         emptyHeader = session.Memory.Read(n.Address + (ulong)vector, 24);
                     }
                 }
@@ -593,7 +593,7 @@ internal sealed class NationScreen(IScreenHost host)
             var subHeader = new DockPanel { LastChildFill = true };
             DockPanel.SetDock(add, Dock.Right);
             subHeader.Children.Add(add);
-            subHeader.Children.Add(new TextBlock { Text = title, FontSize = 12, FontWeight = FontWeight.Bold, Foreground = UiKit.Brush("#94A3B8"), VerticalAlignment = VerticalAlignment.Center });
+            subHeader.Children.Add(new TextBlock { Text = Loc.S(title), FontSize = 12, FontWeight = FontWeight.Bold, Foreground = UiKit.Brush("#94A3B8"), VerticalAlignment = VerticalAlignment.Center });
             panel.Children.Add(new Border
             {
                 Background = UiKit.Brush("#161A26"), BorderBrush = UiKit.BorderSubtle,
@@ -602,7 +602,7 @@ internal sealed class NationScreen(IScreenHost host)
             list.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
             foreach (var (text, i) in new[] { "Type", "Target", "From", "Until" }.Select((text, i) => (text, i)))
             {
-                var label = new TextBlock { Text = text, FontSize = 12.5, FontWeight = FontWeight.SemiBold, Foreground = UiKit.Brush("#94A3B8") };
+                var label = new TextBlock { Text = Loc.S(text), FontSize = 12.5, FontWeight = FontWeight.SemiBold, Foreground = UiKit.Brush("#94A3B8") };
                 Grid.SetColumn(label, i);
                 list.Children.Add(label);
             }
@@ -659,8 +659,8 @@ internal sealed class NationScreen(IScreenHost host)
                 string fromOriginal = DateSetting.Format(row.From);
                 string untilOriginal = DateSetting.Format(row.Until);
                 var pendingDates = draft.AgreementDates.GetValueOrDefault(row.Address);
-                var fromBox = new DateBox { Text = pendingDates.Row is null ? fromOriginal : pendingDates.From, Watermark = "No limit", MinHeight = 24 };
-                var untilBox = new DateBox { Text = pendingDates.Row is null ? untilOriginal : pendingDates.Until, Watermark = "No limit", MinHeight = 24 };
+                var fromBox = new DateBox { Text = pendingDates.Row is null ? fromOriginal : pendingDates.From, Watermark = Loc.S("No limit"), MinHeight = 24 };
+                var untilBox = new DateBox { Text = pendingDates.Row is null ? untilOriginal : pendingDates.Until, Watermark = Loc.S("No limit"), MinHeight = 24 };
                 void DatesChanged()
                 {
                     string from = fromBox.Text ?? "", until = untilBox.Text ?? "";
@@ -712,8 +712,8 @@ internal sealed class NationScreen(IScreenHost host)
                     SelectTargets(addition.Kind, addition.Target);
                     type.SelectionChanged += (_, _) => { if (type.SelectedItem is AgreementTypeOption chosen) { addition.Kind = chosen.Kind; SelectTargets(chosen.Kind, 0); if (target.SelectedItem is AgreementTargetOption item) addition.Target = item.Address; } };
                     target.SelectionChanged += (_, _) => { if (target.SelectedItem is AgreementTargetOption chosen) addition.Target = chosen.Address; };
-                    var from = new DateBox { Text = addition.From, Watermark = "No limit", MinHeight = 24 };
-                    var until = new DateBox { Text = addition.Until, Watermark = "No limit", MinHeight = 24 };
+                    var from = new DateBox { Text = addition.From, Watermark = Loc.S("No limit"), MinHeight = 24 };
+                    var until = new DateBox { Text = addition.Until, Watermark = Loc.S("No limit"), MinHeight = 24 };
                     from.TextChanged += (_, _) => addition.From = from.Text ?? "";
                     until.TextChanged += (_, _) => addition.Until = until.Text ?? "";
                     Control[] cells = [type, target, from, until];
@@ -749,38 +749,38 @@ internal sealed class NationScreen(IScreenHost host)
         write = () => 0;
         var session = Host.Backend.Session;
         if (!NationLabels.TryParse(draft.Fields, out var fieldValues, out var error)) return error;
-        if (!draft.Rivalry.TryParse(out var rivals)) return "Rivalry: enter a whole number 0–100";
-        if (!draft.Preference.TryParse(out var preferences)) return "Transfer preferences: check values and age range";
+        if (!draft.Rivalry.TryParse(out var rivals)) return Loc.S("Rivalry: enter a whole number 0–100");
+        if (!draft.Preference.TryParse(out var preferences)) return Loc.S("Transfer preferences: check values and age range");
         var transferValues = new Dictionary<int, int>();
         foreach (var (index, text) in draft.TransferValues)
         {
             if (!int.TryParse(text.Trim(), NumberStyles.Integer, Inv, out int value) || value < 0 || value > NationTransferValuesWriter.MaxValue)
-                return $"Transfer value {TransferValueRanges[index]}: enter a whole number 0 to {NationTransferValuesWriter.MaxValue}";
+                return Loc.F("Transfer value {0}: enter a whole number 0 to {1}", TransferValueRanges[index], NationTransferValuesWriter.MaxValue);
             transferValues[index] = value;
         }
         var transferSnapshot = draft.TransferValuesSnapshot;
-        if (transferValues.Count > 0 && transferSnapshot is null) return "Transfer values are unavailable";
+        if (transferValues.Count > 0 && transferSnapshot is null) return Loc.S("Transfer values are unavailable");
         var dates = new List<(NationAgreementRow Row, DateOnly? From, DateOnly? Until)>();
         foreach (var (_, entry) in draft.AgreementDates)
         {
-            if (!TryParseDate(entry.From, out var from) || !TryParseDate(entry.Until, out var until)) return $"Agreement dates: use {DateSetting.Hint} or leave blank";
+            if (!TryParseDate(entry.From, out var from) || !TryParseDate(entry.Until, out var until)) return Loc.F("Agreement dates: use {0} or leave blank", DateSetting.Hint);
             dates.Add((entry.Row, from, until));
         }
         var teamValues = new Dictionary<ulong, int>();
         foreach (var (address, text) in draft.Teams)
         {
             if (!int.TryParse(text.Trim(), NumberStyles.Integer, Inv, out int rep) || rep < 0 || rep > NationTeamReader.MaxReputation)
-                return $"Team reputation: enter a whole number 0 to {NationTeamReader.MaxReputation}";
+                return Loc.F("Team reputation: enter a whole number 0 to {0}", NationTeamReader.MaxReputation);
             teamValues[address] = rep;
         }
         var targetChanges = draft.AgreementTargets.ToDictionary(kv => kv.Key, kv => kv.Value);
         var adds = draft.AgreementAdds.SelectMany(kv => kv.Value).ToArray();
         if (adds.GroupBy(addition => addition.Source.Vector).Any(group => (group.First().EmptyHeader is null ? (group.First().Source.End - group.First().Source.Begin) / 8 : 0) + (ulong)group.Count() > 64))
-            return "Too many agreement rows.";
+            return Loc.S("Too many agreement rows.");
         var addDates = new Dictionary<AgreementAddition, (DateOnly? From, DateOnly? Until)>();
         foreach (var addition in adds)
         {
-            if (!TryParseDate(addition.From, out var from) || !TryParseDate(addition.Until, out var until)) return $"Agreement dates: use {DateSetting.Hint} or leave blank";
+            if (!TryParseDate(addition.From, out var from) || !TryParseDate(addition.Until, out var until)) return Loc.F("Agreement dates: use {0} or leave blank", DateSetting.Hint);
             addDates[addition] = (from, until);
         }
 

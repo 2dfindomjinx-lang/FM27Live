@@ -84,10 +84,10 @@ public sealed class AttributeFilterDialog : Window
     readonly ComboBox contractTypeCombo = new() { Width = 220, MinWidth = 220, MaxWidth = 220, MaxDropDownHeight = 260 };
     readonly ComboBox playingTimeCombo = new() { Width = 220, MinWidth = 220, MaxWidth = 220, MaxDropDownHeight = 260 };
     readonly ComboBox contractStatusCombo = new() { Width = 220, MinWidth = 220, MaxWidth = 220, MaxDropDownHeight = 260 };
-    readonly Button teamPickButton = new() { Content = "Choose…", Width = 240, HorizontalContentAlignment = HorizontalAlignment.Left };
+    readonly Button teamPickButton = new() { Content = Loc.S("Choose…"), Width = 240, HorizontalContentAlignment = HorizontalAlignment.Left };
     ulong teamClubAddress;
     string teamClubName = "";
-    sealed record FilterChoice(long? Value, string Name) { public override string ToString() => Name; }
+    sealed record FilterChoice(long? Value, string Name) { public override string ToString() => Loc.S(Name); }
 
     /// <summary>Exactly what FMRTE's Type dropdown offers, in its order; Non Contract is not listed there.</summary>
     static readonly (ContractType? Value, string Name)[] ContractTypeOptions =
@@ -98,8 +98,9 @@ public sealed class AttributeFilterDialog : Window
         (ContractType.PartTime, "Part Time Contract"),
         (ContractType.FullTime, "Full Time Contract"),
     ];
-    static readonly (PlayingTime? Value, string Name)[] PlayingTimeOptions =
-        [(null, "Any"), .. Enum.GetValues<PlayingTime>().Select(t => ((PlayingTime?)t, ContractLabels.Of(t)))];
+    static readonly PlayingTime?[] PlayingTimeValues =
+        [null, .. Enum.GetValues<PlayingTime>().Select(t => (PlayingTime?)t)];
+    static string PlayingTimeLabel(PlayingTime? t) => t is { } value ? ContractLabels.Of(value) : Loc.S("Any");
     static readonly (ContractStatusFilter? Value, string Name)[] ContractStatusOptions =
     [
         (null, "Any"),
@@ -134,22 +135,22 @@ public sealed class AttributeFilterDialog : Window
 
     readonly IReadOnlyList<PlayerRecord> allPlayers;
     readonly ComboBox divisionCombo = new() { HorizontalAlignment = HorizontalAlignment.Left, Height = 28, FontSize = 13, Width = 240, MinWidth = 240, MaxWidth = 240 };
-    readonly ComboBox genderCombo = new() { HorizontalAlignment = HorizontalAlignment.Left, Height = 28, FontSize = 13, Width = 140, MinWidth = 140, MaxWidth = 140, ItemsSource = new[] { "Men", "Women", "All" }, MaxDropDownHeight = 260 };
+    readonly ComboBox genderCombo = new() { HorizontalAlignment = HorizontalAlignment.Left, Height = 28, FontSize = 13, Width = 140, MinWidth = 140, MaxWidth = 140, ItemsSource = new[] { Loc.S("Men"), Loc.S("Women"), Loc.S("All") }, MaxDropDownHeight = 260 };
     readonly ComboBox clubCombo = new() { HorizontalAlignment = HorizontalAlignment.Left, Height = 28, FontSize = 13, Width = 240, MinWidth = 240, MaxWidth = 240 };
     readonly ComboBox nationCombo = new() { HorizontalAlignment = HorizontalAlignment.Left, Height = 28, FontSize = 13, Width = 240, MinWidth = 240, MaxWidth = 240 };
 
     readonly ComboBox presetCombo = new() { Width = 220, MinWidth = 220, MaxWidth = 220 };
-    readonly TextBox presetNameBox = new() { Watermark = "Preset name...", Width = 190 };
-    readonly Button savePresetButton = new() { Content = "Save preset" };
-    readonly Button deletePresetButton = new() { Content = "Delete", IsEnabled = false };
+    readonly TextBox presetNameBox = new() { Watermark = Loc.S("Preset name..."), Width = 190 };
+    readonly Button savePresetButton = new() { Content = Loc.S("Save preset") };
+    readonly Button deletePresetButton = new() { Content = Loc.S("Delete"), IsEnabled = false };
 
-    readonly TextBox nameQueryBox = new() { Watermark = "Name", Width = 320, HorizontalAlignment = HorizontalAlignment.Left };
-    readonly TextBox minAgeBox = new() { Watermark = "Min", Width = 54, HorizontalContentAlignment = HorizontalAlignment.Right };
-    readonly TextBox maxAgeBox = new() { Watermark = "Max", Width = 54, HorizontalContentAlignment = HorizontalAlignment.Right };
-    readonly TextBox minCaBox = new() { Watermark = "Min", Width = 58, HorizontalContentAlignment = HorizontalAlignment.Right };
-    readonly TextBox maxCaBox = new() { Watermark = "Max", Width = 58, HorizontalContentAlignment = HorizontalAlignment.Right };
-    readonly TextBox minPaBox = new() { Watermark = "Min", Width = 58, HorizontalContentAlignment = HorizontalAlignment.Right };
-    readonly TextBox maxPaBox = new() { Watermark = "Max", Width = 58, HorizontalContentAlignment = HorizontalAlignment.Right };
+    readonly TextBox nameQueryBox = new() { Watermark = Loc.S("Name"), Width = 320, HorizontalAlignment = HorizontalAlignment.Left };
+    readonly TextBox minAgeBox = new() { Watermark = Loc.S("Min"), Width = 54, HorizontalContentAlignment = HorizontalAlignment.Right };
+    readonly TextBox maxAgeBox = new() { Watermark = Loc.S("Max"), Width = 54, HorizontalContentAlignment = HorizontalAlignment.Right };
+    readonly TextBox minCaBox = new() { Watermark = Loc.S("Min"), Width = 58, HorizontalContentAlignment = HorizontalAlignment.Right };
+    readonly TextBox maxCaBox = new() { Watermark = Loc.S("Max"), Width = 58, HorizontalContentAlignment = HorizontalAlignment.Right };
+    readonly TextBox minPaBox = new() { Watermark = Loc.S("Min"), Width = 58, HorizontalContentAlignment = HorizontalAlignment.Right };
+    readonly TextBox maxPaBox = new() { Watermark = Loc.S("Max"), Width = 58, HorizontalContentAlignment = HorizontalAlignment.Right };
 
     readonly NumericUpDown posMinRatingInput = new()
     {
@@ -216,22 +217,22 @@ public sealed class AttributeFilterDialog : Window
     public string? ResultNameQuery => string.IsNullOrWhiteSpace(nameQueryBox.Text) ? null : nameQueryBox.Text.Trim();
     public Fm27Editor.Core.Offsets.Gender? ResultGender => genderCombo.SelectedIndex switch { 0 => Fm27Editor.Core.Offsets.Gender.Men, 1 => Fm27Editor.Core.Offsets.Gender.Women, _ => null };
     public bool ResultExcludeWomenClubs => ResultGender == Fm27Editor.Core.Offsets.Gender.Men;
-    public string? ResultDivision => divisionCombo.SelectedItem is string s && s != AllLeagues ? s : null;
-    public string? ResultClub => clubCombo.SelectedItem is string s && s != AllClubs ? s : null;
-    public string? ResultNationality => nationCombo.SelectedItem is string s && s != AllNationalities ? s : null;
+    public string? ResultDivision => divisionCombo.SelectedIndex > 0 ? divisionCombo.SelectedItem as string : null;
+    public string? ResultClub => clubCombo.SelectedIndex > 0 ? clubCombo.SelectedItem as string : null;
+    public string? ResultNationality => nationCombo.SelectedIndex > 0 ? nationCombo.SelectedItem as string : null;
     public ulong? ResultTeamClubAddress => teamClubAddress == 0 ? null : teamClubAddress;
     public string? ResultTeamClubName => string.IsNullOrEmpty(teamClubName) ? null : teamClubName;
     public ContractType? ResultContractType => contractTypeCombo.SelectedIndex > 0
-        && contractTypeCombo.SelectedItem is string name ? ContractTypeOptions.First(o => o.Name == name).Value : null;
+        && contractTypeCombo.SelectedIndex < ContractTypeOptions.Length ? ContractTypeOptions[contractTypeCombo.SelectedIndex].Value : null;
     public PlayingTime? ResultPlayingTime => playingTimeCombo.SelectedIndex > 0
-        && playingTimeCombo.SelectedItem is string name ? PlayingTimeOptions.First(o => o.Value is not null && ContractLabels.Of(o.Value.Value) == name).Value : null;
+        && playingTimeCombo.SelectedIndex < PlayingTimeValues.Length ? PlayingTimeValues[playingTimeCombo.SelectedIndex] : null;
     public ContractStatusFilter? ResultContractStatus => contractStatusCombo.SelectedIndex > 0
-        && contractStatusCombo.SelectedItem is string name ? ContractStatusOptions.First(o => o.Name == name).Value : null;
+        && contractStatusCombo.SelectedIndex < ContractStatusOptions.Length ? ContractStatusOptions[contractStatusCombo.SelectedIndex].Value : null;
     public IReadOnlyList<ContractClauseCriterion> ResultClauses =>
-        clauseInputs.Select(entry => (entry.Key, Presence: entry.Value.Presence.SelectedItem as string,
+        clauseInputs.Select(entry => (entry.Key, Index: entry.Value.Presence.SelectedIndex,
                 Min: ParseOptInt(entry.Value.Min.Text), Max: ParseOptInt(entry.Value.Max.Text)))
-            .Where(entry => entry.Presence is "Yes" or "No")
-            .Select(entry => entry.Presence == "Yes"
+            .Where(entry => entry.Index is 1 or 2)
+            .Select(entry => entry.Index == 1
                 ? new ContractClauseCriterion(entry.Key, true, entry.Min, entry.Max)
                 : new ContractClauseCriterion(entry.Key, false))
             .ToArray();
@@ -253,7 +254,7 @@ public sealed class AttributeFilterDialog : Window
 
     Control BuildRelationships()
     {
-        var add = new Button { Content = "Add", Width = 90 };
+        var add = new Button { Content = Loc.S("Add"), Width = 90 };
         add.Click += (_, _) => AddRelationRow();
         var header = new StackPanel
         {
@@ -270,17 +271,17 @@ public sealed class AttributeFilterDialog : Window
 
     void AddRelationRow()
     {
-        var kind = new ComboBox { ItemsSource = RelationCatalog.All.Select(t => t.Name).ToArray(), SelectedIndex = -1, PlaceholderText = "Select type…", MaxDropDownHeight = 260, Width = 320, MinWidth = 320, MaxWidth = 320, HorizontalAlignment = HorizontalAlignment.Left };
-        var target = new Button { Content = "Choose…", IsVisible = false, HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Left };
+        var kind = new ComboBox { ItemsSource = RelationCatalog.All.Select(t => Loc.S(t.Name)).ToArray(), SelectedIndex = -1, PlaceholderText = Loc.S("Select type…"), MaxDropDownHeight = 260, Width = 320, MinWidth = 320, MaxWidth = 320, HorizontalAlignment = HorizontalAlignment.Left };
+        var target = new Button { Content = Loc.S("Choose…"), IsVisible = false, HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Left };
         var min = new TextBox { Text = "0", Width = 90, HorizontalContentAlignment = HorizontalAlignment.Right };
         var max = new TextBox { Text = "100", Width = 90, HorizontalContentAlignment = HorizontalAlignment.Right };
-        var remove = new Button { Content = "Remove", Width = 80, Padding = new Thickness(0), HorizontalContentAlignment = HorizontalAlignment.Center };
+        var remove = new Button { Content = Loc.S("Remove"), Width = 80, Padding = new Thickness(0), HorizontalContentAlignment = HorizontalAlignment.Center };
         var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("320,*,90,90,80"), ColumnSpacing = 8, Margin = new Thickness(8) };
         Grid.SetColumn(kind, 0); Grid.SetColumn(target, 1); Grid.SetColumn(min, 2); Grid.SetColumn(max, 3); Grid.SetColumn(remove, 4);
         grid.Children.Add(kind); grid.Children.Add(target); grid.Children.Add(min); grid.Children.Add(max); grid.Children.Add(remove);
         var card = new Border { Background = UiKit.SurfaceInput, BorderBrush = UiKit.BorderControl, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(4), Child = grid };
         var row = new RelationRow { Card = card, Kind = kind, Target = target, Min = min, Max = max };
-        kind.SelectionChanged += (_, _) => { row.TargetAddress = 0; row.TargetName = ""; target.Content = "Choose…"; target.IsVisible = TypeOf(row) is { Target: not RelationTargetKind.None }; };
+        kind.SelectionChanged += (_, _) => { row.TargetAddress = 0; row.TargetName = ""; target.Content = Loc.S("Choose…"); target.IsVisible = TypeOf(row) is { Target: not RelationTargetKind.None }; };
         target.Click += async (_, _) => await PickRelationTarget(row);
         remove.Click += (_, _) => { relationRows.Remove(row); relationStack.Children.Remove(card); };
         relationRows.Add(row);
@@ -360,7 +361,7 @@ public sealed class AttributeFilterDialog : Window
         ClubFieldAccess? clubAccess = null,
         DateOnly? today = null)
     {
-        Title = "Advanced Search";
+        Title = Loc.S("Advanced Search");
         this.initialScope = initialScope;
         this.staffSource = staffSource;
         this.clubSource = clubSource;
@@ -397,7 +398,7 @@ public sealed class AttributeFilterDialog : Window
             .Where(s => !string.IsNullOrWhiteSpace(s))
             .Distinct(StringComparer.InvariantCultureIgnoreCase)
             .OrderBy(s => s, StringComparer.InvariantCultureIgnoreCase)
-            .Prepend(AllNationalities)
+            .Prepend(Loc.S(AllNationalities))
             .ToArray();
 
         nationCombo.ItemsSource = nations;
@@ -406,18 +407,18 @@ public sealed class AttributeFilterDialog : Window
             : 0;
         nationCombo.SelectedIndex = natIdx >= 0 ? natIdx : 0;
 
-        contractTypeCombo.ItemsSource = ContractTypeOptions.Select(o => o.Name).ToArray();
+        contractTypeCombo.ItemsSource = ContractTypeOptions.Select(o => Loc.S(o.Name)).ToArray();
         contractTypeCombo.ItemTemplate = TextItem(220);
-        playingTimeCombo.ItemsSource = PlayingTimeOptions.Select(o => o.Name).ToArray();
+        playingTimeCombo.ItemsSource = PlayingTimeValues.Select(PlayingTimeLabel).ToArray();
         playingTimeCombo.ItemTemplate = TextItem(220);
-        contractStatusCombo.ItemsSource = ContractStatusOptions.Select(o => o.Name).ToArray();
+        contractStatusCombo.ItemsSource = ContractStatusOptions.Select(o => Loc.S(o.Name)).ToArray();
         contractStatusCombo.ItemTemplate = TextItem(220);
         contractTypeCombo.SelectedIndex = Math.Max(0, Array.FindIndex(ContractTypeOptions, o => o.Value == initialFilter.ContractType));
-        playingTimeCombo.SelectedIndex = Math.Max(0, Array.FindIndex(PlayingTimeOptions, o => o.Value == initialFilter.AgreedPlayingTime));
+        playingTimeCombo.SelectedIndex = Math.Max(0, Array.IndexOf(PlayingTimeValues, initialFilter.AgreedPlayingTime));
         contractStatusCombo.SelectedIndex = Math.Max(0, Array.FindIndex(ContractStatusOptions, o => o.Value == initialFilter.ContractStatus));
         teamClubAddress = initialFilter.TeamClubAddress ?? 0;
         teamClubName = initialFilter.TeamClubName ?? "";
-        teamPickButton.Content = teamClubAddress == 0 ? "Choose…" : teamClubName;
+        teamPickButton.Content = teamClubAddress == 0 ? Loc.S("Choose…") : teamClubName;
         foreach (var clause in initialFilter.Clauses ?? [])
             initialClauses.TryAdd(clause.Type, clause);
 
@@ -549,7 +550,7 @@ public sealed class AttributeFilterDialog : Window
     /// <summary>Scope buttons exactly like the main module tabs: text with an accent underline when active.</summary>
     static Button MakeScopeButton(string header) => new()
     {
-        Content = header,
+        Content = Loc.S(header),
         FontSize = 13,
         Padding = new Thickness(11, 3),
         MinHeight = 25,
@@ -594,7 +595,7 @@ public sealed class AttributeFilterDialog : Window
             {
                 clubHost.Content = new TextBlock
                 {
-                    Text = "Connect to the game to search clubs.",
+                    Text = Loc.S("Connect to the game to search clubs."),
                     Foreground = Brush("#94A3B8"),
                     Margin = new Thickness(14),
                 };
@@ -616,8 +617,8 @@ public sealed class AttributeFilterDialog : Window
         }
         summaryText.Foreground = Brush("#CBD5E1");
         summaryText.Text = SelectedScope == "Coach"
-            ? coachPanel?.SummaryStatus() ?? "No filters set"
-            : clubPanel?.SummaryStatus() ?? "No filters set";
+            ? coachPanel?.SummaryStatus() ?? Loc.S("No filters set")
+            : clubPanel?.SummaryStatus() ?? Loc.S("No filters set");
     }
     Control BuildPresetBar()
     {
@@ -631,7 +632,7 @@ public sealed class AttributeFilterDialog : Window
         };
         left.Children.Add(new TextBlock
         {
-            Text = "Preset",
+            Text = Loc.S("Preset"),
             FontSize = 13.5,
             FontWeight = FontWeight.SemiBold,
             Foreground = Brush("#94A3B8"),
@@ -652,7 +653,7 @@ public sealed class AttributeFilterDialog : Window
         };
         right.Children.Add(new TextBlock
         {
-            Text = "Default Attr >=",
+            Text = Loc.S("Default Attr >="),
             FontSize = 13.5,
             Foreground = Brush("#94A3B8"),
             VerticalAlignment = VerticalAlignment.Center
@@ -695,11 +696,11 @@ public sealed class AttributeFilterDialog : Window
                 maxPaBox.Text = chosen.MaxPa?.ToString() ?? "";
                 posMinRatingInput.Value = Math.Clamp(chosen.PositionMinRating, 1, 20);
                 contractTypeCombo.SelectedIndex = Math.Max(0, Array.FindIndex(ContractTypeOptions, o => o.Value == chosen.ContractType));
-                playingTimeCombo.SelectedIndex = Math.Max(0, Array.FindIndex(PlayingTimeOptions, o => o.Value == chosen.AgreedPlayingTime));
+                playingTimeCombo.SelectedIndex = Math.Max(0, Array.IndexOf(PlayingTimeValues, chosen.AgreedPlayingTime));
                 contractStatusCombo.SelectedIndex = Math.Max(0, Array.FindIndex(ContractStatusOptions, o => o.Value == chosen.ContractStatus));
                 teamClubAddress = chosen.TeamClubAddress ?? 0;
                 teamClubName = chosen.TeamClubName ?? "";
-                teamPickButton.Content = teamClubAddress == 0 ? "Choose…" : teamClubName;
+                teamPickButton.Content = teamClubAddress == 0 ? Loc.S("Choose…") : teamClubName;
                 foreach (var clause in chosen.Clauses ?? [])
                 {
                     if (!clauseInputs.TryGetValue(clause.Type, out var boxes)) continue;
@@ -763,7 +764,7 @@ public sealed class AttributeFilterDialog : Window
             var name = presetNameBox.Text?.Trim();
             if (string.IsNullOrEmpty(name))
             {
-                summaryText.Text = "Enter a preset name before saving.";
+                summaryText.Text = Loc.S("Enter a preset name before saving.");
                 summaryText.Foreground = Brush("#F59E0B");
                 return;
             }
@@ -798,7 +799,7 @@ public sealed class AttributeFilterDialog : Window
             SelectedPresetName = preset.Name;
             RefreshPresetCombo(preset.Name);
             summaryText.Foreground = Brush("#4ADE80");
-            summaryText.Text = $"Saved preset '{preset.Name}'.";
+            summaryText.Text = Loc.F("Saved preset '{0}'.", preset.Name);
         };
 
         deletePresetButton.Click += (_, _) =>
@@ -811,7 +812,7 @@ public sealed class AttributeFilterDialog : Window
             presetNameBox.Text = "";
             RefreshPresetCombo(null);
             summaryText.Foreground = Brush("#94A3B8");
-            summaryText.Text = $"Deleted preset '{name}'.";
+            summaryText.Text = Loc.F("Deleted preset '{0}'.", name);
         };
 
         return new Border
@@ -839,11 +840,11 @@ public sealed class AttributeFilterDialog : Window
             .Where(s => !string.IsNullOrWhiteSpace(s))
             .Distinct(StringComparer.InvariantCultureIgnoreCase)
             .OrderBy(s => s, StringComparer.InvariantCultureIgnoreCase)
-            .Prepend(AllLeagues)
+            .Prepend(Loc.S(AllLeagues))
             .ToArray();
 
         divisionCombo.ItemsSource = leagues;
-        string? target = preferredLeague ?? divisionCombo.SelectedItem as string;
+        string? target = preferredLeague ?? (divisionCombo.SelectedIndex > 0 ? divisionCombo.SelectedItem as string : null);
         int divIdx = !string.IsNullOrEmpty(target)
             ? Array.FindIndex(leagues, l => string.Equals(l, target, StringComparison.InvariantCultureIgnoreCase))
             : 0;
@@ -854,7 +855,7 @@ public sealed class AttributeFilterDialog : Window
     void RefreshDialogClubs(string? preferredClub)
     {
         var subset = PlayersMatchingDialogGender();
-        if (divisionCombo.SelectedItem is string selectedLeague && selectedLeague != AllLeagues)
+        if (divisionCombo.SelectedIndex > 0 && divisionCombo.SelectedItem is string selectedLeague)
             subset = subset.Where(p => string.Equals(p.DivisionName, selectedLeague, StringComparison.InvariantCultureIgnoreCase));
 
         var clubs = subset
@@ -862,11 +863,11 @@ public sealed class AttributeFilterDialog : Window
             .Where(s => !string.IsNullOrWhiteSpace(s))
             .Distinct(StringComparer.InvariantCultureIgnoreCase)
             .OrderBy(s => s, StringComparer.InvariantCultureIgnoreCase)
-            .Prepend(AllClubs)
+            .Prepend(Loc.S(AllClubs))
             .ToArray();
 
         clubCombo.ItemsSource = clubs;
-        string? target = preferredClub ?? clubCombo.SelectedItem as string;
+        string? target = preferredClub ?? (clubCombo.SelectedIndex > 0 ? clubCombo.SelectedItem as string : null);
         int idx = !string.IsNullOrEmpty(target)
             ? Array.FindIndex(clubs, c => string.Equals(c, target, StringComparison.InvariantCultureIgnoreCase))
             : 0;
@@ -972,7 +973,7 @@ public sealed class AttributeFilterDialog : Window
                 FontSize = 13,
                 FontWeight = FontWeight.SemiBold,
             };
-            ToolTip.SetTip(btn, fullName);
+            ToolTip.SetTip(btn, Loc.S(fullName));
             btn.Click += (_, _) =>
             {
                 if (!stagedPositions.Remove(pos))
@@ -1020,7 +1021,7 @@ public sealed class AttributeFilterDialog : Window
 
     static TextBlock SectionLabel(string text) => new()
     {
-        Text = text,
+        Text = Loc.S(text),
         FontSize = 12.5,
         FontWeight = FontWeight.Bold,
         Foreground = Brush("#E2E8F0"),
@@ -1029,7 +1030,7 @@ public sealed class AttributeFilterDialog : Window
 
     static TextBlock MutedLabel(string text) => new()
     {
-        Text = text,
+        Text = Loc.S(text),
         FontSize = 13.5,
         Foreground = Brush("#94A3B8"),
         VerticalAlignment = VerticalAlignment.Center
@@ -1051,7 +1052,7 @@ public sealed class AttributeFilterDialog : Window
             int rating = active ? rng.Min : 0;
             PitchSurface.SetRating(dot, rating);
             var spot = PitchLayout.Positions.First(p => p.Position == pos);
-            ToolTip.SetTip(dot, active ? $"{spot.Label}: {rng.Min}–{rng.Max}" : $"{spot.Label} (Inactive)");
+            ToolTip.SetTip(dot, active ? $"{Loc.S(spot.Label)}: {rng.Min}–{rng.Max}" : Loc.F("{0} (Inactive)", Loc.S(spot.Label)));
         }
         updatingControls = false;
     }
@@ -1090,7 +1091,7 @@ public sealed class AttributeFilterDialog : Window
                 Foreground = UiKit.TextPrimary,
                 VerticalAlignment = VerticalAlignment.Center
             };
-            ToolTip.SetTip(title, spot.Label);
+            ToolTip.SetTip(title, Loc.S(spot.Label));
 
             var controlsStack = new StackPanel
             {
@@ -1107,7 +1108,7 @@ public sealed class AttributeFilterDialog : Window
                 MinWidth = 0,
                 Padding = new Thickness(0),
             };
-            ToolTip.SetTip(activeChk, $"Filter by {PositionLabels.Spaced(spot.Position)}");
+            ToolTip.SetTip(activeChk, Loc.F("Filter by {0}", PositionLabels.Spaced(spot.Position)));
 
             var minBox = new TextBox
             {
@@ -1273,7 +1274,7 @@ public sealed class AttributeFilterDialog : Window
                 };
                 var nameLbl = new TextBlock
                 {
-                    Text = pitchPos.Label,
+                    Text = Loc.S(pitchPos.Label),
                     FontSize = 13,
                     Foreground = UiKit.TextSecondary,
                     VerticalAlignment = VerticalAlignment.Center,
@@ -1490,8 +1491,8 @@ public sealed class AttributeFilterDialog : Window
         foreach (string key in keys)
         {
             initialRanges.TryGetValue(key, out var range);
-            var min = new TextBox { Width = 92, Watermark = "Min", Text = range?.Min?.ToString() ?? "", HorizontalContentAlignment = HorizontalAlignment.Right };
-            var max = new TextBox { Width = 92, Watermark = "Max", Text = range?.Max?.ToString() ?? "", HorizontalContentAlignment = HorizontalAlignment.Right };
+            var min = new TextBox { Width = 92, Watermark = Loc.S("Min"), Text = range?.Min?.ToString() ?? "", HorizontalContentAlignment = HorizontalAlignment.Right };
+            var max = new TextBox { Width = 92, Watermark = Loc.S("Max"), Text = range?.Max?.ToString() ?? "", HorizontalContentAlignment = HorizontalAlignment.Right };
             var (lo, hi) = key switch
             {
                 "Height" => (0L, 300L),
@@ -1503,7 +1504,7 @@ public sealed class AttributeFilterDialog : Window
             Limit(max, lo, hi);
             rangeInputs[key] = (min, max);
             string label = key.StartsWith("Personality:", StringComparison.Ordinal) ? key[12..] : key;
-            panel.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Width = 396, Margin = new Thickness(0, 0, 12, 6), Spacing = 6, Children = { new TextBlock { Text = label, Width = 190, VerticalAlignment = VerticalAlignment.Center }, min, max } });
+            panel.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Width = 396, Margin = new Thickness(0, 0, 12, 6), Spacing = 6, Children = { new TextBlock { Text = Loc.S(label), Width = 190, VerticalAlignment = VerticalAlignment.Center }, min, max } });
         }
         void AddChoice(string key, IEnumerable<FilterChoice> options)
         {
@@ -1511,7 +1512,7 @@ public sealed class AttributeFilterDialog : Window
             long? selected = initialRanges.TryGetValue(key, out var range) ? range.Min : null;
             var combo = new ComboBox { ItemsSource = choices, SelectedItem = choices.FirstOrDefault(option => option.Value == selected), Width = 190, MinWidth = 190, MaxWidth = 190, ItemTemplate = ChoiceItem() };
             choiceInputs[key] = combo;
-            panel.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Width = 396, Margin = new Thickness(0, 0, 12, 6), Spacing = 6, Children = { new TextBlock { Text = key, Width = 190, TextWrapping = TextWrapping.NoWrap, VerticalAlignment = VerticalAlignment.Center }, combo } });
+            panel.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Width = 396, Margin = new Thickness(0, 0, 12, 6), Spacing = 6, Children = { new TextBlock { Text = Loc.S(key), Width = 190, TextWrapping = TextWrapping.NoWrap, VerticalAlignment = VerticalAlignment.Center }, combo } });
         }
         AddChoice("Ethnicity", new[] { new FilterChoice(null, "Unset") }.Concat(InformationLabels.Ethnicities.Select(value => new FilterChoice(value.Code, value.Name))));
         AddChoice("Treated As Non-EU In Italy", [new(null, "Any"), new(1, "Yes"), new(0, "No")]);
@@ -1524,7 +1525,7 @@ public sealed class AttributeFilterDialog : Window
         var panel = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(14, 10) };
         for (int bit = 0; bit < PreferredMovesAccess.Count; bit++)
         {
-            var box = new CheckBox { Content = PreferredMovesLabels.Names[bit], IsChecked = (initialPreferredMoves & (1UL << bit)) != 0, Width = 420, Margin = new Thickness(0, 0, 6, 6) };
+            var box = new CheckBox { Content = PreferredMovesLabels.Display(bit), IsChecked = (initialPreferredMoves & (1UL << bit)) != 0, Width = 420, Margin = new Thickness(0, 0, 6, 6) };
             preferredMoveChecks.Add(box);
             panel.Children.Add(box);
         }
@@ -1560,7 +1561,7 @@ public sealed class AttributeFilterDialog : Window
             initialClauses.TryGetValue(type, out var criterion);
             var presence = new ComboBox
             {
-                ItemsSource = ClausePresenceOptions,
+                ItemsSource = ClausePresenceOptions.Select(Loc.S).ToArray(),
                 SelectedIndex = criterion is null ? 0 : criterion.HasClause ? 1 : 2,
                 Width = 90,
                 MinWidth = 90,
@@ -1569,8 +1570,8 @@ public sealed class AttributeFilterDialog : Window
                 HorizontalAlignment = HorizontalAlignment.Left,
             };
             presence.ItemTemplate = TextItem(90);
-            var min = new TextBox { Width = 92, Watermark = "Min", Text = criterion?.MinimumValue?.ToString() ?? "", HorizontalContentAlignment = HorizontalAlignment.Right };
-            var max = new TextBox { Width = 92, Watermark = "Max", Text = criterion?.MaximumValue?.ToString() ?? "", HorizontalContentAlignment = HorizontalAlignment.Right };
+            var min = new TextBox { Width = 92, Watermark = Loc.S("Min"), Text = criterion?.MinimumValue?.ToString() ?? "", HorizontalContentAlignment = HorizontalAlignment.Right };
+            var max = new TextBox { Width = 92, Watermark = Loc.S("Max"), Text = criterion?.MaximumValue?.ToString() ?? "", HorizontalContentAlignment = HorizontalAlignment.Right };
             clauseInputs[type] = (presence, min, max);
             presence.SelectionChanged += (_, _) => { if (!updatingControls) UpdateSummary(); };
             min.TextChanged += (_, _) => { if (!updatingControls) UpdateSummary(); };
@@ -1581,11 +1582,11 @@ public sealed class AttributeFilterDialog : Window
                 Spacing = 8,
                 Children =
                 {
-                    new TextBlock { Text = name, Width = 190, VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap },
+                    new TextBlock { Text = Loc.S(name), Width = 190, VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap },
                     presence,
-                    new TextBlock { Text = "Value", Foreground = Brush("#94A3B8"), VerticalAlignment = VerticalAlignment.Center },
+                    new TextBlock { Text = Loc.S("Value"), Foreground = Brush("#94A3B8"), VerticalAlignment = VerticalAlignment.Center },
                     min,
-                    new TextBlock { Text = "to", Foreground = Brush("#94A3B8"), VerticalAlignment = VerticalAlignment.Center },
+                    new TextBlock { Text = Loc.S("to"), Foreground = Brush("#94A3B8"), VerticalAlignment = VerticalAlignment.Center },
                     max,
                 },
             });
@@ -1596,14 +1597,14 @@ public sealed class AttributeFilterDialog : Window
     Control BuildContractChoicesCard()
     {
         var teamRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-        teamRow.Children.Add(new TextBlock { Text = "Team", Width = 220, VerticalAlignment = VerticalAlignment.Center });
+        teamRow.Children.Add(new TextBlock { Text = Loc.S("Team"), Width = 220, VerticalAlignment = VerticalAlignment.Center });
         teamRow.Children.Add(teamPickButton);
-        var teamClear = new Button { Content = "Clear", Width = 90 };
+        var teamClear = new Button { Content = Loc.S("Clear"), Width = 90 };
         teamClear.Click += (_, _) =>
         {
             teamClubAddress = 0;
             teamClubName = "";
-            teamPickButton.Content = "Choose…";
+            teamPickButton.Content = Loc.S("Choose…");
             if (!updatingControls) UpdateSummary();
         };
         teamRow.Children.Add(teamClear);
@@ -1630,7 +1631,7 @@ public sealed class AttributeFilterDialog : Window
     {
         Orientation = Orientation.Horizontal,
         Spacing = 8,
-        Children = { new TextBlock { Text = label, Width = 220, VerticalAlignment = VerticalAlignment.Center }, combo },
+        Children = { new TextBlock { Text = Loc.S(label), Width = 220, VerticalAlignment = VerticalAlignment.Center }, combo },
     };
 
     readonly Dictionary<TextBox, (long Min, long Max)> limits = [];
@@ -1651,8 +1652,8 @@ public sealed class AttributeFilterDialog : Window
     Control RangeCard(string key, string label)
     {
         initialRanges.TryGetValue(key, out var range);
-        var min = new TextBox { Width = 92, Watermark = "Min", Text = range?.Min?.ToString() ?? "", HorizontalContentAlignment = HorizontalAlignment.Right };
-        var max = new TextBox { Width = 92, Watermark = "Max", Text = range?.Max?.ToString() ?? "", HorizontalContentAlignment = HorizontalAlignment.Right };
+        var min = new TextBox { Width = 92, Watermark = Loc.S("Min"), Text = range?.Min?.ToString() ?? "", HorizontalContentAlignment = HorizontalAlignment.Right };
+        var max = new TextBox { Width = 92, Watermark = Loc.S("Max"), Text = range?.Max?.ToString() ?? "", HorizontalContentAlignment = HorizontalAlignment.Right };
         Limit(min, 0, 2_000_000_000);
         Limit(max, 0, 2_000_000_000);
         rangeInputs[key] = (min, max);
@@ -1663,14 +1664,14 @@ public sealed class AttributeFilterDialog : Window
             Orientation = Orientation.Horizontal,
             Spacing = 8,
             Margin = new Thickness(12, 10),
-            Children = { min, new TextBlock { Text = "to", Foreground = Brush("#94A3B8"), VerticalAlignment = VerticalAlignment.Center }, max }
+            Children = { min, new TextBlock { Text = Loc.S("to"), Foreground = Brush("#94A3B8"), VerticalAlignment = VerticalAlignment.Center }, max }
         });
     }
     Control BuildBottomBar()
     {
         var dock = new DockPanel { LastChildFill = false };
 
-        var clearAllBtn = new Button { Content = "Clear all" };
+        var clearAllBtn = new Button { Content = Loc.S("Clear all") };
         clearAllBtn.Click += (_, _) =>
         {
             if (SelectedScope == "Coach") { coachPanel?.Clear(); UpdateScopeSummary(); return; }
@@ -1698,7 +1699,7 @@ public sealed class AttributeFilterDialog : Window
             contractStatusCombo.SelectedIndex = 0;
             teamClubAddress = 0;
             teamClubName = "";
-            teamPickButton.Content = "Choose…";
+            teamPickButton.Content = Loc.S("Choose…");
             foreach (var combo in choiceInputs.Values) combo.SelectedIndex = 0;
             foreach (var box in preferredMoveChecks) box.IsChecked = false;
             SyncPositionButtons();
@@ -1723,31 +1724,31 @@ public sealed class AttributeFilterDialog : Window
 
         var saveBtn = new Button
         {
-            Content = "Search",
+            Content = Loc.S("Search"),
             Classes = { "accent" },
         };
         saveBtn.Click += (_, _) =>
         {
             if (SelectedScope == "Coach")
             {
-                if (coachPanel?.Criteria() is null) { summaryText.Text = "Invalid range"; return; }
+                if (coachPanel?.Criteria() is null) { summaryText.Text = Loc.S("Invalid range"); return; }
                 var matched = coachPanel.Matched();
-                if (matched.Count == 0) { summaryText.Text = "No staff match the filter."; return; }
+                if (matched.Count == 0) { summaryText.Text = Loc.S("No staff match the filter."); return; }
                 MatchedStaff = matched;
                 ScopeTotalCount = coachPanel.TotalCount;
-                ScopeFilterNote = coachPanel.SelectedGender() is { } sg ? $"Gender: {sg}" : null;
+                ScopeFilterNote = coachPanel.SelectedGender() is { } sg ? Loc.F("Gender: {0}", Loc.S(sg.ToString())) : null;
                 Saved = true;
                 Close();
                 return;
             }
             if (SelectedScope == "Club")
             {
-                if (clubPanel?.Criteria() is null) { summaryText.Text = "Invalid range"; return; }
+                if (clubPanel?.Criteria() is null) { summaryText.Text = Loc.S("Invalid range"); return; }
                 var matched = clubPanel.Matched();
-                if (matched.Count == 0) { summaryText.Text = "No clubs match the filter."; return; }
+                if (matched.Count == 0) { summaryText.Text = Loc.S("No clubs match the filter."); return; }
                 MatchedClubs = matched;
                 ScopeTotalCount = clubPanel.TotalCount;
-                ScopeFilterNote = clubPanel.SelectedGender() is { } cg ? $"Gender: {cg}" : null;
+                ScopeFilterNote = clubPanel.SelectedGender() is { } cg ? Loc.F("Gender: {0}", Loc.S(cg.ToString())) : null;
                 Saved = true;
                 Close();
                 return;
@@ -1757,15 +1758,15 @@ public sealed class AttributeFilterDialog : Window
                 if ((!string.IsNullOrWhiteSpace(controls.Min.Text) && ParseOptLong(controls.Min.Text) is null) ||
                     (!string.IsNullOrWhiteSpace(controls.Max.Text) && ParseOptLong(controls.Max.Text) is null) ||
                     (ParseOptLong(controls.Min.Text) is { } min && ParseOptLong(controls.Max.Text) is { } max && min > max))
-                { summaryText.Text = "Invalid range"; return; }
+                { summaryText.Text = Loc.S("Invalid range"); return; }
             }
             foreach (var (_, boxes) in clauseInputs)
             {
-                if (boxes.Presence.SelectedItem as string != "Yes") continue;
+                if (boxes.Presence.SelectedIndex != 1) continue;
                 if ((!string.IsNullOrWhiteSpace(boxes.Min.Text) && ParseOptInt(boxes.Min.Text) is null) ||
                     (!string.IsNullOrWhiteSpace(boxes.Max.Text) && ParseOptInt(boxes.Max.Text) is null) ||
                     (ParseOptInt(boxes.Min.Text) is { } lo && ParseOptInt(boxes.Max.Text) is { } hi && lo > hi))
-                { summaryText.Text = "Invalid range"; return; }
+                { summaryText.Text = Loc.S("Invalid range"); return; }
             }
             SelectedScope = "Player";
             Saved = true;
@@ -1774,7 +1775,7 @@ public sealed class AttributeFilterDialog : Window
 
         var discardBtn = new Button
         {
-            Content = "Cancel",
+            Content = Loc.S("Cancel"),
         };
         discardBtn.Click += (_, _) =>
         {
@@ -1828,13 +1829,13 @@ public sealed class AttributeFilterDialog : Window
         {
             string key = $"Personality:{attribute}";
             initialRanges.TryGetValue(key, out var range);
-            var min = new TextBox { Width = 62, Watermark = "Min", Text = range?.Min?.ToString() ?? "", HorizontalContentAlignment = HorizontalAlignment.Right };
-            var max = new TextBox { Width = 62, Watermark = "Max", Text = range?.Max?.ToString() ?? "", HorizontalContentAlignment = HorizontalAlignment.Right, Margin = new Thickness(4, 0, 0, 0) };
+            var min = new TextBox { Width = 62, Watermark = Loc.S("Min"), Text = range?.Min?.ToString() ?? "", HorizontalContentAlignment = HorizontalAlignment.Right };
+            var max = new TextBox { Width = 62, Watermark = Loc.S("Max"), Text = range?.Max?.ToString() ?? "", HorizontalContentAlignment = HorizontalAlignment.Right, Margin = new Thickness(4, 0, 0, 0) };
             rangeInputs[key] = (min, max);
             var row = new DockPanel { MinHeight = 25 };
             DockPanel.SetDock(max, Dock.Right); row.Children.Add(max);
             DockPanel.SetDock(min, Dock.Right); row.Children.Add(min);
-            row.Children.Add(new TextBlock { Text = attribute.ToString(), Foreground = UiKit.TextSecondary, VerticalAlignment = VerticalAlignment.Center });
+            row.Children.Add(new TextBlock { Text = Loc.S(attribute.ToString()), Foreground = UiKit.TextSecondary, VerticalAlignment = VerticalAlignment.Center });
             panel.Children.Add(new Border
             {
                 Background = idx++ % 2 == 1 ? UiKit.SurfaceZebra : Brushes.Transparent,
@@ -1866,7 +1867,7 @@ public sealed class AttributeFilterDialog : Window
         };
         var nameText = new TextBlock
         {
-            Text = label,
+            Text = Loc.S(label),
             FontSize = 13,
             VerticalAlignment = VerticalAlignment.Center,
             TextWrapping = TextWrapping.Wrap,
@@ -2003,31 +2004,31 @@ public sealed class AttributeFilterDialog : Window
     {
         if (scopeIndex > 0) { UpdateScopeSummary(); return; }
         var parts = new List<string>();
-        if (ResultGender is { } activeGender) parts.Add($"Gender: {activeGender}");
-        if (ResultNameQuery is not null) parts.Add($"Name: {ResultNameQuery}");
-        if (ResultDivision is not null) parts.Add($"League: {ResultDivision}");
-        if (ResultClub is not null) parts.Add($"Club: {ResultClub}");
-        if (ResultTeamClubName is not null) parts.Add($"Team: {ResultTeamClubName}");
-        if (ResultNationality is not null) parts.Add($"Nation: {ResultNationality}");
+        if (ResultGender is { } activeGender) parts.Add(Loc.F("Gender: {0}", Loc.S(activeGender.ToString())));
+        if (ResultNameQuery is not null) parts.Add(Loc.F("Name: {0}", ResultNameQuery));
+        if (ResultDivision is not null) parts.Add(Loc.F("League: {0}", ResultDivision));
+        if (ResultClub is not null) parts.Add(Loc.F("Club: {0}", ResultClub));
+        if (ResultTeamClubName is not null) parts.Add(Loc.F("Team: {0}", ResultTeamClubName));
+        if (ResultNationality is not null) parts.Add(Loc.F("Nation: {0}", ResultNationality));
         if (ResultContractType is { } contractType) parts.Add(ContractLabels.Of(contractType));
         if (ResultPlayingTime is { } playingTime) parts.Add(ContractLabels.Of(playingTime));
-        if (ResultContractStatus is { } contractStatus) parts.Add(ContractStatusOptions.First(o => o.Value == contractStatus).Name);
-        if (ResultClauses.Count > 0) parts.Add($"{ResultClauses.Count} clause(s)");
-        if (ResultMinAge is not null || ResultMaxAge is not null) parts.Add("Age");
-        if (ResultMinCa is not null || ResultMaxCa is not null) parts.Add("CA");
-        if (ResultMinPa is not null || ResultMaxPa is not null) parts.Add("PA");
-        if (stagedPositions.Count > 0) parts.Add($"{stagedPositions.Count} position(s)");
-        if (staged.Count > 0) parts.Add($"{staged.Count} attribute(s)");
+        if (ResultContractStatus is { } contractStatus) parts.Add(Loc.S(ContractStatusOptions.First(o => o.Value == contractStatus).Name));
+        if (ResultClauses.Count > 0) parts.Add(Loc.F("{0} clause(s)", ResultClauses.Count));
+        if (ResultMinAge is not null || ResultMaxAge is not null) parts.Add(Loc.S("Age"));
+        if (ResultMinCa is not null || ResultMaxCa is not null) parts.Add(Loc.S("CA"));
+        if (ResultMinPa is not null || ResultMaxPa is not null) parts.Add(Loc.S("PA"));
+        if (stagedPositions.Count > 0) parts.Add(Loc.F("{0} position(s)", stagedPositions.Count));
+        if (staged.Count > 0) parts.Add(Loc.F("{0} attribute(s)", staged.Count));
 
         int visibleByGender = allPlayers.Count == 0 ? 0 : PlayersMatchingDialogGender().Count();
         string hiddenSuffix = allPlayers.Count > 0 && visibleByGender < allPlayers.Count
-            ? $" — {visibleByGender:N0} of {allPlayers.Count:N0} players shown ({allPlayers.Count - visibleByGender:N0} hidden)"
+            ? Loc.F(" — {0:N0} of {1:N0} players shown ({2:N0} hidden)", visibleByGender, allPlayers.Count, allPlayers.Count - visibleByGender)
             : "";
 
         summaryText.Foreground = Brush("#CBD5E1");
         summaryText.Text = parts.Count == 0
-            ? (allPlayers.Count > 0 ? $"All {allPlayers.Count:N0} players{hiddenSuffix}" : "No filters active")
-            : $"Active: {string.Join(", ", parts)}{hiddenSuffix}";
+            ? (allPlayers.Count > 0 ? Loc.F("All {0:N0} players{1}", allPlayers.Count, hiddenSuffix) : Loc.S("No filters active"))
+            : Loc.F("Active: {0}{1}", string.Join(", ", parts), hiddenSuffix);
     }
 
     void RefreshPresetCombo(string? selectName)
@@ -2066,16 +2067,21 @@ public sealed class AttributeFilterDialog : Window
     static FuncDataTemplate<FilterChoice> ChoiceItem() =>
         new((choice, _) => new TextBlock
         {
-            Text = choice.Name,
+            Text = choice is null ? "" : Loc.S(choice.Name),
             MaxWidth = 154,
             TextTrimming = TextTrimming.CharacterEllipsis,
             VerticalAlignment = VerticalAlignment.Center
         });
 
-    static FuncDataTemplate<FilterPreset> PresetItem() =>
-        new((preset, _) => new TextBlock
+    static FuncDataTemplate<object> PresetItem() =>
+        new((item, _) => new TextBlock
         {
-            Text = preset.Name,
+            Text = item switch
+            {
+                FilterPreset p => Loc.S(p.Name),
+                string s => Loc.S(s),
+                _ => item?.ToString() ?? "",
+            },
             MaxWidth = 184,
             TextTrimming = TextTrimming.CharacterEllipsis,
             VerticalAlignment = VerticalAlignment.Center

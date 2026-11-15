@@ -25,6 +25,9 @@ Checked on Steam `27.0.1+2503222` and Game Pass `27.0.1+2494687`.
 
 - **Update now**: when a new release is out, the editor downloads it, checks it against the release checksum, replaces itself
   and restarts. Builds before this one still need one manual download.
+- **Vietnamese UI (`Tiếng Việt`)**: added global `Language` option in **Settings** (`English` default / `Tiếng Việt`) covering screens, menus, dialogs, columns, filters, Mass Edit, presets, status messages, and FM27 terms.
+- **Players → Retiring** sub-tab: lists players with planned retirements, retiring after their current club spell, or the `Will retire at top` trait, with live search and reason filtering.
+- **Player grid bulk actions**: multi-select (`Ctrl`/`Shift`) and right-click context menu on player grids (`Players`, `Retiring`, `Squad`, `Club` squads, `Nation` squads) for bulk **Prevent retirement**, **Freeze/Unfreeze**, **State**, **Presets**, **Contract Actions**, **Transfer/Loan Status**, **Development Speed**, and **Mass Edit**, recorded as a single undo group.
 
 ## 1.3.0
 

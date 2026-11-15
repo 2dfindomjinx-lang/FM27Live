@@ -22,22 +22,22 @@ public static class PlayerAttributeFile
         if (csv)
         {
             var lines = content.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries);
-            if (lines.Length == 0 || lines[0].Trim().TrimStart('\uFEFF') != "Attribute,Value") throw new FormatException("Expected Attribute,Value header");
+            if (lines.Length == 0 || lines[0].Trim().TrimStart('\uFEFF') != "Attribute,Value") throw new FormatException(Loc.S("Expected Attribute,Value header"));
             values = new Dictionary<string, int>(StringComparer.Ordinal);
             foreach (var line in lines.Skip(1))
             {
                 var parts = line.Split(',');
                 if (parts.Length != 2 || !int.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out int value) || !values.TryAdd(parts[0].Trim(), value))
-                    throw new FormatException("Invalid or duplicate attribute");
+                    throw new FormatException(Loc.S("Invalid or duplicate attribute"));
             }
         }
-        else values = JsonSerializer.Deserialize<Dictionary<string, int>>(content) ?? throw new FormatException("Invalid JSON");
+        else values = JsonSerializer.Deserialize<Dictionary<string, int>>(content) ?? throw new FormatException(Loc.S("Invalid JSON"));
         var attributes = Enum.GetValues<PlayerAttribute>();
         var personalities = Enum.GetValues<PersonalityAttribute>();
         if (values.Count != attributes.Length + personalities.Length ||
             attributes.Any(a => !values.TryGetValue(a.ToString(), out int value) || value is < 1 or > 20) ||
             personalities.Any(a => !values.TryGetValue($"Personality.{a}", out int value) || value is < 0 or > 20))
-            throw new FormatException("The file must contain every attribute; attribute values are 1–20 and personality values are 0–20");
+            throw new FormatException(Loc.S("The file must contain every attribute; attribute values are 1–20 and personality values are 0–20"));
         return values;
     }
 

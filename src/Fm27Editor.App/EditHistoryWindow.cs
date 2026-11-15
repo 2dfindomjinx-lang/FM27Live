@@ -21,7 +21,7 @@ public sealed class EditHistoryWindow : Window
     readonly IProcessMemory memory;
     readonly Action<string> onStatus;
     readonly Action onUndone;
-    readonly TextBox search = new() { Watermark = "Search changes", HorizontalAlignment = HorizontalAlignment.Stretch };
+    readonly TextBox search = new() { Watermark = Loc.S("Search changes"), HorizontalAlignment = HorizontalAlignment.Stretch };
     readonly StackPanel list = new() { Spacing = 8 };
     readonly TextBlock message = new() { Foreground = UiKit.Brush("#94A3B8"), VerticalAlignment = VerticalAlignment.Center };
     readonly HashSet<string> collapsed = [];
@@ -32,28 +32,30 @@ public sealed class EditHistoryWindow : Window
         this.memory = memory;
         this.onStatus = onStatus;
         this.onUndone = onUndone;
-        Title = "Edit History";
+        Title = Loc.S("Edit History");
         Width = 760;
         Height = 620;
         MinWidth = 520;
         MinHeight = 320;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
 
-        var clear = new Button { Content = "Clear history" };
+        var clear = new Button { Content = Loc.S("Clear history") };
         clear.Click += (_, _) => journal.Clear();
-        var undoEverything = new Button { Content = "Undo all", Margin = new Thickness(0, 0, 8, 0) };
+        var undoEverything = new Button { Content = Loc.S("Undo all"), Margin = new Thickness(0, 0, 8, 0) };
         undoEverything.Click += async (_, _) =>
         {
             int pending = journal.Groups.Sum(g => g.Entries.Count(e => !e.Undone));
-            if (pending == 0) { Report("Nothing to undo"); return; }
-            if (!await ConfirmAsync($"Undo all {pending:N0} change(s) in the history?")) return;
+            if (pending == 0) { Report(Loc.S("Nothing to undo")); return; }
+            if (!await ConfirmAsync(Loc.F("Undo all {0:N0} change(s) in the history?", pending))) return;
             int restored = 0, refused = 0;
             foreach (var group in journal.Groups.OrderByDescending(g => g.Time))
             {
                 var (ok, errors) = journal.Undo(group, memory);
                 restored += ok; refused += errors.Count;
             }
-            Report($"Undo all: {restored:N0} restored" + (refused > 0 ? $", {refused:N0} refused (the game changed them since)" : ""));
+            Report(refused > 0
+                ? Loc.F("Undo all: {0:N0} restored, {1:N0} refused (the game changed them since)", restored, refused)
+                : Loc.F("Undo all: {0:N0} restored", restored));
             if (restored > 0) onUndone();
         };
         DockPanel.SetDock(clear, Dock.Right);
@@ -61,7 +63,7 @@ public sealed class EditHistoryWindow : Window
         var top = new DockPanel { Margin = new Thickness(0, 0, 0, 8), LastChildFill = true, Children = { clear, undoEverything, search } };
         search.Margin = new Thickness(0, 0, 8, 0);
 
-        var close = new Button { Content = "Close", Classes = { "accent" } };
+        var close = new Button { Content = Loc.S("Close"), Classes = { "accent" } };
         close.Click += (_, _) => Close();
         var footer = new DockPanel { Margin = new Thickness(0, 8, 0, 0), LastChildFill = true };
         DockPanel.SetDock(close, Dock.Right);
@@ -90,12 +92,14 @@ public sealed class EditHistoryWindow : Window
         list.Children.Clear();
         string q = search.Text?.Trim() ?? "";
         bool Matches(ChangeGroup g, ChangeEntry? e = null) => q.Length == 0
-            || g.Kind.Contains(q, StringComparison.OrdinalIgnoreCase) || g.Entity.Contains(q, StringComparison.OrdinalIgnoreCase)
-            || g.Title.Contains(q, StringComparison.OrdinalIgnoreCase)
-            || (e is null ? g.Entries.Any(x => x.Name.Contains(q, StringComparison.OrdinalIgnoreCase)) : e.Name.Contains(q, StringComparison.OrdinalIgnoreCase));
+            || g.Kind.Contains(q, StringComparison.OrdinalIgnoreCase) || Loc.S(g.Kind).Contains(q, StringComparison.OrdinalIgnoreCase)
+            || g.Entity.Contains(q, StringComparison.OrdinalIgnoreCase)
+            || g.Title.Contains(q, StringComparison.OrdinalIgnoreCase) || Loc.S(g.Title).Contains(q, StringComparison.OrdinalIgnoreCase)
+            || (e is null ? g.Entries.Any(x => x.Name.Contains(q, StringComparison.OrdinalIgnoreCase) || Loc.S(x.Name).Contains(q, StringComparison.OrdinalIgnoreCase))
+                          : e.Name.Contains(q, StringComparison.OrdinalIgnoreCase) || Loc.S(e.Name).Contains(q, StringComparison.OrdinalIgnoreCase));
 
         var groups = journal.Groups.Where(g => Matches(g)).OrderByDescending(g => g.Time).ToList();
-        message.Text = groups.Count == 0 ? "" : $"{groups.Sum(g => g.Entries.Count):N0} change(s) in {groups.Count} save(s)";
+        message.Text = groups.Count == 0 ? "" : Loc.F("{0:N0} change(s) in {1} save(s)", groups.Sum(g => g.Entries.Count), groups.Count);
         foreach (var entity in groups.GroupBy(g => (g.Kind, g.Entity)).OrderByDescending(e => e.Max(g => g.Time)))
             list.Children.Add(EntityBlock(entity.Key.Kind, entity.Key.Entity, entity.ToList(), q, Matches));
     }
@@ -108,7 +112,7 @@ public sealed class EditHistoryWindow : Window
 
         var toggle = new Button
         {
-            Content = $"{(body.IsVisible ? "⌄" : "›")}  {entity}",
+            Content = $"{(body.IsVisible ? "⌄" : "›")}  {Loc.S(entity)}",
             FontWeight = FontWeight.Bold,
             HorizontalAlignment = HorizontalAlignment.Left,
             Background = Brushes.Transparent,
@@ -118,7 +122,7 @@ public sealed class EditHistoryWindow : Window
         toggle.Click += (_, _) => { if (!collapsed.Remove(key)) collapsed.Add(key); Rebuild(); };
         var badge = new TextBlock
         {
-            Text = $"{kind} · {groups.Sum(g => g.Entries.Count):N0} change(s)",
+            Text = Loc.F("{0} · {1:N0} change(s)", Loc.S(kind), groups.Sum(g => g.Entries.Count)),
             Foreground = UiKit.Brush("#94A3B8"),
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(8, 0, 0, 0),
@@ -137,16 +141,20 @@ public sealed class EditHistoryWindow : Window
 
     Control GroupBlock(ChangeGroup group, string q, Func<ChangeGroup, ChangeEntry?, bool> matches)
     {
-        var undoAll = new Button { Content = group.FullyUndone ? "Undone" : "Undo all", IsEnabled = !group.FullyUndone };
+        var undoAll = new Button { Content = group.FullyUndone ? Loc.S("Undone") : Loc.S("Undo all"), IsEnabled = !group.FullyUndone };
         undoAll.Click += (_, _) =>
         {
             var (restored, errors) = journal.Undo(group, memory);
-            Report($"Undo {group.Title} ({group.Entity}): {restored} restored" + (errors.Count > 0 ? $", {errors.Count} refused ({errors[0]})" : ""));
+            string groupTitle = Loc.S(group.Title);
+            string groupEntity = Loc.S(group.Entity);
+            Report(errors.Count > 0
+                ? Loc.F("Undo {0} ({1}): {2} restored, {3} refused ({4})", groupTitle, groupEntity, restored, errors.Count, errors[0])
+                : Loc.F("Undo {0} ({1}): {2} restored", groupTitle, groupEntity, restored));
             if (restored > 0) onUndone();
         };
         var title = new TextBlock
         {
-            Text = $"{Time(group.Time)}  ·  {group.Entity}  ·  {group.Title}  ·  {group.Entries.Count:N0}",
+            Text = $"{Time(group.Time)}  ·  {Loc.S(group.Entity)}  ·  {Loc.S(group.Title)}  ·  {group.Entries.Count:N0}",
             FontWeight = FontWeight.SemiBold,
             VerticalAlignment = VerticalAlignment.Center,
         };
@@ -157,10 +165,11 @@ public sealed class EditHistoryWindow : Window
 
         var rows = new StackPanel { Spacing = 3 };
         var shown = group.Entries.Where(e => matches(group, e) || q.Length == 0 || group.Entity.Contains(q, StringComparison.OrdinalIgnoreCase)
-            || group.Kind.Contains(q, StringComparison.OrdinalIgnoreCase) || group.Title.Contains(q, StringComparison.OrdinalIgnoreCase)).ToList();
+            || group.Kind.Contains(q, StringComparison.OrdinalIgnoreCase) || Loc.S(group.Kind).Contains(q, StringComparison.OrdinalIgnoreCase)
+            || group.Title.Contains(q, StringComparison.OrdinalIgnoreCase) || Loc.S(group.Title).Contains(q, StringComparison.OrdinalIgnoreCase)).ToList();
         foreach (var entry in shown.Take(MaxEntriesShown)) rows.Children.Add(EntryRow(entry));
         if (shown.Count > MaxEntriesShown)
-            rows.Children.Add(new TextBlock { Text = $"… {shown.Count - MaxEntriesShown:N0} more; Undo all restores every one", Foreground = UiKit.Brush("#94A3B8") });
+            rows.Children.Add(new TextBlock { Text = Loc.F("… {0:N0} more; Undo all restores every one", shown.Count - MaxEntriesShown), Foreground = UiKit.Brush("#94A3B8") });
 
         return new Border
         {
@@ -175,13 +184,13 @@ public sealed class EditHistoryWindow : Window
 
     Control EntryRow(ChangeEntry entry)
     {
-        var undo = new Button { Content = entry.Undone ? "Undone" : "Undo", IsEnabled = !entry.Undone, MinWidth = 64 };
+        var undo = new Button { Content = entry.Undone ? Loc.S("Undone") : Loc.S("Undo"), IsEnabled = !entry.Undone, MinWidth = 64 };
         undo.Click += (_, _) =>
         {
-            if (journal.Undo(entry, memory, out var error)) { Report($"Restored {entry.Name} to {entry.BeforeText}"); onUndone(); }
-            else Report($"Cannot undo {entry.Name}: {error}");
+            if (journal.Undo(entry, memory, out var error)) { Report(Loc.F("Restored {0} to {1}", Loc.S(entry.Name), entry.BeforeText)); onUndone(); }
+            else Report(Loc.F("Cannot undo {0}: {1}", Loc.S(entry.Name), error ?? ""));
         };
-        var name = new TextBlock { Text = entry.Name, FontWeight = FontWeight.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis };
+        var name = new TextBlock { Text = Loc.S(entry.Name), FontWeight = FontWeight.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis };
         var values = new StackPanel
         {
             Orientation = Orientation.Horizontal,
@@ -204,11 +213,11 @@ public sealed class EditHistoryWindow : Window
     {
         var dialog = new Window
         {
-            Title = "Confirm", Width = 360, SizeToContent = SizeToContent.Height, CanResize = false,
+            Title = Loc.S("Confirm"), Width = 360, SizeToContent = SizeToContent.Height, CanResize = false,
             WindowStartupLocation = WindowStartupLocation.CenterOwner, ShowInTaskbar = false,
         };
-        var yes = new Button { Content = "Yes", MinWidth = 72, Classes = { "accent" } };
-        var no = new Button { Content = "No", MinWidth = 72 };
+        var yes = new Button { Content = Loc.S("Yes"), MinWidth = 72, Classes = { "accent" } };
+        var no = new Button { Content = Loc.S("No"), MinWidth = 72 };
         yes.Click += (_, _) => dialog.Close(true);
         no.Click += (_, _) => dialog.Close(false);
         dialog.Content = new StackPanel

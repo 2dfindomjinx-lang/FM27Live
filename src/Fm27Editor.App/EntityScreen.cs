@@ -60,11 +60,13 @@ internal interface IEntityScreen : IRegisterable
     (string Kind, string Entity)? EditContext { get; }
     /// <summary>Reads again what this screen is showing (the open item, or its list); false when it is not the one showing.</summary>
     bool ReloadCurrent();
+    /// <summary>Refreshes column headers, filter controls and active editor after the UI language changes.</summary>
+    void RefreshLanguage();
 }
 
 internal sealed record ScreenNav(string Title)
 {
-    public override string ToString() => Title;
+    public override string ToString() => Loc.S(Title);
 }
 
 /// <summary>
@@ -112,7 +114,7 @@ internal abstract class EntityScreen<TRecord, TRow, TDraft> : IEntityScreen
         Kind = kind;
         this.plural = plural;
         nav = new ScreenNav(moduleTitle);
-        search.Watermark = searchWatermark;
+        Loc.BindWatermark(search, searchWatermark);
     }
 
     // What a kind supplies.
@@ -139,19 +141,29 @@ internal abstract class EntityScreen<TRecord, TRow, TDraft> : IEntityScreen
     protected virtual void OnReconnected() { }
     /// <summary>Runs on the window thread before rows load in the background, to collect what the load needs from the window.</summary>
     protected virtual void BeforeLoad() { }
-    protected virtual string LoadedMessage(int count) => $"{count:N0} {plural}";
-    protected virtual string FilteredMessage(int shown, int total) => $"{shown:N0} of {total:N0} {plural} shown ({total - shown:N0} hidden by filter)";
+    protected virtual string LoadedMessage(int count) => Loc.F("{0:N0} {1}", count, Loc.S(plural));
+    protected virtual string FilteredMessage(int shown, int total) => Loc.F("{0:N0} of {1:N0} {2} shown ({3:N0} hidden by filter)", shown, total, Loc.S(plural), total - shown);
     protected string SearchText => (search.Text ?? "").Trim();
     /// <summary>A save that stopped part-way: what was written stays written. Return true when the screen has told the user.</summary>
     protected virtual bool OnSaveFailed(TRecord record, Exception error) => false;
+    protected virtual void OnRefreshLanguage() { }
     protected abstract TRecord? Reload(TRecord record);
     protected abstract TRow Refresh(TRow row, TRecord fresh);
 
     public bool OwnsBody(Control body) => ReferenceEquals(body, detailRoot);
 
+    public void RefreshLanguage()
+    {
+        ListGrid.Columns.Clear();
+        ConfigureColumns(ListGrid);
+        OnRefreshLanguage();
+        Filter(reportStatus: false);
+        if (Selected is not null && Host.IsShowing(detailRoot)) Render();
+    }
+
     public bool ReloadCurrent()
     {
-        if (Selected is { } open && Host.IsShowing(detailRoot)) { ReloadAndRender(open); Host.SetStatus($"Reloaded {NameOf(Selected ?? open)}"); return true; }
+        if (Selected is { } open && Host.IsShowing(detailRoot)) { ReloadAndRender(open); Host.SetStatus(Loc.F("Reloaded {0}", NameOf(Selected ?? open))); return true; }
         if (active) { _ = LoadAsync(); return true; }
         return false;
     }
@@ -244,7 +256,7 @@ internal abstract class EntityScreen<TRecord, TRow, TDraft> : IEntityScreen
     /// <summary>Loads the rows again from the game.</summary>
     public async Task LoadAsync()
     {
-        Host.SetStatus($"Loading {plural}...");
+        Host.SetStatus(Loc.F("Loading {0}...", Loc.S(plural)));
         try
         {
             var session = Host.Backend.Session;
@@ -254,7 +266,7 @@ internal abstract class EntityScreen<TRecord, TRow, TDraft> : IEntityScreen
             Filter(reportStatus: true);
             if (Rows.Count == 0) Host.SetStatus(LoadedMessage(0));
         }
-        catch (Exception ex) { Host.SetStatus(ex.Message); }
+        catch (Exception ex) { Host.SetStatus(UserMessage.For(ex)); }
     }
 
     protected void Filter() => Filter(reportStatus: true);
@@ -339,7 +351,7 @@ internal abstract class EntityScreen<TRecord, TRow, TDraft> : IEntityScreen
         if (Selected is not { } record) { SaveButton = null; if (IsActive) Host.SetUnsaved(false); return; }
         ulong address = AddressOf(record);
         if (!Drafts.TryGetValue(address, out var draft)) Drafts[address] = draft = NewDraftFor(record);
-        var save = new Button { IsVisible = false, Content = "Save changes", IsEnabled = HasChanges(record, draft), Classes = { "accent" } };
+        var save = new Button { IsVisible = false, Content = Loc.S("Save changes"), IsEnabled = HasChanges(record, draft), Classes = { "accent" } };
         SaveButton = save;
         void Changed()
         {
@@ -389,9 +401,9 @@ internal abstract class EntityScreen<TRecord, TRow, TDraft> : IEntityScreen
             Drafts.Remove(AddressOf(record));
             Saved(record);
             ReloadAndRender(record);
-            Host.SetStatus(count == 0 ? "Nothing changed." : $"Saved {count} change{(count == 1 ? "" : "s")} to {name}. Continue in FM to see updates.");
+            Host.SetStatus(count == 0 ? Loc.S("Nothing changed.") : Loc.F(count == 1 ? "Saved 1 change to {0}. Continue in FM to see updates." : "Saved {1} changes to {0}. Continue in FM to see updates.", name, count));
         }
-        catch (Exception ex) { if (!OnSaveFailed(record, ex)) Host.SetStatus(ex.Message); }
+        catch (Exception ex) { if (!OnSaveFailed(record, ex)) Host.SetStatus(UserMessage.For(ex)); }
     }
 
     /// <summary>Reads the item again from the game, refreshes its row and draws the editor.</summary>

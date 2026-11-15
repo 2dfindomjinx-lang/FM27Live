@@ -39,7 +39,13 @@ internal sealed class ClubScreen(IScreenHost host, IClubPanels panels)
     IReadOnlyList<PlayerRecord> playersAtLoad = [];
     IReadOnlyList<ClubEntry>? cachedAtLoad;
     (IReadOnlyList<ClubEntry> Clubs, IReadOnlyList<PlayerRecord>? Fresh, DateOnly? Date)? loaded;
-    readonly ComboBox genderFilter = new() { ItemsSource = new[] { "Men", "Women", "All" }, SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch, MaxDropDownHeight = 260 };
+    static readonly string[] GenderFilterKeys = ["Men", "Women", "All"];
+    readonly ComboBox genderFilter = new()
+    {
+        ItemsSource = GenderFilterKeys,
+        ItemTemplate = new Avalonia.Controls.Templates.FuncDataTemplate<string>((s, _) => new TextBlock { Text = s is null ? "" : Loc.S(s) }),
+        SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch, MaxDropDownHeight = 260,
+    };
     internal ComboBox GenderFilter => genderFilter;
 
     Fm27Editor.Core.Offsets.Gender? SelectedGender() => genderFilter.SelectedIndex switch
@@ -51,7 +57,7 @@ internal sealed class ClubScreen(IScreenHost host, IClubPanels panels)
 
     protected override Control BuildSearchHeader(TextBox searchBox)
     {
-        ToolTip.SetTip(genderFilter, "Gender filter");
+        Loc.BindTip(genderFilter, "Gender filter");
         genderFilter.SelectionChanged += (_, _) => Filter();
         var row = new Grid { ColumnDefinitions = new ColumnDefinitions("*,104"), ColumnSpacing = 6 };
         Grid.SetColumn(searchBox, 0); row.Children.Add(searchBox);
@@ -68,7 +74,7 @@ internal sealed class ClubScreen(IScreenHost host, IClubPanels panels)
 
     protected override string FilteredMessage(int shown, int total) =>
         SelectedGender() is { } g && SearchText.Length == 0
-            ? $"{shown:N0} of {total:N0} clubs shown ({total - shown:N0} hidden by {g} filter)"
+            ? Loc.F("{0:N0} of {1:N0} clubs shown ({2:N0} hidden by {3} filter)", shown, total, total - shown, Loc.S(g.ToString()))
             : base.FilteredMessage(shown, total);
 
     /// <summary>Set from the command line (--club id): the club to show in the list once it has loaded.</summary>
@@ -85,14 +91,14 @@ internal sealed class ClubScreen(IScreenHost host, IClubPanels panels)
 
     protected override void ConfigureColumns(DataGrid grid)
     {
-        var id = new DataGridTextColumn { Header = "ID", Binding = new Binding(nameof(MainWindow.ClubPickerItem.Id)), Width = new DataGridLength(110), SortMemberPath = nameof(MainWindow.ClubPickerItem.Id) };
+        var id = new DataGridTextColumn { Header = Loc.S("ID"), Binding = new Binding(nameof(MainWindow.ClubPickerItem.Id)), Width = new DataGridLength(110), SortMemberPath = nameof(MainWindow.ClubPickerItem.Id) };
         id.CellStyleClasses.Add("numeric");
         grid.Columns.Add(id);
-        grid.Columns.Add(new DataGridTextColumn { Header = "Name", Binding = new Binding(nameof(MainWindow.ClubPickerItem.Name)), Width = new DataGridLength(1, DataGridLengthUnitType.Star), SortMemberPath = nameof(MainWindow.ClubPickerItem.Name) });
-        var balance = new DataGridTextColumn { Header = "Balance", Binding = new Binding(nameof(MainWindow.ClubPickerItem.Balance)) { StringFormat = "N0" }, Width = new DataGridLength(173), SortMemberPath = nameof(MainWindow.ClubPickerItem.Balance) };
+        grid.Columns.Add(new DataGridTextColumn { Header = Loc.S("Name"), Binding = new Binding(nameof(MainWindow.ClubPickerItem.Name)), Width = new DataGridLength(1, DataGridLengthUnitType.Star), SortMemberPath = nameof(MainWindow.ClubPickerItem.Name) });
+        var balance = new DataGridTextColumn { Header = Loc.S("Balance"), Binding = new Binding(nameof(MainWindow.ClubPickerItem.Balance)) { StringFormat = "N0" }, Width = new DataGridLength(173), SortMemberPath = nameof(MainWindow.ClubPickerItem.Balance) };
         balance.CellStyleClasses.Add("numeric");
         grid.Columns.Add(balance);
-        var reputation = new DataGridTextColumn { Header = "Reputation", Binding = new Binding(nameof(MainWindow.ClubPickerItem.Reputation)), Width = new DataGridLength(126), SortMemberPath = nameof(MainWindow.ClubPickerItem.Reputation) };
+        var reputation = new DataGridTextColumn { Header = Loc.S("Reputation"), Binding = new Binding(nameof(MainWindow.ClubPickerItem.Reputation)), Width = new DataGridLength(126), SortMemberPath = nameof(MainWindow.ClubPickerItem.Reputation) };
         reputation.CellStyleClasses.Add("numeric");
         grid.Columns.Add(reputation);
         panels.SectionRail.Margin = default;
@@ -172,6 +178,14 @@ internal sealed class ClubScreen(IScreenHost host, IClubPanels panels)
 
     protected override bool Matches(MainWindow.ClubPickerItem row, string q) => ClubCatalog.Filter([row.Club], q, SelectedGender()).Count > 0;
 
+    protected override void OnRefreshLanguage()
+    {
+        var idx = genderFilter.SelectedIndex;
+        genderFilter.ItemsSource = null;
+        genderFilter.ItemsSource = GenderFilterKeys;
+        genderFilter.SelectedIndex = idx;
+    }
+
     protected override ClubEntry RecordOf(MainWindow.ClubPickerItem row) => row.Club;
     protected override ulong AddressOf(ClubEntry record) => record.Address;
     protected override string NameOf(ClubEntry record) => record.DisplayName;
@@ -210,7 +224,7 @@ internal sealed class ClubScreen(IScreenHost host, IClubPanels panels)
     protected override string? Validate(ClubEntry club, ClubDraft draft, out Func<int> write)
     {
         write = () => panels.SaveClub(club, draft);
-        return draft.InvalidCount > 0 ? $"{draft.InvalidCount} invalid value(s)" : null;
+        return draft.InvalidCount > 0 ? Loc.F("{0} invalid value(s)", draft.InvalidCount) : null;
     }
 
     protected override bool OnSaveFailed(ClubEntry club, Exception error)

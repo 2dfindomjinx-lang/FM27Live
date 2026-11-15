@@ -13,12 +13,12 @@ internal sealed class NoticeDialog : Window
 {
     NoticeDialog(string heading, string message)
     {
-        Title = heading;
+        Title = Loc.S(heading);
         Width = 460;
         SizeToContent = SizeToContent.Height;
         CanResize = false;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        var ok = new Button { Content = "OK", Width = 90, Classes = { "accent" }, HorizontalContentAlignment = HorizontalAlignment.Center };
+        var ok = new Button { Content = Loc.S("OK"), Width = 90, Classes = { "accent" }, HorizontalContentAlignment = HorizontalAlignment.Center };
         ok.Click += (_, _) => Close();
         Content = new StackPanel
         {
@@ -26,8 +26,8 @@ internal sealed class NoticeDialog : Window
             Spacing = 14,
             Children =
             {
-                new TextBlock { Text = heading, FontSize = 15, FontWeight = FontWeight.SemiBold, Foreground = UiKit.TextPrimary },
-                new TextBlock { Text = message, FontSize = 13.5, TextWrapping = TextWrapping.Wrap, Foreground = UiKit.TextSecondary },
+                new TextBlock { Text = Loc.S(heading), FontSize = 15, FontWeight = FontWeight.SemiBold, Foreground = UiKit.TextPrimary },
+                new TextBlock { Text = Loc.S(message), FontSize = 13.5, TextWrapping = TextWrapping.Wrap, Foreground = UiKit.TextSecondary },
                 new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Children = { ok } },
             },
         };

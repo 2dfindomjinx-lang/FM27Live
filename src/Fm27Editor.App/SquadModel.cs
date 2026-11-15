@@ -56,7 +56,7 @@ public static class SquadFormatters
     }
 
     public static string FormatInfFlags(PlayerRecord player, bool isInjured = false, bool isBanned = false, bool isUnhappy = false, bool isFrozen = false) =>
-        string.Join(", ", new[] { (isInjured, "Inj"), (isBanned, "Ban"), (isUnhappy, "Unh"), (isFrozen, "Frz") }.Where(f => f.Item1).Select(f => f.Item2));
+        string.Join(", ", new[] { (isInjured, Loc.S("Inj")), (isBanned, Loc.S("Ban")), (isUnhappy, Loc.S("Unh")), (isFrozen, Loc.S("Frz")) }.Where(f => f.Item1).Select(f => f.Item2));
 }
 
 public sealed record PlayerScalarDescriptor(PlayerField Field, string Label, long Min, long Max, double Width);

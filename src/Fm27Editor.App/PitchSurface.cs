@@ -47,8 +47,9 @@ static class PitchSurface
             CornerRadius = new CornerRadius(size / 2), Foreground = Brush("#0B1311"), FontSize = 12.5, FontWeight = FontWeight.Bold,
             HorizontalContentAlignment = HorizontalAlignment.Center, VerticalContentAlignment = VerticalAlignment.Center };
         SetRating(dot, rating);
-        ToolTip.SetTip(dot, position.Label);
-        Avalonia.Automation.AutomationProperties.SetName(dot, position.Label);
+        string label = Loc.S(position.Label);
+        ToolTip.SetTip(dot, label);
+        Avalonia.Automation.AutomationProperties.SetName(dot, label);
         return dot;
     }
 

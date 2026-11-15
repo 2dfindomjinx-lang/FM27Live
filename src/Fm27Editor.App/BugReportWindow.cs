@@ -22,7 +22,7 @@ public sealed partial class MainWindow
             Padding = new Thickness(0), MinWidth = 24, Width = 24, MinHeight = 20, Height = 20,
             Background = Brushes.Transparent, BorderThickness = new Thickness(0), VerticalAlignment = VerticalAlignment.Center,
         };
-        ToolTip.SetTip(button, "Report a problem");
+        Loc.BindToolTip(button, "Report a problem");
         button.Click += (_, _) => ShowBugReport();
         return button;
     }
@@ -59,15 +59,15 @@ public sealed partial class MainWindow
         var description = new TextBox
         {
             AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, Height = 120, Width = 440, VerticalContentAlignment = VerticalAlignment.Top,
-            Watermark = "What happened? What were you doing?",
+            Watermark = Loc.S("What happened? What were you doing?"),
         };
         var result = new TextBlock { Foreground = UiKit.TextSecondary, TextWrapping = TextWrapping.Wrap, Width = 440 };
-        var create = new Button { Content = "Create report", Classes = { "accent" } };
-        var openFolder = new Button { Content = "Open folder", IsVisible = false };
+        var create = new Button { Content = Loc.S("Create report"), Classes = { "accent" } };
+        var openFolder = new Button { Content = Loc.S("Open folder"), IsVisible = false };
         string? folder = null;
         create.Click += async (_, _) =>
         {
-            if (FlightRecorder.Current is not { } recorder) { result.Text = "No log is available for this run."; return; }
+            if (FlightRecorder.Current is not { } recorder) { result.Text = Loc.S("No log is available for this run."); return; }
             create.IsEnabled = false;
             try
             {
@@ -91,7 +91,7 @@ public sealed partial class MainWindow
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { create, openFolder } };
         var window = new Window
         {
-            Title = "Report a problem", SizeToContent = SizeToContent.WidthAndHeight, CanResize = false,
+            Title = Loc.S("Report a problem"), SizeToContent = SizeToContent.WidthAndHeight, CanResize = false,
             WindowStartupLocation = WindowStartupLocation.CenterOwner, Background = UiKit.WindowBg,
             Content = new StackPanel { Margin = new Thickness(20), Spacing = 12, Children = { description, buttons, result } },
         };

@@ -1,5 +1,6 @@
 namespace Fm27Editor.App;
 
+
 /// <summary>
 /// One line of a mass edit's review table: who, which field, the value before and after. <see cref="Apply"/> performs just this
 /// line (and returns how many values it wrote); a line with a <see cref="Problem"/> cannot be applied and is shown crossed out.
@@ -8,6 +9,7 @@ internal sealed class MassRow
 {
     public required string Name { get; init; }
     public required string Field { get; init; }
+    public string FieldDisplay => Loc.S(Field);
     public string Before { get; init; } = "";
     public string After { get; init; } = "";
     public string? Problem { get; init; }
@@ -38,5 +40,5 @@ internal sealed class MassPlan(string scope, int targets, IReadOnlyList<MassRow>
     public int Fields => Rows.Select(r => r.Field).Distinct().Count();
 
     /// <summary>"1,234 players, 3 fields, 3,702 changes" for the table's header line.</summary>
-    public string Summary(string noun) => $"{Targets:N0} {noun}, {Fields:N0} field(s), {Selected:N0} change(s) selected";
+    public string Summary(string noun) => Loc.F("{0:N0} {1}, {2:N0} field(s), {3:N0} change(s) selected", Targets, noun, Fields, Selected);
 }

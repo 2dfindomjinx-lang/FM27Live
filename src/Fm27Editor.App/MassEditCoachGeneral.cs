@@ -1,4 +1,4 @@
-﻿using Avalonia;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Fm27Editor.Core.Players;
@@ -104,7 +104,7 @@ internal sealed partial class MassEditWindow
             foreach (var b in nationBoxes)
             {
                 if (b.SelectedIndex > 0) continue;
-                b.ItemsSource = new[] { "Unset" }.Concat(nationChoices.Select(n => n.Name)).ToList();
+                b.ItemsSource = new[] { Loc.S("Unset") }.Concat(nationChoices.Select(n => n.Name)).ToList();
                 b.SelectedIndex = 0;
             }
         }
@@ -115,18 +115,18 @@ internal sealed partial class MassEditWindow
     /// <summary>Nationality as a search picker — the same PickerDialog the Advanced Search reuses; "Unset" leaves it alone.</summary>
     void AddNationPicker(StackPanel panel, Kind kind)
     {
-        var mode = new ComboBox { ItemsSource = new[] { "Don't change", "Set to" }, SelectedIndex = ModeNone, FontSize = 12.5, HorizontalAlignment = HorizontalAlignment.Stretch };
-        var pick = new Button { Content = "Unset", FontSize = 12.5, HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Left };
+        var mode = new ComboBox { ItemsSource = new[] { Loc.S("Don't change"), Loc.S("Set to") }, SelectedIndex = ModeNone, FontSize = 12.5, HorizontalAlignment = HorizontalAlignment.Stretch };
+        var pick = new Button { Content = Loc.S("Unset"), FontSize = 12.5, HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Left };
         int picked = 0;
         var grid = new Grid { ColumnDefinitions = new ColumnDefinitions(rowColumns), ColumnSpacing = 10, Margin = new Thickness(4, 1) };
         Grid.SetColumn(pick, 1);
         Grid.SetColumnSpan(pick, 2);
-        grid.Children.Add(new TextBlock { Text = "Nationality", FontSize = 12.5, VerticalAlignment = VerticalAlignment.Center, Foreground = UiKit.TextSecondary });
+        grid.Children.Add(new TextBlock { Text = Loc.S("Nationality"), FontSize = 12.5, VerticalAlignment = VerticalAlignment.Center, Foreground = UiKit.TextSecondary });
         grid.Children.Add(pick);
         panel.Children.Add(grid);
         var row = new FieldRow(kind, DetailNationality, "Personal Details", "Nationality", int.MinValue, int.MaxValue, mode, pick,
             () => picked,
-            () => { picked = 0; pick.Content = "Unset"; mode.SelectedIndex = ModeNone; });
+            () => { picked = 0; pick.Content = Loc.S("Unset"); mode.SelectedIndex = ModeNone; });
         fields.Add(row);
         mode.SelectionChanged += (_, _) => MarkDirty();
         pick.Click += async (_, _) =>
@@ -135,8 +135,8 @@ internal sealed partial class MassEditWindow
                 nationChoices = await Task.Run(() => backend.Session.Nations.LoadAll().Where(n => n.Id is > 0 && n.Name.Length > 0)
                     .OrderBy(n => n.DisplayName, StringComparer.OrdinalIgnoreCase).Select(n => (n.Id!.Value, n.Address, n.Name)).ToList());
             var options = nationChoices.Select(n => (n.Name, new NationPick(n.Id, n.Name))).ToList();
-            options.Insert(0, ("Unset", new NationPick(0, "Unset")));
-            var chosen = await PickerDialog.Show<NationPick>(this, "Choose nationality", q => options.Where(o => PickerSearch.Hit(q, o.Item2.Name)).ToList());
+            options.Insert(0, (Loc.S("Unset"), new NationPick(0, Loc.S("Unset"))));
+            var chosen = await PickerDialog.Show<NationPick>(this, Loc.S("Choose nationality"), q => options.Where(o => PickerSearch.Hit(q, o.Item2.Name)).ToList());
             if (chosen is null) return;
             picked = chosen.Id;
             pick.Content = chosen.Name;
@@ -146,12 +146,12 @@ internal sealed partial class MassEditWindow
     }
     void AddSelect(StackPanel panel, Kind kind, int index, string label, IReadOnlyList<(int Code, string Name)> options)
     {
-        var mode = new ComboBox { ItemsSource = new[] { "Don't change", "Set to" }, SelectedIndex = ModeNone };
-        var names = new List<string> { "Unset" };
-        names.AddRange(options.Select(o => o.Name));
+        var mode = new ComboBox { ItemsSource = new[] { Loc.S("Don't change"), Loc.S("Set to") }, SelectedIndex = ModeNone };
+        var names = new List<string> { Loc.S("Unset") };
+        names.AddRange(options.Select(o => Loc.S(o.Name)));
         var choice = new ComboBox { ItemsSource = names, SelectedIndex = 0, FontSize = 12.5, HorizontalAlignment = HorizontalAlignment.Stretch, MaxDropDownHeight = 420 };
         var grid = new Grid { ColumnDefinitions = new ColumnDefinitions(rowColumns), ColumnSpacing = 10, Margin = new Thickness(4, 1) };
-        var text = new TextBlock { Text = label, FontSize = 12.5, VerticalAlignment = VerticalAlignment.Center, Foreground = UiKit.TextSecondary };
+        var text = new TextBlock { Text = Loc.S(label), FontSize = 12.5, VerticalAlignment = VerticalAlignment.Center, Foreground = UiKit.TextSecondary };
         Grid.SetColumn(choice, 1);
         Grid.SetColumnSpan(choice, 2);
         grid.Children.Add(text);
@@ -167,7 +167,7 @@ internal sealed partial class MassEditWindow
     /// <summary>A training rating row: action, then stars 0-5 in half steps (kept as half-stars in the row's number).</summary>
     void AddStars(StackPanel panel, TrainingCategory category)
     {
-        var mode = new ComboBox { ItemsSource = new[] { "Don't change", "Set to", "Change by" }, SelectedIndex = ModeNone, FontSize = 12.5, HorizontalAlignment = HorizontalAlignment.Stretch };
+        var mode = new ComboBox { ItemsSource = new[] { Loc.S("Don't change"), Loc.S("Set to"), Loc.S("Change by") }, SelectedIndex = ModeNone, FontSize = 12.5, HorizontalAlignment = HorizontalAlignment.Stretch };
         var value = new NumericUpDown { Minimum = -5, Maximum = 5, Increment = 0.5m, Value = 0, FontSize = 12.5, FormatString = "0.0", IsEnabled = false, HorizontalAlignment = HorizontalAlignment.Stretch, ShowButtonSpinner = false, HorizontalContentAlignment = HorizontalAlignment.Right };
         panel.Children.Add(Row(TrainingRatings.Label(category), mode, value));
         var row = new FieldRow(Kind.StaffDetail, DetailTraining + (int)category, "Training Rating", TrainingRatings.Label(category), -10, 10, mode, value,
@@ -191,23 +191,23 @@ internal sealed partial class MassEditWindow
             DetailCaps => StaffDetailsMassEdit.Caps(staff, mode, value, writer),
             DetailGoals => StaffDetailsMassEdit.Goals(staff, mode, value, writer),
             DetailAge => StaffDetailsMassEdit.Age(staff, mode, value,
-                backend.Session.ReadGameDate() ?? throw new InvalidOperationException("The in-game date could not be read"), writer),
+                backend.Session.ReadGameDate() ?? throw new InvalidOperationException(Loc.S("The in-game date could not be read")), writer),
             DetailLicense => StaffDetailsMassEdit.License(staff, (StaffLicense)(sbyte)value, writer),
             DetailNationality => nationChoices.FirstOrDefault(n => n.Id == value) is { Address: not 0 } nation
                 ? StaffDetailsMassEdit.Nationality(staff, nation.Id, nation.Address, writer)
-                : throw new ArgumentException("Choose a nation"),
+                : throw new ArgumentException(Loc.S("Choose a nation")),
             >= DetailTraining => StaffDetailsMassEdit.Training(staff, (TrainingCategory)(row.Index - DetailTraining), mode, value / 2.0, writer),
             >= DetailRole => StaffDetailsMassEdit.Role(staff, (StaffRole)(row.Index - DetailRole), mode, value, writer),
-            _ => throw new ArgumentException("Unknown coach field"),
+            _ => throw new ArgumentException(Loc.S("Unknown coach field")),
         };
     }
 
     /// <summary>Review text for a detail value: names for licence and nationality, numbers otherwise.</summary>
     object ShowDetail(FieldInput row, int value) => row.Index switch
     {
-        DetailLicense => StaffDetailsMassEdit.Licenses.FirstOrDefault(l => (int)l.Value == value).Name ?? $"Code {value}",
-        DetailNationality => nationChoices.FirstOrDefault(n => n.Id == value).Name ?? (value == 0 ? "" : $"Nation {value}"),
-        >= DetailTraining => $"{value / 2.0:0.0} stars",
+        DetailLicense => StaffDetailsMassEdit.Licenses.FirstOrDefault(l => (int)l.Value == value).Name is { } lic ? Loc.S(lic) : Loc.F("Code {0}", value),
+        DetailNationality => nationChoices.FirstOrDefault(n => n.Id == value).Name ?? (value == 0 ? "" : Loc.F("Nation {0}", value)),
+        >= DetailTraining => Loc.F("{0:0.0} stars", value / 2.0),
         _ => value,
     };
 }

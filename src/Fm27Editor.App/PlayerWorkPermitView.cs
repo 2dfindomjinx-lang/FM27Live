@@ -21,7 +21,7 @@ public sealed partial class MainWindow
         panel.Children.Add(permitHost);
         panel.Children.Add(deniedHost);
 
-        var save = new Button { IsVisible = false, Content = "Save changes", IsEnabled = false, Classes = { "accent" } };
+        var save = new Button { IsVisible = false, Content = Loc.S("Save changes"), IsEnabled = false, Classes = { "accent" } };
         var removedDenied = new HashSet<ulong>();
         var removedGrants = new HashSet<ulong>();
         var permanent = new HashSet<ulong>();
@@ -37,12 +37,12 @@ public sealed partial class MainWindow
 
         Button RemoveToggle(HashSet<ulong> set, ulong key, Control line)
         {
-            var button = new Button { Content = "Remove" };
+            var button = new Button { Content = Loc.S("Remove") };
             button.Click += (_, _) =>
             {
                 if (!set.Remove(key)) set.Add(key);
                 bool now = set.Contains(key);
-                button.Content = now ? "Undo remove" : "Remove";
+                button.Content = now ? Loc.S("Undo remove") : Loc.S("Remove");
                 line.Opacity = now ? 0.45 : 1;
                 Changed();
             };
@@ -71,7 +71,7 @@ public sealed partial class MainWindow
                 {
                     int r = form.RowDefinitions.Count;
                     form.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-                    var text = new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center, Foreground = UiKit.TextSecondary };
+                    var text = new TextBlock { Text = Loc.S(label), VerticalAlignment = VerticalAlignment.Center, Foreground = UiKit.TextSecondary };
                     Grid.SetRow(text, r); Grid.SetRow(value, r); Grid.SetColumn(value, 1);
                     form.Children.Add(text); form.Children.Add(value);
                 }
@@ -93,11 +93,11 @@ public sealed partial class MainWindow
                 Button? make = null;
                 if (grant.Temporary)
                 {
-                    make = new Button { Content = "Make permanent", HorizontalAlignment = HorizontalAlignment.Left };
-                    make.Click += (_, _) => { if (!permanent.Remove(grant.Record)) permanent.Add(grant.Record); make.Content = permanent.Contains(grant.Record) ? "Undo permanent" : "Make permanent"; Changed(); };
+                    make = new Button { Content = Loc.S("Make permanent"), HorizontalAlignment = HorizontalAlignment.Left };
+                    make.Click += (_, _) => { if (!permanent.Remove(grant.Record)) permanent.Add(grant.Record); make.Content = permanent.Contains(grant.Record) ? Loc.S("Undo permanent") : Loc.S("Make permanent"); Changed(); };
                 }
                 var card = new Border { Background = UiKit.SurfaceInput, BorderBrush = UiKit.BorderSubtle, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(3),
-                    Child = Form(new TextBlock { Text = grant.NationName ?? "Unknown nation", VerticalAlignment = VerticalAlignment.Center, Foreground = UiKit.TextPrimary }, year, grant.ReviewFrom, make) };
+                    Child = Form(new TextBlock { Text = grant.NationName ?? Loc.S("Unknown nation"), VerticalAlignment = VerticalAlignment.Center, Foreground = UiKit.TextPrimary }, year, grant.ReviewFrom, make) };
                 void ToggleRemove() { if (!removedGrants.Remove(grant.Record)) removedGrants.Add(grant.Record); card.Opacity = removedGrants.Contains(grant.Record) ? 0.45 : 1; Changed(); }
                 card.PointerPressed += (_, _) => Select(card, ToggleRemove);
                 rows.Children.Add(card);
@@ -109,11 +109,11 @@ public sealed partial class MainWindow
             add.Click += async (_, _) =>
             {
                 var nations = NationCatalogueForPicker();
-                var nation = await PickerDialog.Show(this, "Work Permit", text =>
+                var nation = await PickerDialog.Show(this, Loc.S("Work Permit"), text =>
                 {
                     string folded = Fold(text);
                     return nations.Where(n => Fold(n.DisplayName).Contains(folded, StringComparison.Ordinal)).Take(200).Select(n => (n.DisplayName, n)).ToList();
-                }, watermark: "Choose the nation that issues the permit");
+                }, watermark: Loc.S("Choose the nation that issues the permit"));
                 if (nation is null) return;
                 var year = new TextBox { Text = session.ReadGameDate()?.Year.ToString(Inv) ?? "", Width = 80, HorizontalContentAlignment = HorizontalAlignment.Right };
                 year.TextChanged += (_, _) => Changed();
@@ -134,14 +134,14 @@ public sealed partial class MainWindow
         void BuildDenied()
         {
             var rows = new StackPanel { Spacing = 4, Margin = new Thickness(12, 8) };
-            if (deniedLoaded && denied.Count == 0) rows.Children.Add(new TextBlock { Text = "None", Foreground = UiKit.TextSecondary });
+            if (deniedLoaded && denied.Count == 0) rows.Children.Add(new TextBlock { Text = Loc.S("None"), Foreground = UiKit.TextSecondary });
             foreach (var denial in denied)
             {
                 var line = new DockPanel();
                 var remove = RemoveToggle(removedDenied, denial.Team, line);
                 DockPanel.SetDock(remove, Dock.Right);
                 line.Children.Add(remove);
-                line.Children.Add(new TextBlock { Text = denial.ClubName ?? "Unknown club", VerticalAlignment = VerticalAlignment.Center, FontSize = 13, Foreground = UiKit.TextPrimary });
+                line.Children.Add(new TextBlock { Text = denial.ClubName ?? Loc.S("Unknown club"), VerticalAlignment = VerticalAlignment.Center, FontSize = 13, Foreground = UiKit.TextPrimary });
                 rows.Children.Add(line);
             }
             deniedHost.Child = UiKit.Card("Work Permit Denied", rows);
@@ -162,12 +162,12 @@ public sealed partial class MainWindow
         {
             // FMRTE docs: a permit year runs from 1901 to the current in-game year.
             int maxYear = backend.GameDate?.Year ?? DateOnly.FromDateTime(DateTime.Today).Year;
-            string YearMessage() => $"Work permit: enter a year from 1901 to {maxYear}";
+            string YearMessage() => Loc.F("Work permit: enter a year from 1901 to {0}", maxYear);
             foreach (var (_, _, year) in additions)
                 if (!int.TryParse(year.Text, out int y) || y is < 1901 || y > maxYear) { status.Text = YearMessage(); return; }
             foreach (var g in grants)
                 if (yearEdits.TryGetValue(g.Record, out var t) && (!int.TryParse(t.Text, out int y) || y is < 1901 || y > maxYear)) { status.Text = YearMessage(); return; }
-            if (!permitsLoaded && (additions.Count > 0 || removedGrants.Count > 0)) { status.Text = "The work permits are still loading"; return; }
+            if (!permitsLoaded && (additions.Count > 0 || removedGrants.Count > 0)) { status.Text = Loc.S("The work permits are still loading"); return; }
             try
             {
                 backend.Edits.Execute("Player", player.DisplayName, "Work Permit", () =>
@@ -180,7 +180,7 @@ public sealed partial class MainWindow
                     foreach (var (nation, _, year) in additions) session.AddWorkPermit(player, nation, int.Parse(year.Text!));
                 });
                 RenderEditor();
-                status.Text = "Saved work permit changes. Continue in FM to see updates.";
+                status.Text = Loc.S("Saved work permit changes. Continue in FM to see updates.");
             }
             catch (Exception ex) { status.Text = UserMessage.For(ex); }
         };

@@ -15,6 +15,8 @@ static class AppTestDefaults
     {
         DateSetting.SettingPathOverride = Path.Combine(Path.GetTempPath(), "fm27-app-tests-date-" + Environment.ProcessId + ".txt");
         DateSetting.Set(DateLayout.YearMonthDay);
+        LanguageSetting.SettingPathOverride = Path.Combine(Path.GetTempPath(), "fm27-app-tests-lang-" + Environment.ProcessId + ".txt");
+        LanguageSetting.Set(AppLanguage.English);
     }
 }
 

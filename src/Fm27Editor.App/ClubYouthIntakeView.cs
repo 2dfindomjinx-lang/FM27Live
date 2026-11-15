@@ -75,7 +75,7 @@ public sealed partial class MainWindow
         }
         catch { }
         var usual = YouthIntakeWindows.UsualFor(nation);
-        return usual is null ? "" : $" · usually {YouthIntakeWindows.FormatUsual(usual)}";
+        return usual is null ? "" : Loc.F(" · usually {0}", YouthIntakeWindows.FormatUsual(usual));
     }
 
     async void RenderClubYouthIntake(GameSession session, ClubEntry club)
@@ -105,7 +105,7 @@ public sealed partial class MainWindow
         string suffix = YouthWindowSuffix(club);
         clubEditorPanel.Children.Add(new TextBlock
         {
-            Text = $"Youth Intake · {candidates.Count} candidate{(candidates.Count == 1 ? "" : "s")}{suffix}",
+            Text = Loc.F(candidates.Count == 1 ? "Youth Intake · {0} candidate{1}" : "Youth Intake · {0} candidates{1}", candidates.Count, suffix),
             FontWeight = Avalonia.Media.FontWeight.SemiBold,
             FontSize = 13.5,
             Foreground = Brush("#F1F5F9"),
@@ -114,12 +114,12 @@ public sealed partial class MainWindow
 
         if (session.Profile.YouthCandidates is null)
         {
-            clubEditorPanel.Children.Add(YouthLine("Youth intake is not available for this game build."));
+            clubEditorPanel.Children.Add(YouthLine(Loc.S("Youth intake is not available for this game build.")));
             return;
         }
         if (candidates.Count == 0)
         {
-            clubEditorPanel.Children.Add(YouthLine($"No youth candidates.{suffix}"));
+            clubEditorPanel.Children.Add(YouthLine(Loc.F("No youth candidates.{0}", suffix)));
             return;
         }
 
@@ -205,15 +205,15 @@ public sealed partial class MainWindow
             return AttributeRow(label, box);
         }
 
-        string Label(PlayerAttribute a) => PlayerFields.All.First(f => f.Id == a.ToString()).Label;
+        string Label(PlayerAttribute a) => Loc.S(PlayerFields.All.First(f => f.Id == a.ToString()).Label);
         Control Group(string title, AttributeGroup group, Control? header = null) =>
             AttributeCard(title, Enum.GetValues<PlayerAttribute>().Where(a => PlayerAttributeInfo.GroupOf(a) == group)
                 .Select(a => Rating(Label(a), $"attr:{a}")), header);
 
         // Technical / Goalkeeping switch, as on the player page; a goalkeeper candidate opens on Goalkeeping.
         var picker = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 3, VerticalAlignment = VerticalAlignment.Center };
-        var technical = new Button { Content = "Tec.", Padding = new Thickness(7, 0), MinHeight = 20, Height = 20, FontSize = 12 };
-        var goalkeeping = new Button { Content = "GK", Padding = new Thickness(7, 0), MinHeight = 20, Height = 20, FontSize = 12 };
+        var technical = new Button { Content = Loc.S("Tec."), Padding = new Thickness(7, 0), MinHeight = 20, Height = 20, FontSize = 12 };
+        var goalkeeping = new Button { Content = Loc.S("GK"), Padding = new Thickness(7, 0), MinHeight = 20, Height = 20, FontSize = 12 };
         var firstColumn = new ContentControl { HorizontalAlignment = HorizontalAlignment.Stretch };
         void Select(bool keeper)
         {
@@ -233,7 +233,7 @@ public sealed partial class MainWindow
             firstColumn,
             Group("Mental", AttributeGroup.Mental),
             new StackPanel { Spacing = 8, Children = { Group("Physical", AttributeGroup.Physical), Group("Hidden", AttributeGroup.Hidden) } },
-            AttributeCard("Ability", [Number("Current Ability", "CA"), Number("Potential Ability", "PA"), Number("Height", "Height")]),
+            AttributeCard("Ability", [Number(Loc.S("Current Ability"), "CA"), Number(Loc.S("Potential Ability"), "PA"), Number(Loc.S("Height"), "Height")]),
         ];
         for (int i = 0; i < parts.Length; i++) { Grid.SetColumn(parts[i], i); columns.Children.Add(parts[i]); }
 
@@ -242,7 +242,7 @@ public sealed partial class MainWindow
         {
             var field = $"pos:{p}";
             var (min, max) = YouthBounds(field);
-            var row = AttributeRow(PositionLabels.Short(p), RatingBox(Current(field), min, max, v => Stage(field, v), () => Current(field)));
+            var row = AttributeRow(Loc.S(PositionLabels.Short(p)), RatingBox(Current(field), min, max, v => Stage(field, v), () => Current(field)));
             row.Width = 74;
             positions.Children.Add(row);
         }
@@ -262,7 +262,7 @@ public sealed partial class MainWindow
     int SaveYouthIntake(GameSession session, ClubEntry club)
     {
         if (!youthIntakeDrafts.TryGetValue(club.Address, out var draft)) return 0;
-        if (draft.InvalidCount > 0) throw new FormatException("Fix invalid youth intake values before saving");
+        if (draft.InvalidCount > 0) throw new FormatException(Loc.S("Fix invalid youth intake values before saving"));
         if (draft.Staged.Count == 0) return 0;
         var writer = session.YouthCandidateWriter;
         int saved = 0;

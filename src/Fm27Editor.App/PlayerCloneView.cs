@@ -27,7 +27,7 @@ public sealed partial class MainWindow
         var list = new StackPanel { Spacing = 4 };
         foreach (var t in targets.Select(a => all.FirstOrDefault(p => p.Address == a)).OfType<PlayerRecord>())
         {
-            var remove = new Button { Content = "Remove" };
+            var remove = new Button { Content = Loc.S("Remove") };
             remove.Click += (_, _) => { targets.Remove(t.Address); RenderEditor(); };
             list.Children.Add(new DockPanel
             {
@@ -36,13 +36,13 @@ public sealed partial class MainWindow
             });
             DockPanel.SetDock(remove, Dock.Right);
         }
-        var pick = new Button { Width = 340, HorizontalContentAlignment = HorizontalAlignment.Left, Content = "Choose player…" };
+        var pick = new Button { Width = 340, HorizontalContentAlignment = HorizontalAlignment.Left, Content = Loc.S("Choose player…") };
         pick.Click += async (_, _) =>
         {
             var choices = all.Where(p => p.Address != player.Address && !targets.Contains(p.Address)
                 && p.Gender != Fm27Editor.Core.Offsets.Gender.Women && p.Club?.Gender != Fm27Editor.Core.Offsets.Gender.Women)
                 .Select(p => new RelationTarget($"{p.DisplayName} ({p.ClubName})", p.Address)).ToList();
-            var chosen = await PickerDialog.Show<RelationTarget>(this, "Choose player to clone into", q => choices.Where(t => PickerSearch.Hit(q, t.Label)).Select(t => (t.Label, t)).ToList());
+            var chosen = await PickerDialog.Show<RelationTarget>(this, Loc.S("Choose player to clone into"), q => choices.Where(t => PickerSearch.Hit(q, t.Label)).Select(t => (t.Label, t)).ToList());
             if (chosen is null) return;
             targets.Add(chosen.Address);
             RenderEditor();
@@ -52,12 +52,12 @@ public sealed partial class MainWindow
         var what = new StackPanel { Spacing = 2 };
         foreach (var (part, name) in CloneGroups)
         {
-            var box = new CheckBox { Content = name, IsChecked = cloneParts.HasFlag(part) };
+            var box = new CheckBox { Content = Loc.S(name), IsChecked = cloneParts.HasFlag(part) };
             box.IsCheckedChanged += (_, _) => cloneParts = box.IsChecked == true ? cloneParts | part : cloneParts & ~part;
             what.Children.Add(box);
         }
 
-        var clone = new Button { Content = "Clone", Classes = { "accent" }, IsEnabled = targets.Count > 0 };
+        var clone = new Button { Content = Loc.S("Clone"), Classes = { "accent" }, IsEnabled = targets.Count > 0 };
         clone.Click += (_, _) =>
         {
             int fields = 0, done = 0;
@@ -70,11 +70,11 @@ public sealed partial class MainWindow
                     done++;
                     if (backend.Players.Reload(t.Address) is { } fresh) { fresh.GameDate = backend.GameDate; ReplaceRow(fresh); }
                 }
-                catch (Exception ex) { failed.Add($"{t.DisplayName}: {ex.Message}"); }
+                catch (Exception ex) { failed.Add($"{t.DisplayName}: {UserMessage.For(ex)}"); }
             }
             status.Text = failed.Count == 0
-                ? $"Cloned {player.DisplayName} onto {done} player(s), {fields} field(s). Continue in FM to see updates."
-                : $"Cloned onto {done}, {failed.Count} failed ({string.Join(", ", failed.Take(2))}).";
+                ? Loc.F("Cloned {0} onto {1} player(s), {2} field(s). Continue in FM to see updates.", player.DisplayName, done, fields)
+                : Loc.F("Cloned onto {0}, {1} failed ({2}).", done, failed.Count, string.Join(", ", failed.Take(2)));
         };
 
         list.Margin = new Thickness(12, 10);

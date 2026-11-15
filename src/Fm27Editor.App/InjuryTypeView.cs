@@ -20,15 +20,15 @@ internal sealed class InjuryTypeScreen(IScreenHost host)
     static readonly (InjuryTreatment Flag, string Label)[] Treatments =
         [(InjuryTreatment.Physio, "By Physio"), (InjuryTreatment.Specialist, "By Specialist"), (InjuryTreatment.Injection, "By Injection"), (InjuryTreatment.Isolation, "By Isolation")];
 
-    static string SeriousnessName(int value) => Seriousness.FirstOrDefault(s => s.Value == value).Label ?? value.ToString(Inv);
+    static string SeriousnessName(int value) => Seriousness.FirstOrDefault(s => s.Value == value).Label is { } s ? Loc.S(s) : value.ToString(Inv);
 
     protected override void ConfigureColumns(DataGrid grid)
     {
-        grid.Columns.Add(new DataGridTextColumn { Header = "Name", Binding = new Binding(nameof(InjuryTypeRow.Name)), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
-        grid.Columns.Add(new DataGridTextColumn { Header = "Seriousness", Binding = new Binding(nameof(InjuryTypeRow.Seriousness)), Width = new DataGridLength(190) });
+        grid.Columns.Add(new DataGridTextColumn { Header = Loc.S("Name"), Binding = new Binding(nameof(InjuryTypeRow.Name)), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
+        grid.Columns.Add(new DataGridTextColumn { Header = Loc.S("Seriousness"), Binding = new Binding(nameof(InjuryTypeRow.Seriousness)), Width = new DataGridLength(190) });
         foreach (var (title, property, width) in new[] { ("Min", nameof(InjuryTypeRow.MinimumDays), 64), ("Extra", nameof(InjuryTypeRow.ExtraDays), 64), ("ID", nameof(InjuryTypeRow.UniqueId), 64) })
         {
-            var column = new DataGridTextColumn { Header = title, Binding = new Binding(property), Width = new DataGridLength(width) };
+            var column = new DataGridTextColumn { Header = Loc.S(title), Binding = new Binding(property), Width = new DataGridLength(width) };
             column.CellStyleClasses.Add("numeric");
             grid.Columns.Add(column);
         }
@@ -67,7 +67,7 @@ internal sealed class InjuryTypeScreen(IScreenHost host)
     Control Combo(Dictionary<InjuryTypeField, string> draft, InjuryTypeField field, int original, (int Value, string Label)[] options, Action changed)
     {
         int current = draft.TryGetValue(field, out var text) && int.TryParse(text, out int d) ? d : original;
-        var box = new ComboBox { Width = 230, ItemsSource = options.Select(o => o.Label).ToArray(), SelectedIndex = Array.FindIndex(options, o => o.Value == current) };
+        var box = new ComboBox { Width = 230, ItemsSource = options.Select(o => Loc.S(o.Label)).ToArray(), SelectedIndex = Array.FindIndex(options, o => o.Value == current) };
         box.SelectionChanged += (_, _) =>
         {
             if (box.SelectedIndex < 0) return;
@@ -98,23 +98,23 @@ internal sealed class InjuryTypeScreen(IScreenHost host)
         HeaderHost.Content = UiKit.EntityBanner(d.Name ?? "", new TextBlock { Text = $"ID {d.UniqueId.ToString(Inv)}" }, null);
         var injury = CardRows("Injury", new (string, Control)[]
         {
-            ("Unique ID", Label(d.UniqueId.ToString(Inv), "#F1F5F9")), ("Name", Label(d.Name ?? "", "#F1F5F9")),
-            ("Seriousness", Combo(draft, InjuryTypeField.Seriousness, d.Seriousness, Seriousness, changed)),
-            ("Age Rule", Combo(draft, InjuryTypeField.AgeRule, d.AgeRule, AgeRules, changed)),
-            ("Season", Combo(draft, InjuryTypeField.Season, d.Season, Seasons, changed)),
-            ("Recurring", Tick(draft, InjuryTypeField.Recurring, d.Recurring, changed)),
-            ("Contagious", Tick(draft, InjuryTypeField.Contagious, d.Contagious, changed)),
+            (Loc.S("Unique ID"), Label(d.UniqueId.ToString(Inv), "#F1F5F9")), (Loc.S("Name"), Label(d.Name ?? "", "#F1F5F9")),
+            (Loc.S("Seriousness"), Combo(draft, InjuryTypeField.Seriousness, d.Seriousness, Seriousness, changed)),
+            (Loc.S("Age Rule"), Combo(draft, InjuryTypeField.AgeRule, d.AgeRule, AgeRules, changed)),
+            (Loc.S("Season"), Combo(draft, InjuryTypeField.Season, d.Season, Seasons, changed)),
+            (Loc.S("Recurring"), Tick(draft, InjuryTypeField.Recurring, d.Recurring, changed)),
+            (Loc.S("Contagious"), Tick(draft, InjuryTypeField.Contagious, d.Contagious, changed)),
         });
         Control Field(InjuryTypeField f, string original) => FieldBox(draft, f, original, 96, changed);
         var duration = CardRows("Duration", new (string, Control)[]
         {
-            (Label(InjuryTypeField.MinimumDays), Field(InjuryTypeField.MinimumDays, d.MinimumDays.ToString(Inv))),
-            (Label(InjuryTypeField.ExtraDays), Field(InjuryTypeField.ExtraDays, d.ExtraDays.ToString(Inv))),
-            (Label(InjuryTypeField.InactiveRatio), Field(InjuryTypeField.InactiveRatio, d.InactiveRatio.ToString(Inv))),
-            (Label(InjuryTypeField.OccurrenceRatio), Field(InjuryTypeField.OccurrenceRatio, d.OccurrenceRatio.ToString("0.###", Inv))),
-            (Label(InjuryTypeField.MatchInjuryPercentage), Field(InjuryTypeField.MatchInjuryPercentage, d.MatchInjuryPercentage.ToString(Inv))),
-            (Label(InjuryTypeField.GoalkeeperPercentage), Field(InjuryTypeField.GoalkeeperPercentage, d.GoalkeeperPercentage.ToString(Inv))),
-            (Label(InjuryTypeField.DefenderCentralPercentage), Field(InjuryTypeField.DefenderCentralPercentage, d.DefenderCentralPercentage.ToString(Inv))),
+            (Loc.S(Label(InjuryTypeField.MinimumDays)), Field(InjuryTypeField.MinimumDays, d.MinimumDays.ToString(Inv))),
+            (Loc.S(Label(InjuryTypeField.ExtraDays)), Field(InjuryTypeField.ExtraDays, d.ExtraDays.ToString(Inv))),
+            (Loc.S(Label(InjuryTypeField.InactiveRatio)), Field(InjuryTypeField.InactiveRatio, d.InactiveRatio.ToString(Inv))),
+            (Loc.S(Label(InjuryTypeField.OccurrenceRatio)), Field(InjuryTypeField.OccurrenceRatio, d.OccurrenceRatio.ToString("0.###", Inv))),
+            (Loc.S(Label(InjuryTypeField.MatchInjuryPercentage)), Field(InjuryTypeField.MatchInjuryPercentage, d.MatchInjuryPercentage.ToString(Inv))),
+            (Loc.S(Label(InjuryTypeField.GoalkeeperPercentage)), Field(InjuryTypeField.GoalkeeperPercentage, d.GoalkeeperPercentage.ToString(Inv))),
+            (Loc.S(Label(InjuryTypeField.DefenderCentralPercentage)), Field(InjuryTypeField.DefenderCentralPercentage, d.DefenderCentralPercentage.ToString(Inv))),
         });
         int treatment = draft.TryGetValue(InjuryTypeField.Treatment, out var t) && int.TryParse(t, out int tv) ? tv : (int)d.Treatment;
         var boxes = Treatments.Select(x => new CheckBox { IsChecked = (treatment & (int)x.Flag) != 0 }).ToArray();
@@ -126,7 +126,7 @@ internal sealed class InjuryTypeScreen(IScreenHost host)
                 if (value == (int)d.Treatment) draft.Remove(InjuryTypeField.Treatment); else draft[InjuryTypeField.Treatment] = value.ToString(Inv);
                 changed();
             };
-        var treatments = CardRows("Treatment", Treatments.Select((x, i) => (x.Label, (Control)boxes[i])));
+        var treatments = CardRows("Treatment", Treatments.Select((x, i) => (Loc.S(x.Label), (Control)boxes[i])));
         Editor.Children.Add(TwoColumns(new StackPanel { Spacing = 8, Children = { injury } }, new StackPanel { Spacing = 8, Children = { duration, treatments } }));
     }
 
@@ -137,7 +137,7 @@ internal sealed class InjuryTypeScreen(IScreenHost host)
         foreach (var (field, text) in draft)
         {
             if (!double.TryParse(text.Trim(), System.Globalization.NumberStyles.Float, Inv, out double value))
-                return $"{Label(field)}: enter a number";
+                return Loc.F("{0}: enter a number", Loc.S(Label(field)));
             var (min, max) = field switch
             {
                 InjuryTypeField.MinimumDays or InjuryTypeField.ExtraDays => (0, 65535),
@@ -147,7 +147,7 @@ internal sealed class InjuryTypeScreen(IScreenHost host)
                 InjuryTypeField.GoalkeeperPercentage or InjuryTypeField.DefenderCentralPercentage => (-1, 100),
                 _ => (0, 15),
             };
-            if (value < min || value > max) return $"{Label(field)}: enter a number {min} to {max}";
+            if (value < min || value > max) return Loc.F("{0}: enter a number {1} to {2}", Loc.S(Label(field)), min, max);
             values.Add((field, value));
         }
         write = () =>
@@ -156,7 +156,7 @@ internal sealed class InjuryTypeScreen(IScreenHost host)
             foreach (var (field, value) in values)
             {
                 // Each write checks the whole object, so the next one starts from the object as the last one left it.
-                var current = access.Read(type) ?? throw new StaleObjectException("The injury type is no longer readable");
+                var current = access.Read(type) ?? throw new StaleObjectException(Loc.S("The injury type is no longer readable"));
                 access.Set(current, field, value);
             }
             return values.Count;

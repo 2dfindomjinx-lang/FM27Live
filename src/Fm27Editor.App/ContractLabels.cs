@@ -9,7 +9,7 @@ namespace Fm27Editor.App;
 public static class ContractLabels
 {
     /// <summary>Bonus/clause type codes measured on FM26/FM27 (see docs/handover-app.md). Unknown codes show as numbers.</summary>
-    public static string Term(short type) => Terms.TryGetValue(type, out var name) ? name : $"Clause {type}";
+    public static string Term(short type) => Terms.TryGetValue(type, out var name) ? Loc.S(name) : Loc.F("Clause {0}", type);
 
     /// <summary>
     /// Contract bonus/clause codes. 11, 13, 22, 32, 34, 38, 39 are measured on FM26/FM27 contracts; the rest
@@ -49,12 +49,12 @@ public static class ContractLabels
     /// <summary>What the parameter of a term counts, or null when the term has none.</summary>
     public static string? TermParameter(short type) => type switch
     {
-        11 or 13 => "Games",
-        10 => "Goals",
-        40 => "Assists",
-        41 => "Goals + Assists",
-        19 => "Caps",
-        22 => "Years",
+        11 or 13 => Loc.S("Games"),
+        10 => Loc.S("Goals"),
+        40 => Loc.S("Assists"),
+        41 => Loc.S("Goals + Assists"),
+        19 => Loc.S("Caps"),
+        22 => Loc.S("Years"),
         3 or 4 or 5 or 14 or 15 => "%",
         _ => null,
     };
@@ -64,7 +64,7 @@ public static class ContractLabels
 
     public static string Spaced(string name) => Regex.Replace(name, "(?<!^)([A-Z])", " $1");
 
-    public static string Of(PlayingTime value) => value switch
+    public static string Of(PlayingTime value) => Loc.S(value switch
     {
         PlayingTime.Unset => "Any",
         PlayingTime.SquadPlayer2 => "Squad Player",
@@ -73,19 +73,19 @@ public static class ContractLabels
         PlayingTime.FirstChoiceGoalkeeper => "First-Choice Goalkeeper",
         PlayingTime.CupGoalkeeper2 => "Cup Goalkeeper",
         _ => Spaced(value.ToString()),
-    };
+    });
 
-    public static string Of(ContractType value) => value switch
+    public static string Of(ContractType value) => Loc.S(value switch
     {
         ContractType.NonContract => "Non Contract",
         _ => Spaced(value.ToString()) + " Contract",
-    };
+    });
 
-    public static string Of(TransferClauseKind kind) => kind switch
+    public static string Of(TransferClauseKind kind) => Loc.S(kind switch
     {
         TransferClauseKind.SellOn => "Sell-On",
         _ => Spaced(kind.ToString()),
-    };
+    });
 
     /// <summary>
     /// A clause's name; an appearance-fee record that counts league goals is a goals fee (FM: "Goals Money"). A counter the
@@ -93,16 +93,16 @@ public static class ContractLabels
     /// </summary>
     public static string Of(TransferClause c) => c.Kind != TransferClauseKind.AppearanceFee ? Of(c.Kind) : c.Condition switch
     {
-        null or TransferClauseCondition.LeagueAppearances => "Appearance Fee",
-        TransferClauseCondition.LeagueGoals => "Goals Fee",
-        { } other => $"Appearance Fee (type {other})",
+        null or TransferClauseCondition.LeagueAppearances => Loc.S("Appearance Fee"),
+        TransferClauseCondition.LeagueGoals => Loc.S("Goals Fee"),
+        { } other => Loc.F("Appearance Fee (type {0})", other),
     };
 
     /// <summary>What an appearance-fee record counts: "apps", "goals", or "" when not identified.</summary>
     public static string CountUnit(TransferClause c) => c.Condition switch
     {
-        null or TransferClauseCondition.LeagueAppearances => "apps",
-        TransferClauseCondition.LeagueGoals => "goals",
+        null or TransferClauseCondition.LeagueAppearances => Loc.S("apps"),
+        TransferClauseCondition.LeagueGoals => Loc.S("goals"),
         _ => "",
     };
 
@@ -112,17 +112,17 @@ public static class ContractLabels
 
     public static string Detail(TransferClause c) => c.Kind switch
     {
-        TransferClauseKind.SellOn when c.SignedFor is { } f => $"signed for {f.ToString("N0", CultureInfo.InvariantCulture)}",
+        TransferClauseKind.SellOn when c.SignedFor is { } f => Loc.F("signed for {0}", f.ToString("N0", CultureInfo.InvariantCulture)),
         TransferClauseKind.AppearanceFee => $"{c.AppearancesSoFar} / {c.Appearances} {CountUnit(c)}".TrimEnd(),
         TransferClauseKind.CompetitionBonus => string.Join("  ", new[]
         {
             Competition(c),
-            c.Ends is { } d ? $"until {DateSetting.Format(d)}" : "",
+            c.Ends is { } d ? Loc.F("until {0}", DateSetting.Format(d)) : "",
         }.Where(s => s.Length > 0)),
         _ => "",
     };
 
     /// <summary>Competition name; a competition not in the loaded divisions (a cup) shows its index.</summary>
     public static string Competition(TransferClause c) =>
-        c.Competition?.Name ?? c.Competition?.ShortName ?? (c.CompetitionIndex is { } i ? $"Competition {i}" : "");
+        c.Competition?.Name ?? c.Competition?.ShortName ?? (c.CompetitionIndex is { } i ? Loc.F("Competition {0}", i) : "");
 }

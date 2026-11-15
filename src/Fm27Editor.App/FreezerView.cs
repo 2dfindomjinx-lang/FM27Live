@@ -35,7 +35,7 @@ public sealed partial class MainWindow
                 }
             }
         }
-        public string FrozenText => IsFrozen ? "True" : "False";
+        public string FrozenText => Loc.S(IsFrozen ? "True" : "False");
         public int Id { get; init; }
         public string Inf { get; init; } = "";
         public string Name { get; init; } = "";
@@ -61,7 +61,7 @@ public sealed partial class MainWindow
 
         var window = new Window
         {
-            Title = "Freezer Manager",
+            Title = Loc.S("Freezer Manager"),
             Width = 980,
             Height = 580,
             MinWidth = 760,
@@ -77,7 +77,7 @@ public sealed partial class MainWindow
 
         var playersPill = new Button
         {
-            Content = "Players",
+            Content = Loc.S("Players"),
             FontWeight = FontWeight.SemiBold,
             FontSize = 13.5,
             Padding = new Thickness(14, 0),
@@ -89,7 +89,7 @@ public sealed partial class MainWindow
         };
         var staffPill = new Button
         {
-            Content = "Staff",
+            Content = Loc.S("Staff"),
             FontWeight = FontWeight.SemiBold,
             FontSize = 13.5,
             Padding = new Thickness(14, 0),
@@ -105,11 +105,12 @@ public sealed partial class MainWindow
             Width = 210,
             Height = 28,
             VerticalAlignment = VerticalAlignment.Center,
+            ItemTemplate = new FuncDataTemplate<string>((s, _) => new TextBlock { Text = s == "All Clubs" ? Loc.S("All Clubs") : s }),
         };
 
         var nameFilter = new TextBox
         {
-            Watermark = "Filter by name",
+            Watermark = Loc.S("Filter by name"),
             Width = 220,
             Height = 28,
             VerticalAlignment = VerticalAlignment.Center,
@@ -181,7 +182,7 @@ public sealed partial class MainWindow
 
             dataGrid.Columns.Add(new DataGridTemplateColumn
             {
-                Header = "Frozen",
+                Header = Loc.S("Frozen"),
                 Width = new DataGridLength(78),
                 CellTemplate = new FuncDataTemplate<FreezerRowItem>((row, _) => new TextBlock
                 {
@@ -195,21 +196,21 @@ public sealed partial class MainWindow
 
             dataGrid.Columns.Add(new DataGridTextColumn
             {
-                Header = "Inf",
+                Header = Loc.S("Inf"),
                 Binding = new Binding(nameof(FreezerRowItem.Inf)),
                 Width = new DataGridLength(51),
             });
 
             dataGrid.Columns.Add(new DataGridTextColumn
             {
-                Header = "Name",
+                Header = Loc.S("Name"),
                 Binding = new Binding(nameof(FreezerRowItem.Name)),
                 Width = new DataGridLength(1, DataGridLengthUnitType.Star),
             });
 
             dataGrid.Columns.Add(new DataGridTemplateColumn
             {
-                Header = "Age",
+                Header = Loc.S("Age"),
                 Width = new DataGridLength(51),
                 CellTemplate = new FuncDataTemplate<FreezerRowItem>((row, _) => new TextBlock
                 {
@@ -222,7 +223,7 @@ public sealed partial class MainWindow
 
             dataGrid.Columns.Add(new DataGridTemplateColumn
             {
-                Header = "CA",
+                Header = Loc.S("CA"),
                 Width = new DataGridLength(51),
                 CellTemplate = new FuncDataTemplate<FreezerRowItem>((row, _) => new TextBlock
                 {
@@ -235,7 +236,7 @@ public sealed partial class MainWindow
 
             dataGrid.Columns.Add(new DataGridTemplateColumn
             {
-                Header = "PA",
+                Header = Loc.S("PA"),
                 Width = new DataGridLength(51),
                 CellTemplate = new FuncDataTemplate<FreezerRowItem>((row, _) => new TextBlock
                 {
@@ -248,14 +249,14 @@ public sealed partial class MainWindow
 
             dataGrid.Columns.Add(new DataGridTextColumn
             {
-                Header = "Nationalities",
+                Header = Loc.S("Nationalities"),
                 Binding = new Binding(nameof(FreezerRowItem.Nationalities)),
                 Width = new DataGridLength(138),
             });
 
             dataGrid.Columns.Add(new DataGridTextColumn
             {
-                Header = "Club",
+                Header = Loc.S("Club"),
                 Binding = new Binding(nameof(FreezerRowItem.Club)),
                 Width = new DataGridLength(161),
             });
@@ -264,7 +265,7 @@ public sealed partial class MainWindow
             {
                 dataGrid.Columns.Add(new DataGridTemplateColumn
                 {
-                    Header = "Asking Price (£)",
+                    Header = Loc.S("Asking Price (£)"),
                     Width = new DataGridLength(138),
                     CellTemplate = new FuncDataTemplate<FreezerRowItem>((row, _) => new TextBlock
                     {
@@ -277,7 +278,7 @@ public sealed partial class MainWindow
 
                 dataGrid.Columns.Add(new DataGridTemplateColumn
                 {
-                    Header = "Positions",
+                    Header = Loc.S("Positions"),
                     Width = new DataGridLength(109),
                     CellTemplate = new FuncDataTemplate<FreezerRowItem>((row, _) => new TextBlock
                     {
@@ -292,7 +293,7 @@ public sealed partial class MainWindow
             {
                 dataGrid.Columns.Add(new DataGridTextColumn
                 {
-                    Header = "Role",
+                    Header = Loc.S("Role"),
                     Binding = new Binding(nameof(FreezerRowItem.Job)),
                     Width = new DataGridLength(161),
                 });
@@ -389,7 +390,7 @@ public sealed partial class MainWindow
                             PA = s.PA,
                             Nationalities = s.Nation,
                             Club = s.Club,
-                            Job = s.Job,
+                            Job = s.JobDisplay,
                             Staff = s.Staff,
                         };
                         touchedStaff[sid] = item;
@@ -405,7 +406,7 @@ public sealed partial class MainWindow
 
         var selectedCountText = new TextBlock
         {
-            Text = "0 of 0 selected",
+            Text = Loc.F("{0} of {1} selected", 0, 0),
             Foreground = Brush("#94A3B8"),
             FontSize = 13.5,
             VerticalAlignment = VerticalAlignment.Center,
@@ -413,7 +414,7 @@ public sealed partial class MainWindow
 
         var unfreezeSelected = new Button
         {
-            Content = "Unfreeze Selected",
+            Content = Loc.S("Unfreeze Selected"),
             FontSize = 13,
             Padding = new Thickness(12, 0),
             Height = 27,
@@ -422,7 +423,7 @@ public sealed partial class MainWindow
 
         var freezeSelected = new Button
         {
-            Content = "Freeze Selected",
+            Content = Loc.S("Freeze Selected"),
             FontSize = 13,
             Padding = new Thickness(12, 0),
             Height = 27,
@@ -431,7 +432,7 @@ public sealed partial class MainWindow
 
         var unfreezeAll = new Button
         {
-            Content = "Unfreeze All",
+            Content = Loc.S("Unfreeze All"),
             FontSize = 13,
             Padding = new Thickness(12, 0),
             Height = 27,
@@ -439,7 +440,7 @@ public sealed partial class MainWindow
 
         var closeBtn = new Button
         {
-            Content = "Close",
+            Content = Loc.S("Close"),
             FontSize = 13,
             Padding = new Thickness(16, 0),
             Height = 27,
@@ -450,7 +451,7 @@ public sealed partial class MainWindow
         {
             int selCount = dataGrid.SelectedItems.Count;
             int total = gridItems.Count;
-            selectedCountText.Text = $"{selCount} of {total} selected";
+            selectedCountText.Text = Loc.F("{0} of {1} selected", selCount, total);
             unfreezeSelected.IsEnabled = selCount > 0;
             freezeSelected.IsEnabled = selCount > 0;
         }
@@ -479,9 +480,9 @@ public sealed partial class MainWindow
                         count++;
                     }
                 }
-                catch (Exception ex) { status.Text = $"Freezer: {ex.Message}"; }
+                catch (Exception ex) { status.Text = Loc.F("Freezer: {0}", UserMessage.For(ex)); }
             }
-            status.Text = $"Unfrozen {count} item(s)";
+            status.Text = Loc.F("Unfrozen {0} item(s)", count);
             UpdateSelectionState();
         };
 
@@ -507,9 +508,9 @@ public sealed partial class MainWindow
                         count++;
                     }
                 }
-                catch (Exception ex) { status.Text = $"Freezer: {ex.Message}"; }
+                catch (Exception ex) { status.Text = Loc.F("Freezer: {0}", UserMessage.For(ex)); }
             }
-            status.Text = $"Frozen {count} item(s)";
+            status.Text = Loc.F("Frozen {0} item(s)", count);
             UpdateSelectionState();
         };
 
@@ -535,7 +536,7 @@ public sealed partial class MainWindow
                 }
                 catch { }
             }
-            status.Text = $"Unfrozen {count} item(s)";
+            status.Text = Loc.F("Unfrozen {0} item(s)", count);
             UpdateSelectionState();
         };
 
@@ -631,14 +632,14 @@ public sealed partial class MainWindow
         if (backend.Freezer is not { } freezer || player.Id is not > 0) return;
         var existing = freezer.Players.FirstOrDefault(p => p.Id == player.Id)?.Fields.ToDictionary(f => f.Attribute)
             ?? new Dictionary<PlayerAttribute, FrozenAttribute>();
-        var window = new Window { Title = $"Freezer — {player.DisplayName}", Width = 560, Height = 640, MinHeight = 350, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+        var window = new Window { Title = Loc.F("Freezer — {0}", player.DisplayName), Width = 560, Height = 640, MinHeight = 350, WindowStartupLocation = WindowStartupLocation.CenterOwner };
         var rows = new StackPanel { Spacing = 3, Margin = new Thickness(14, 12) };
         var choices = new List<(PlayerAttribute Attribute, CheckBox Freeze, CheckBox Increase, CheckBox Decrease)>();
         var header = new Grid { ColumnDefinitions = new ColumnDefinitions("*,68,108,108"), Margin = new Thickness(0, 0, 0, 4) };
-        var attrHeading = new TextBlock { Text = "Attribute", FontWeight = FontWeight.SemiBold, Foreground = Brush("#94A3B8") };
-        var holdHeading = new TextBlock { Text = "Freeze", FontWeight = FontWeight.SemiBold, Foreground = Brush("#94A3B8"), HorizontalAlignment = HorizontalAlignment.Center };
-        var growHeading = new TextBlock { Text = "Allow increase", FontWeight = FontWeight.SemiBold, Foreground = Brush("#94A3B8"), HorizontalAlignment = HorizontalAlignment.Center };
-        var lowerHeading = new TextBlock { Text = "Allow decrease", FontWeight = FontWeight.SemiBold, Foreground = Brush("#94A3B8"), HorizontalAlignment = HorizontalAlignment.Center };
+        var attrHeading = new TextBlock { Text = Loc.S("Attribute"), FontWeight = FontWeight.SemiBold, Foreground = Brush("#94A3B8") };
+        var holdHeading = new TextBlock { Text = Loc.S("Freeze"), FontWeight = FontWeight.SemiBold, Foreground = Brush("#94A3B8"), HorizontalAlignment = HorizontalAlignment.Center };
+        var growHeading = new TextBlock { Text = Loc.S("Allow increase"), FontWeight = FontWeight.SemiBold, Foreground = Brush("#94A3B8"), HorizontalAlignment = HorizontalAlignment.Center };
+        var lowerHeading = new TextBlock { Text = Loc.S("Allow decrease"), FontWeight = FontWeight.SemiBold, Foreground = Brush("#94A3B8"), HorizontalAlignment = HorizontalAlignment.Center };
         Grid.SetColumn(holdHeading, 1); Grid.SetColumn(growHeading, 2); Grid.SetColumn(lowerHeading, 3);
         header.Children.Add(attrHeading); header.Children.Add(holdHeading); header.Children.Add(growHeading); header.Children.Add(lowerHeading);
         rows.Children.Add(header);
@@ -648,7 +649,7 @@ public sealed partial class MainWindow
             existing.TryGetValue(attr, out var frozen);
             var line = new Grid { ColumnDefinitions = new ColumnDefinitions("*,68,108,108") };
             var label = PlayerFields.All.First(f => f.Id == attr.ToString()).Label;
-            line.Children.Add(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center });
+            line.Children.Add(new TextBlock { Text = Loc.S(label), VerticalAlignment = VerticalAlignment.Center });
             var hold = new CheckBox { IsChecked = frozen is not null, HorizontalAlignment = HorizontalAlignment.Center, MinWidth = 0, Padding = new Thickness(0) };
             var increase = new CheckBox { IsChecked = frozen?.Mode == FreezeMode.AllowIncrease, HorizontalAlignment = HorizontalAlignment.Center, MinWidth = 0, Padding = new Thickness(0) };
             var decrease = new CheckBox { IsChecked = frozen?.Mode == FreezeMode.AllowDecrease, HorizontalAlignment = HorizontalAlignment.Center, MinWidth = 0, Padding = new Thickness(0) };
@@ -658,12 +659,12 @@ public sealed partial class MainWindow
             line.Children.Add(hold); line.Children.Add(increase); line.Children.Add(decrease); rows.Children.Add(line);
             choices.Add((attr, hold, increase, decrease));
         }
-        var selectAll = new Button { Content = "Select all" };
+        var selectAll = new Button { Content = Loc.S("Select all") };
         selectAll.Click += (_, _) => { foreach (var choice in choices) choice.Freeze.IsChecked = true; };
-        var clear = new Button { Content = "Unfreeze" };
-        var close = new Button { Content = "Close" };
+        var clear = new Button { Content = Loc.S("Unfreeze") };
+        var close = new Button { Content = Loc.S("Close") };
         close.Click += (_, _) => window.Close();
-        var apply = new Button { Content = "Apply", Classes = { "accent" } };
+        var apply = new Button { Content = Loc.S("Apply"), Classes = { "accent" } };
         var footer = new DockPanel
         {
             Margin = new Thickness(14, 10),
@@ -684,16 +685,16 @@ public sealed partial class MainWindow
         window.KeyDown += (_, e) => { if (e.Key == Key.Escape) { window.Close(); e.Handled = true; } };
         clear.Click += (_, _) =>
         {
-            try { backend.Edits.Execute(() => freezer.RemovePlayer(player.Id.Value)); status.Text = "Player unfrozen"; window.Close(); }
-            catch (Exception ex) { status.Text = $"Freezer: {ex.Message}"; }
+            try { backend.Edits.Execute(() => freezer.RemovePlayer(player.Id.Value)); status.Text = Loc.S("Player unfrozen"); window.Close(); }
+            catch (Exception ex) { status.Text = Loc.F("Freezer: {0}", UserMessage.For(ex)); }
         };
         apply.Click += (_, _) =>
         {
             var fields = choices.Where(c => c.Freeze.IsChecked == true)
                 .Select(c => (c.Attribute, c.Increase.IsChecked == true ? FreezeMode.AllowIncrease : c.Decrease.IsChecked == true ? FreezeMode.AllowDecrease : FreezeMode.Fixed)).ToArray();
-            if (fields.Length == 0) { status.Text = "Select an attribute"; return; }
-            try { backend.Edits.Execute(() => freezer.SetPlayer(player, fields)); status.Text = $"Frozen: {player.DisplayName}"; window.Close(); }
-            catch (Exception ex) { status.Text = $"Freezer: {ex.Message}"; }
+            if (fields.Length == 0) { status.Text = Loc.S("Select an attribute"); return; }
+            try { backend.Edits.Execute(() => freezer.SetPlayer(player, fields)); status.Text = Loc.F("Frozen: {0}", player.DisplayName); window.Close(); }
+            catch (Exception ex) { status.Text = Loc.F("Freezer: {0}", UserMessage.For(ex)); }
         };
         await window.ShowDialog(this);
     }

@@ -85,7 +85,7 @@ public sealed class StaffDraft
             var (min, max) = Range(key);
             if (!int.TryParse(text.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out int v) || v < min || v > max)
             {
-                error = $"{key[(key.IndexOf(':') + 1)..]}: enter a whole number {min}–{max}";
+                error = Loc.F("{0}: enter a whole number {1}–{2}", Loc.S(key[(key.IndexOf(':') + 1)..]), min, max);
                 values = [];
                 return false;
             }

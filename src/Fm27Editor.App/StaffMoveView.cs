@@ -22,13 +22,13 @@ public sealed partial class MainWindow
         IReadOnlyList<ClubEntry> all = clubCache ?? [];
         StaffMovePlan? plan = null;
         ClubOption? chosenClub = null;
-        var pickClub = new Button { HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Left, Content = "Choose destination club…" };
+        var pickClub = new Button { HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Left, Content = Loc.S("Choose destination club…") };
         var details = new TextBlock { TextWrapping = TextWrapping.Wrap, Foreground = UiKit.TextPrimary, FontSize = 13.5, IsVisible = false };
         var error = new TextBlock { TextWrapping = TextWrapping.Wrap, Foreground = Brush("#F59E0B"), FontSize = 13, IsVisible = false };
         // Role and weekly wage the member gets at the new club (the current ones to start with); the move itself takes effect today.
-        var roles = StaffMoveService.SupportedJobs.Select(j => new RoleOption(j, StaffLabels.Job(j))).ToList();
+        var roles = StaffMoveService.SupportedJobs.Select(j => new RoleOption(j, Loc.S(StaffLabels.Job(j)))).ToList();
         var currentRole = roles.FirstOrDefault(r => r.Code == staff.JobCode);
-        if (currentRole is null && staff.JobCode is { } unlisted) roles.Insert(0, currentRole = new RoleOption((byte)unlisted, StaffLabels.Job(unlisted)));
+        if (currentRole is null && staff.JobCode is { } unlisted) roles.Insert(0, currentRole = new RoleOption((byte)unlisted, Loc.S(StaffLabels.Job(unlisted))));
         var roleBox = new ComboBox { ItemsSource = roles, SelectedItem = currentRole, Width = 220 };
         int? currentWage = null;
         try { currentWage = session.StaffContracts.Read(staff)?.Wage; } catch (Exception) { }
@@ -38,8 +38,8 @@ public sealed partial class MainWindow
         var expiryBox = new DateBox { Text = DateSetting.Format(new DateOnly(gameToday.Year + 2, 6, 30)), Width = 140 };
         var freeService = new FreeStaffSigning(session.Memory, session.Profile, session.ModuleBase);
         FreeStaffSigningPlan? freePlan = null;
-        var apply = new Button { Content = "Confirm transfer", IsEnabled = false, Classes = { "accent" } };
-        var undo = new Button { Content = "Undo last staff move", IsEnabled = staffMoveUndo.Count > 0, IsVisible = staffMoveUndo.Count > 0 };
+        var apply = new Button { Content = Loc.S("Confirm transfer"), IsEnabled = false, Classes = { "accent" } };
+        var undo = new Button { Content = Loc.S("Undo last staff move"), IsEnabled = staffMoveUndo.Count > 0, IsVisible = staffMoveUndo.Count > 0 };
 
         void Invalidate()
         {
@@ -55,7 +55,7 @@ public sealed partial class MainWindow
         }
         void UpdateStaff(StaffRecord before)
         {
-            var fresh = session.Staff.Reload(before.Address) ?? throw new InvalidOperationException("Staff no longer readable");
+            var fresh = session.Staff.Reload(before.Address) ?? throw new InvalidOperationException(Loc.S("Staff no longer readable"));
             staffScreen.ReloadOpen();
             staffScreen.RefreshFilters(showAllClubs: true);
         }
@@ -68,11 +68,11 @@ public sealed partial class MainWindow
             {
                 try
                 {
-                    if (roleBox.SelectedItem is not RoleOption role) { error.Text = "Choose the role."; error.IsVisible = true; return; }
-                    if (wageBox.Value is not { } wage) { error.Text = "Enter the weekly wage."; error.IsVisible = true; return; }
-                    if (!DateBox.TryParse(expiryBox.Text, out var expiry)) { error.Text = $"Enter the contract end as {DateSetting.Hint}"; error.IsVisible = true; return; }
-                    freePlan = freeService.Plan(staff, option.Club, role.Code, (int)wage, session.ReadGameDate() ?? throw new InvalidOperationException("The in-game date could not be read"), expiry);
-                    details.Text = $"Free agent  →  {option.Club.DisplayName}\n{role.Name}, {StaffMoveService.DepartmentOf(role.Code)}";
+                    if (roleBox.SelectedItem is not RoleOption role) { error.Text = Loc.S("Choose the role."); error.IsVisible = true; return; }
+                    if (wageBox.Value is not { } wage) { error.Text = Loc.S("Enter the weekly wage."); error.IsVisible = true; return; }
+                    if (!DateBox.TryParse(expiryBox.Text, out var expiry)) { error.Text = Loc.F("Enter the contract end as {0}", DateSetting.Hint); error.IsVisible = true; return; }
+                    freePlan = freeService.Plan(staff, option.Club, role.Code, (int)wage, session.ReadGameDate() ?? throw new InvalidOperationException(Loc.S("The in-game date could not be read")), expiry);
+                    details.Text = Loc.F("Free agent  →  {0}\n{1}, {2}", option.Club.DisplayName, role.Name, Loc.S(StaffMoveService.DepartmentOf(role.Code)));
                     details.IsVisible = true;
                     apply.IsEnabled = true;
                 }
@@ -82,11 +82,11 @@ public sealed partial class MainWindow
             try
             {
                 var from = all.FirstOrDefault(c => c.Address == staff.Club?.Address)
-                    ?? throw new InvalidOperationException("The current club can't be found; reload the save");
+                    ?? throw new InvalidOperationException(Loc.S("The current club can't be found; reload the save"));
                 byte? newJob = roleBox.SelectedItem is RoleOption r && r.Code != staff.JobCode ? r.Code : null;
                 int? newWage = currentWage is { } w && wageBox.Value is { } v && (int)v != w ? (int)v : null;
                 plan = service.Plan(staff, from, option.Club, session.ReadGameDate(), newJob, newWage);
-                details.Text = $"{plan.From.DisplayName}  →  {plan.To.DisplayName}\n{string.Join(", ", plan.Departments)}";
+                details.Text = $"{plan.From.DisplayName}  →  {plan.To.DisplayName}\n{string.Join(", ", plan.Departments.Select(Loc.S))}";
                 details.IsVisible = true;
                 apply.IsEnabled = true;
             }
@@ -107,12 +107,12 @@ public sealed partial class MainWindow
                 {
                     backend.Edits.Execute("Staff", staff.DisplayName, "Move", () =>
                     {
-                        if (session.ReadGameDate() != signing.Today) throw new StaleObjectException("The game date changed; nothing was written");
+                        if (session.ReadGameDate() != signing.Today) throw new StaleObjectException(Loc.S("The game date changed; nothing was written"));
                         freeService.Apply(signing, session.AllocateGameBlock);
                     });
                     clubCache = null;
                     UpdateStaff(staff);
-                    status.Text = $"{staff.DisplayName} joined {signing.To.DisplayName}. Continue in FM to see updates.";
+                    status.Text = Loc.F("{0} joined {1}. Continue in FM to see updates.", staff.DisplayName, signing.To.DisplayName);
                     apply.IsEnabled = false;
                 }
                 catch (Exception ex) { Invalidate(); status.Text = UserMessage.For(ex); }
@@ -125,7 +125,7 @@ public sealed partial class MainWindow
                 staffMoveUndo.Push(selectedPlan);
                 clubCache = null;
                 UpdateStaff(staff);
-                status.Text = $"Moved {staff.DisplayName} to {selectedPlan.To.DisplayName}. Continue in FM to see updates.";
+                status.Text = Loc.F("Moved {0} to {1}. Continue in FM to see updates.", selectedPlan.Staff.DisplayName, selectedPlan.To.DisplayName);
             }
             catch (Exception ex) { Invalidate(); status.Text = UserMessage.For(ex); }
         };
@@ -138,7 +138,7 @@ public sealed partial class MainWindow
                 staffMoveUndo.Pop();
                 clubCache = null;
                 UpdateStaff(last.Staff);
-                status.Text = $"Undid move for {last.Staff.DisplayName}. Continue in FM to see updates.";
+                status.Text = Loc.F("Undid move for {0}. Continue in FM to see updates.", last.Staff.DisplayName);
             }
             catch (Exception ex) { status.Text = UserMessage.For(ex); }
         };
@@ -165,17 +165,17 @@ public sealed partial class MainWindow
         {
             var choices = all.Where(c => c.Address != staff.Club?.Address && c.Id is > 0 && c.Gender != Fm27Editor.Core.Offsets.Gender.Women)
                 .OrderBy(c => c.DisplayName).Select(c => new ClubOption(c)).ToList();
-            var chosen = await PickerDialog.Show<ClubOption>(this, "Choose destination club", q => choices.Where(o => PickerSearch.Hit(q, o.Club.DisplayName, o.Club.ShortName, o.Club.Id)).Select(o => (o.Club.DisplayName, o)).ToList());
+            var chosen = await PickerDialog.Show<ClubOption>(this, Loc.S("Choose destination club"), q => choices.Where(o => PickerSearch.Hit(q, o.Club.DisplayName, o.Club.ShortName, o.Club.Id)).Select(o => (o.Club.DisplayName, o)).ToList());
             if (chosen is null) return;
             chosenClub = chosen;
             pickClub.Content = chosen.Club.DisplayName;
             Replan();
         };
         var curRow = new DockPanel { LastChildFill = true };
-        var curVal = new TextBlock { Text = staff.Club?.DisplayName ?? "None", FontWeight = FontWeight.SemiBold, Foreground = UiKit.TextPrimary };
+        var curVal = new TextBlock { Text = staff.Club?.DisplayName ?? Loc.S("None"), FontWeight = FontWeight.SemiBold, Foreground = UiKit.TextPrimary };
         DockPanel.SetDock(curVal, Dock.Right);
         curRow.Children.Add(curVal);
-        curRow.Children.Add(new TextBlock { Text = "Current Club", Foreground = UiKit.TextSecondary, VerticalAlignment = VerticalAlignment.Center });
+        curRow.Children.Add(new TextBlock { Text = Loc.S("Current Club"), Foreground = UiKit.TextSecondary, VerticalAlignment = VerticalAlignment.Center });
 
         var leftCard = UiKit.Card("Destination Club", new StackPanel
         {
@@ -189,9 +189,9 @@ public sealed partial class MainWindow
             Margin = new Thickness(12, 10),
             Children =
             {
-                new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { new TextBlock { Text = "Role", Width = 50, VerticalAlignment = VerticalAlignment.Center, Foreground = UiKit.TextSecondary }, roleBox } },
-                new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { new TextBlock { Text = "Wages", Width = 50, VerticalAlignment = VerticalAlignment.Center, Foreground = UiKit.TextSecondary }, wageBox } },
-                new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, IsVisible = staff.Club is null, Children = { new TextBlock { Text = "Until", Width = 50, VerticalAlignment = VerticalAlignment.Center, Foreground = UiKit.TextSecondary }, expiryBox } },
+                new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { new TextBlock { Text = Loc.S("Role"), Width = 50, VerticalAlignment = VerticalAlignment.Center, Foreground = UiKit.TextSecondary }, roleBox } },
+                new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { new TextBlock { Text = Loc.S("Wages"), Width = 50, VerticalAlignment = VerticalAlignment.Center, Foreground = UiKit.TextSecondary }, wageBox } },
+                new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, IsVisible = staff.Club is null, Children = { new TextBlock { Text = Loc.S("Until"), Width = 50, VerticalAlignment = VerticalAlignment.Center, Foreground = UiKit.TextSecondary }, expiryBox } },
                 details,
                 error,
                 new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { apply, undo } },

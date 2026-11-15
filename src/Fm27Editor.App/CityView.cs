@@ -15,9 +15,9 @@ internal sealed class CityScreen(IScreenHost host)
 {
     protected override void ConfigureColumns(DataGrid grid)
     {
-        grid.Columns.Add(new DataGridTextColumn { Header = "City", Binding = new Binding(nameof(CityRow.Name)), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
-        grid.Columns.Add(new DataGridTextColumn { Header = "Nation", Binding = new Binding(nameof(CityRow.Nation)), Width = new DataGridLength(184) });
-        var id = new DataGridTextColumn { Header = "ID", Binding = new Binding(nameof(CityRow.Id)), Width = new DataGridLength(115) };
+        grid.Columns.Add(new DataGridTextColumn { Header = Loc.S("City"), Binding = new Binding(nameof(CityRow.Name)), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
+        grid.Columns.Add(new DataGridTextColumn { Header = Loc.S("Nation"), Binding = new Binding(nameof(CityRow.Nation)), Width = new DataGridLength(184) });
+        var id = new DataGridTextColumn { Header = Loc.S("ID"), Binding = new Binding(nameof(CityRow.Id)), Width = new DataGridLength(115) };
         id.CellStyleClasses.Add("numeric");
         grid.Columns.Add(id);
     }
@@ -50,7 +50,7 @@ internal sealed class CityScreen(IScreenHost host)
         TextBox Box(CityField f) => FieldBox(draft, f, CityLabels.Format(c, f), 110, changed);
         Control Range()
         {
-            var combo = new ComboBox { ItemsSource = CityLabels.InhabitantRanges, MinWidth = 176 };
+            var combo = new ComboBox { ItemsSource = CityLabels.InhabitantRanges.Select(Loc.S).ToArray(), MinWidth = 176 };
             combo.SelectedIndex = draft.TryGetValue(CityField.Inhabitants, out var d) && int.TryParse(d, out int cur) ? cur : c.Inhabitants;
             combo.SelectionChanged += (_, _) =>
             {
@@ -87,21 +87,21 @@ internal sealed class CityScreen(IScreenHost host)
 
         bool links = Host.Backend.Session.CityLinks.Available;
         var city = CardRows("City", [
-            ("Unique ID", Label(c.Id.ToString(Inv), "#F1F5F9")),
+            (Loc.S("Unique ID"), Label(c.Id.ToString(Inv), "#F1F5F9")),
             .. links ? new (string, Control)[]
             {
-                ("Nation", LinkRow(c, draft, changed, CityLink.Nation)),
-                ("Local Region", LinkRow(c, draft, changed, CityLink.Region)),
-                ("Language", LinkRow(c, draft, changed, CityLink.Language)),
-                ("Weather", LinkRow(c, draft, changed, CityLink.Weather)),
+                (Loc.S("Nation"), LinkRow(c, draft, changed, CityLink.Nation)),
+                (Loc.S("Local Region"), LinkRow(c, draft, changed, CityLink.Region)),
+                (Loc.S("Language"), LinkRow(c, draft, changed, CityLink.Language)),
+                (Loc.S("Weather"), LinkRow(c, draft, changed, CityLink.Weather)),
             } : [],
-            ("Inhabitants Range", Range()),
-            ("Attraction", Box(CityField.Attraction)),
+            (Loc.S("Inhabitants Range"), Range()),
+            (Loc.S("Attraction"), Box(CityField.Attraction)),
         ]);
         var location = CardRows("Location", [
-            ("Latitude", Box(CityField.Latitude)),
-            ("Longitude", Box(CityField.Longitude)),
-            ("Altitude", Box(CityField.Altitude)),
+            (Loc.S("Latitude"), Box(CityField.Latitude)),
+            (Loc.S("Longitude"), Box(CityField.Longitude)),
+            (Loc.S("Altitude"), Box(CityField.Altitude)),
         ]);
         Editor.Children.Add(TwoColumns(city, location));
     }
@@ -130,7 +130,7 @@ internal sealed class CityScreen(IScreenHost host)
             Text = LinkName(link, shown), FontSize = 13, VerticalAlignment = VerticalAlignment.Center,
             Foreground = UiKit.Brush(shown != current ? "#C4B5FD" : "#F1F5F9"),
         };
-        var change = new Button { Content = "Change", Margin = new Thickness(8, 0, 0, 0) };
+        var change = new Button { Content = Loc.S("Change"), Margin = new Thickness(8, 0, 0, 0) };
         change.Click += async (_, _) =>
         {
             ulong? chosen = await ChooseLinkAsync(link);
@@ -148,7 +148,7 @@ internal sealed class CityScreen(IScreenHost host)
         var session = Host.Backend.Session;
         if (link == CityLink.Nation)
         {
-            var picked = await PickerDialog.Show(Host.Window, "Change Nation", q =>
+            var picked = await PickerDialog.Show(Host.Window, Loc.S("Change Nation"), q =>
             {
                 string folded = Fold(q);
                 return Host.NationCatalogue.GroupBy(n => n.Address).Select(g => g.First())
@@ -162,7 +162,7 @@ internal sealed class CityScreen(IScreenHost host)
             var cities = Rows.Select(r => r.City).ToList();
             linkCatalogues[link] = catalogue = await Task.Run(() => session.CityLinks.Catalogue(cities, link));
         }
-        string title = link switch { CityLink.Region => "Change Local Region", CityLink.Language => "Change Language", _ => "Change Weather" };
+        string title = link switch { CityLink.Region => Loc.S("Change Local Region"), CityLink.Language => Loc.S("Change Language"), _ => Loc.S("Change Weather") };
         var target = await PickerDialog.Show(Host.Window, title, q =>
         {
             return catalogue.Where(t => PickerSearch.Hit(q, t.Name)).Take(200).Select(t => (t.Name, t)).ToList();
@@ -183,7 +183,7 @@ internal sealed class CityScreen(IScreenHost host)
             if (IsLinkKey(f))
             {
                 var link = (CityLink)((int)f - 100);
-                if (!ulong.TryParse(text, out ulong target)) return $"{link}: choose a value again";
+                if (!ulong.TryParse(text, out ulong target)) return Loc.F("{0}: choose a value again", Loc.S(link.ToString()));
                 targets.Add((link, links.Pointer(c, link), target));
                 continue;
             }

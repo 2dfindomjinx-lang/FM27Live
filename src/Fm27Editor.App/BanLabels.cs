@@ -7,7 +7,10 @@ namespace Fm27Editor.App;
 /// </summary>
 public static class BanLabels
 {
-    public sealed record Scope(int Code, string Name, bool HasItem);
+    public sealed record Scope(int Code, string Name, bool HasItem)
+    {
+        public string DisplayName => Loc.S(Name);
+    }
 
     public static readonly IReadOnlyList<Scope> Scopes =
     [
@@ -35,7 +38,7 @@ public static class BanLabels
         (4, "Misconduct"), (5, "X bookings in last 3 months"), (-1, "None"),
     ];
 
-    public static string ScopeName(int code) => Scopes.FirstOrDefault(s => s.Code == code)?.Name ?? $"Code {code}";
+    public static string ScopeName(int code) => Scopes.FirstOrDefault(s => s.Code == code)?.Name is { } name ? Loc.S(name) : Loc.F("Code {0}", code);
 
-    public static string ReasonName(int code) => Reasons.FirstOrDefault(r => r.Code == code).Name ?? $"Code {code}";
+    public static string ReasonName(int code) => Reasons.FirstOrDefault(r => r.Code == code).Name is { } name ? Loc.S(name) : Loc.F("Code {0}", code);
 }

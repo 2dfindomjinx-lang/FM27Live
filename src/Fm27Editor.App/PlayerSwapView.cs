@@ -11,13 +11,13 @@ public sealed partial class MainWindow
 {
     sealed record SwapOption(PlayerRecord Player)
     {
-        public override string ToString() => $"{Player.DisplayName}  ·  {Player.Club?.DisplayName ?? "Free agent"}";
+        public override string ToString() => $"{Player.DisplayName}  ·  {Player.Club?.DisplayName ?? Loc.S("Free agent")}";
     }
 
     /// <summary>Swap Player: pick another player and both go to the other's club and team for no fee.</summary>
     Control SwapPlayerPanel(PlayerRecord player)
     {
-        var search = new TextBox { Watermark = "Search player or ID…", HorizontalAlignment = HorizontalAlignment.Stretch };
+        var search = new TextBox { Watermark = Loc.S("Search player or ID…"), HorizontalAlignment = HorizontalAlignment.Stretch };
         var list = new ListBox
         {
             Height = 220, HorizontalAlignment = HorizontalAlignment.Stretch, Background = UiKit.SurfaceInput,
@@ -25,7 +25,7 @@ public sealed partial class MainWindow
         };
         var preview = new TextBlock { FontSize = 13.5, Foreground = UiKit.TextPrimary, TextWrapping = TextWrapping.Wrap, IsVisible = false };
         var warning = new TextBlock { Foreground = Brush("#F59E0B"), FontSize = 13, TextWrapping = TextWrapping.Wrap, IsVisible = false };
-        var apply = new Button { Content = "Confirm swap", IsEnabled = false, HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Center, Height = 28, Classes = { "accent" } };
+        var apply = new Button { Content = Loc.S("Confirm swap"), IsEnabled = false, HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Center, Height = 28, Classes = { "accent" } };
         var all = Players();
 
         void Filter()
@@ -33,7 +33,7 @@ public sealed partial class MainWindow
             if (player.Gender == Fm27Editor.Core.Offsets.Gender.Women || player.Club?.Gender == Fm27Editor.Core.Offsets.Gender.Women)
             {
                 list.ItemsSource = Array.Empty<SwapOption>();
-                warning.Text = "Only male players and men's clubs are supported.";
+                warning.Text = Loc.S("Only male players and men's clubs are supported.");
                 warning.IsVisible = true;
                 return;
             }
@@ -50,7 +50,8 @@ public sealed partial class MainWindow
         {
             warning.IsVisible = false;
             if (list.SelectedItem is not SwapOption other) { preview.IsVisible = false; apply.IsEnabled = false; return; }
-            preview.Text = $"{player.DisplayName}: {player.Club?.DisplayName} → {other.Player.Club?.DisplayName}\n{other.Player.DisplayName}: {other.Player.Club?.DisplayName} → {player.Club?.DisplayName}\nNo fee. Each goes to the team the other plays for.";
+            preview.Text = Loc.F("{0}: {1} → {2}\n{3}: {2} → {1}\nNo fee. Each goes to the team the other plays for.",
+                player.DisplayName, player.Club?.DisplayName ?? "", other.Player.Club?.DisplayName ?? "", other.Player.DisplayName);
             preview.IsVisible = true;
             apply.IsEnabled = true;
         };
@@ -65,7 +66,7 @@ public sealed partial class MainWindow
             catch (Exception ex)
             {
                 warning.Text = UserMessage.For(ex); warning.IsVisible = true; apply.IsEnabled = true;
-                status.Text = $"Swap stopped: {UserMessage.For(ex)}";
+                status.Text = Loc.F("Swap stopped: {0}", UserMessage.For(ex));
                 return;
             }
             clubCache = null;
@@ -73,7 +74,7 @@ public sealed partial class MainWindow
             foreach (var address in new[] { player.Address, other.Player.Address })
                 if (backend.Players.Reload(address) is { } fresh) { fresh.GameDate = backend.GameDate; ReplaceRow(fresh); if (address == player.Address) selected = fresh; }
             RenderEditor();
-            status.Text = $"Swapped {player.DisplayName} and {other.Player.DisplayName}. Club finances show after Continue in FM.";
+            status.Text = Loc.F("Swapped {0} and {1}. Club finances show after Continue in FM.", player.DisplayName, other.Player.DisplayName);
         };
         Filter();
 

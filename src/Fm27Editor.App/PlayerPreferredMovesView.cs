@@ -13,7 +13,7 @@ public sealed partial class MainWindow
         var session = backend.Session;
         var access = new PreferredMovesAccess(session.Memory, session.Profile, session.Game.ModuleBase);
         if (access.Read(player) is not { } current) return panel;
-        var save = new Button { IsVisible = false, Content = "Save changes", IsEnabled = false, Classes = { "accent" } };
+        var save = new Button { IsVisible = false, Content = Loc.S("Save changes"), IsEnabled = false, Classes = { "accent" } };
         var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*"), Margin = new Thickness(12, 8) };
         var boxes = new CheckBox[PreferredMovesAccess.Count];
         ulong Moves() => boxes.Select((b, i) => b.IsChecked == true ? 1UL << i : 0).Aggregate(0UL, (a, b) => a | b);
@@ -21,14 +21,14 @@ public sealed partial class MainWindow
         for (int i = 0; i < boxes.Length; i++)
         {
             if (i % 2 == 0) grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-            boxes[i] = new CheckBox { Content = PreferredMovesLabels.Names[i], IsChecked = (current >> i & 1) != 0 };
+            boxes[i] = new CheckBox { Content = PreferredMovesLabels.Display(i), IsChecked = (current >> i & 1) != 0 };
             Grid.SetRow(boxes[i], i / 2); Grid.SetColumn(boxes[i], i % 2);
             grid.Children.Add(boxes[i]);
             boxes[i].IsCheckedChanged += (_, _) => Changed();
         }
         panel.Children.Add(UiKit.Card("Preferred Moves", grid));
-        var all = new Button { Content = "Select All" };
-        var clear = new Button { Content = "Clear" };
+        var all = new Button { Content = Loc.S("Select All") };
+        var clear = new Button { Content = Loc.S("Clear") };
         all.Click += (_, _) => { foreach (var b in boxes) b.IsChecked = true; };
         clear.Click += (_, _) => { foreach (var b in boxes) b.IsChecked = false; };
         save.Click += (_, _) =>
@@ -37,10 +37,10 @@ public sealed partial class MainWindow
             {
                 ulong moves = Moves();
                 backend.Edits.Execute("Player", player.DisplayName, "Page save", () => access.Set(player, current, moves));
-                status.Text = "Saved preferred moves. Continue in FM to see updates.";
+                status.Text = Loc.S("Saved preferred moves. Continue in FM to see updates.");
                 RenderEditor();
             }
-            catch (Exception ex) { status.Text = ex.Message; }
+            catch (Exception ex) { status.Text = UserMessage.For(ex); }
         };
         panel.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { all, clear, save } });
         return panel;

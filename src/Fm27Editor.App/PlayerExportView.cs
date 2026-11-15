@@ -15,7 +15,7 @@ public sealed partial class MainWindow
         {
             var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
             {
-                Title = "Export attributes", SuggestedFileName = $"{player.Id}-attributes.json", DefaultExtension = "json",
+                Title = Loc.S("Export attributes"), SuggestedFileName = $"{player.Id}-attributes.json", DefaultExtension = "json",
                 FileTypeChoices = [AttributeJson, AttributeCsv]
             });
             if (file is null) return;
@@ -24,31 +24,33 @@ public sealed partial class MainWindow
             stream.SetLength(0);
             await using var writer = new StreamWriter(stream, Encoding.UTF8);
             await writer.WriteAsync(content);
-            status.Text = "Attributes exported";
+            status.Text = Loc.S("Attributes exported");
         }
-        catch (Exception ex) { status.Text = $"Export failed: {ex.Message}"; }
+        catch (Exception ex) { status.Text = Loc.F("Export failed: {0}", UserMessage.For(ex)); }
     }
 
     async Task ImportPlayerAttributesAsync(PlayerRecord player)
     {
         try
         {
-            var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions { Title = "Import attributes", AllowMultiple = false, FileTypeFilter = [AttributeJson, AttributeCsv] });
+            var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions { Title = Loc.S("Import attributes"), AllowMultiple = false, FileTypeFilter = [AttributeJson, AttributeCsv] });
             if (files.Count == 0) return;
             await using var stream = await files[0].OpenReadAsync();
-            if (stream.CanSeek && stream.Length > 100_000) throw new FormatException("File too large");
+            if (stream.CanSeek && stream.Length > 100_000) throw new FormatException(Loc.S("File too large"));
             using var reader = new StreamReader(stream, Encoding.UTF8, true);
             string content = await reader.ReadToEndAsync();
             var values = PlayerAttributeFile.Parse(content, files[0].Name.EndsWith(".csv", StringComparison.OrdinalIgnoreCase));
-            if (selected?.Address != player.Address) throw new InvalidOperationException("Player changed while choosing the file");
+            if (selected?.Address != player.Address) throw new InvalidOperationException(Loc.S("Player changed while choosing the file"));
             if (!drafts.TryGetValue(player.Address, out var draft)) drafts[player.Address] = draft = new PlayerDraft(player);
             PlayerAttributeFile.Stage(draft, values);
             RenderEditor();
             int unknown = Enum.GetValues<PersonalityAttribute>().Count(a => values[$"Personality.{a}"] == 0);
-            status.Text = unknown == 0 ? $"{draft.Count} unsaved change(s)" : $"{draft.Count} unsaved change(s); {unknown} unknown personality value(s) skipped";
+            status.Text = unknown == 0
+                ? Loc.F("{0} unsaved change(s)", draft.Count)
+                : Loc.F("{0} unsaved change(s); {1} unknown personality value(s) skipped", draft.Count, unknown);
         if (draft.Count > 0) SetActiveTabDirty(true);
         }
-        catch (Exception ex) { status.Text = $"Import failed: {ex.Message}"; }
+        catch (Exception ex) { status.Text = Loc.F("Import failed: {0}", UserMessage.For(ex)); }
     }
 
     async Task ExportPlayersAsync(bool json)
@@ -60,7 +62,7 @@ public sealed partial class MainWindow
         {
             var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
             {
-                Title = "Export players",
+                Title = Loc.S("Export players"),
                 SuggestedFileName = $"players-{backend.GameDate?.ToString("yyyy-MM-dd") ?? "export"}.{extension}",
                 DefaultExtension = extension,
                 FileTypeChoices = [new FilePickerFileType(extension.ToUpperInvariant()) { Patterns = [$"*.{extension}"] }]
@@ -72,8 +74,8 @@ public sealed partial class MainWindow
                 if (json) PlayerExport.WriteJson(stream, players);
                 else PlayerExport.WriteCsv(stream, players);
             });
-            status.Text = $"Exported {players.Length:N0} players";
+            status.Text = Loc.F("Exported {0:N0} players", players.Length);
         }
-        catch (Exception ex) { status.Text = $"Export failed: {ex.Message}"; }
+        catch (Exception ex) { status.Text = Loc.F("Export failed: {0}", UserMessage.For(ex)); }
     }
 }

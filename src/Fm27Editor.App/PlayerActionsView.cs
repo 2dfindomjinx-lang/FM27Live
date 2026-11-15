@@ -54,13 +54,13 @@ public sealed partial class MainWindow
             };
             var lbl = new TextBlock
             {
-                Text = d.Label,
+                Text = Loc.S(d.Label),
                 FontSize = 12.5,
                 FontWeight = FontWeight.SemiBold,
                 Foreground = Brush("#94A3B8"),
                 VerticalAlignment = VerticalAlignment.Center,
             };
-            ToolTip.SetTip(lbl, $"{d.Label} ({d.Min} .. {d.Max})");
+            ToolTip.SetTip(lbl, $"{Loc.S(d.Label)} ({d.Min} .. {d.Max})");
 
             var num = new NumericUpDown
             {
@@ -130,7 +130,7 @@ public sealed partial class MainWindow
         int total = scalarCount + stdCount + (informationDirty?.Invoke() == true ? 1 : 0);
 
         if (saveButton is not null) saveButton.IsEnabled = total > 0;
-        status.Text = total > 0 ? $"{total} unsaved change(s)" : "";
+        status.Text = total > 0 ? Loc.F("{0} unsaved change(s)", total) : "";
         if (total > 0) SetActiveTabDirty(true);
         MarkEditedSection(player, total > 0);
     }
@@ -191,13 +191,13 @@ public sealed partial class MainWindow
                         }
                         catch (Exception ex)
                         {
-                            status.Text = $"Failed to save {f}: {ex.Message}";
+                            status.Text = Loc.F("Failed to save {0}: {1}", f, UserMessage.For(ex));
                             return;
                         }
                     }
                     if (d.Count == 0)
                         playerScalarDrafts.Remove(player.Address);
-                    status.Text = $"Saved {saved} change(s). Continue in FM to see updates.";
+                    status.Text = Loc.F("Saved {0} change(s). Continue in FM to see updates.", saved);
                     RenderEditor();
                 }
             };
@@ -237,7 +237,7 @@ public sealed partial class MainWindow
 
         static TextBlock Subhead(string text, bool first = false) => new()
         {
-            Text = text,
+            Text = Loc.S(text),
             FontSize = 11,
             FontWeight = FontWeight.Bold,
             Foreground = UiKit.Brush("#7E8BA3"),
@@ -251,7 +251,7 @@ public sealed partial class MainWindow
             {
                 var freeze = new Button
                 {
-                    Content = "Freeze",
+                    Content = Loc.S("Freeze"),
                     FontSize = 12.5,
                     Height = 24,
                     MinHeight = 24,
@@ -264,14 +264,14 @@ public sealed partial class MainWindow
                     try
                     {
                         backend.Edits.Execute(() => backend.Freezer.SetPlayer(player, FrozenPlayer.AllAttributes(player)));
-                        onStatus?.Invoke($"Frozen: {player.DisplayName}");
+                        onStatus?.Invoke(Loc.F("Frozen: {0}", player.DisplayName));
                     }
-                    catch (Exception ex) { onStatus?.Invoke($"Freezer: {ex.Message}"); }
+                    catch (Exception ex) { onStatus?.Invoke(Loc.F("Freezer: {0}", UserMessage.For(ex))); }
                 };
 
                 var unfreeze = new Button
                 {
-                    Content = "Unfreeze",
+                    Content = Loc.S("Unfreeze"),
                     FontSize = 12.5,
                     Height = 24,
                     MinHeight = 24,
@@ -286,19 +286,19 @@ public sealed partial class MainWindow
                         if (player.Id is { } pid)
                         {
                             backend.Edits.Execute(() => backend.Freezer.RemovePlayer(pid));
-                            onStatus?.Invoke($"Unfrozen: {player.DisplayName}");
+                            onStatus?.Invoke(Loc.F("Unfrozen: {0}", player.DisplayName));
                         }
                     }
-                    catch (Exception ex) { onStatus?.Invoke($"Freezer: {ex.Message}"); }
+                    catch (Exception ex) { onStatus?.Invoke(Loc.F("Freezer: {0}", UserMessage.For(ex))); }
                 };
 
                 panel.Children.Add(Pair(freeze, unfreeze));
             }
-            var export = new Button { Content = "Export", FontSize = 12.5, Height = 24, MinHeight = 24, Padding = new Thickness(3, 0), HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Center };
-            ToolTip.SetTip(export, "Export attributes");
+            var export = new Button { Content = Loc.S("Export"), FontSize = 12.5, Height = 24, MinHeight = 24, Padding = new Thickness(3, 0), HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Center };
+            ToolTip.SetTip(export, Loc.S("Export attributes"));
             export.Click += async (_, _) => await ExportPlayerAttributesAsync(player);
-            var import = new Button { Content = "Import", FontSize = 12.5, Height = 24, MinHeight = 24, Padding = new Thickness(3, 0), HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Center };
-            ToolTip.SetTip(import, "Import attributes");
+            var import = new Button { Content = Loc.S("Import"), FontSize = 12.5, Height = 24, MinHeight = 24, Padding = new Thickness(3, 0), HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Center };
+            ToolTip.SetTip(import, Loc.S("Import attributes"));
             import.Click += async (_, _) => await ImportPlayerAttributesAsync(player);
             panel.Children.Add(Pair(export, import));
         }
@@ -311,7 +311,7 @@ public sealed partial class MainWindow
             void UpdateCount()
             {
                 int included = getSelectedPlayers?.Invoke()?.Count ?? 0;
-                selectedCountText.Text = included == 1 ? "( 1 Player )" : $"( {included} Players )";
+                selectedCountText.Text = included == 1 ? Loc.S("( 1 Player )") : Loc.F("( {0} Players )", included);
             }
             UpdateCount();
             registerSelectionUpdater?.Invoke(UpdateCount);
@@ -323,7 +323,7 @@ public sealed partial class MainWindow
         {
             var btn = new Button
             {
-                Content = text,
+                Content = Loc.S(text),
                 FontSize = 12.5,
                 Height = 24,
                 MinHeight = 24,
@@ -333,7 +333,7 @@ public sealed partial class MainWindow
                 HorizontalContentAlignment = HorizontalAlignment.Center,
                 IsEnabled = enabled,
             };
-            if (ToolTips.TryGetValue(text, out var tip)) ToolTip.SetTip(btn, tip);
+            if (ToolTips.TryGetValue(text, out var tip)) ToolTip.SetTip(btn, Loc.S(tip));
             btn.Click += (_, _) => onClick();
             return btn;
         }
@@ -347,31 +347,14 @@ public sealed partial class MainWindow
                 var list = selectedPlayers;
                 if (list.Count == 0)
                 {
-                    onStatus?.Invoke("No players selected");
+                    onStatus?.Invoke(Loc.S("No players selected"));
                     return;
                 }
 
-                int success = 0;
-                var failed = new List<string>();
-                foreach (var p in list)
-                {
-                    try
-                    {
-                        { RegisterPlayerLabels(p); backend.Edits.Execute("Player", p.DisplayName, actionName, () => action(p)); }
-                        success++;
-                    }
-                    catch (Exception ex)
-                    {
-                        failed.Add($"{p.DisplayName}: {ex.Message}");
-                    }
-                }
+                var report = RunBulkVoid(backend.Edits, list, actionName, action, RegisterPlayerLabels);
+                onStatus?.Invoke(report.FormatStatus(actionName));
 
-                if (failed.Count == 0)
-                    onStatus?.Invoke($"{actionName}: {success} player(s) updated. Continue in FM to see updates.");
-                else
-                    onStatus?.Invoke($"{actionName}: {success} succeeded, {failed.Count} failed ({string.Join(", ", failed.Take(2))}).");
-
-                if (success > 0)
+                if (report.Changed > 0)
                     onApplied?.Invoke();
             }
             else
@@ -379,7 +362,7 @@ public sealed partial class MainWindow
                 var target = selectedPlayers.Count == 1 ? selectedPlayers[0] : (player ?? getSelectedPlayers?.Invoke()?.FirstOrDefault());
                 if (target is null)
                 {
-                    onStatus?.Invoke("Select a player first");
+                    onStatus?.Invoke(Loc.S("Select a player first"));
                     return;
                 }
 
@@ -388,13 +371,13 @@ public sealed partial class MainWindow
                     long before = backend.Edits.WriteCount;
                     { RegisterPlayerLabels(target); backend.Edits.Execute("Player", target.DisplayName, actionName, () => action(target)); }
                     onStatus?.Invoke(before >= 0 && backend.Edits.WriteCount == before
-                        ? $"{actionName}: {target.DisplayName} already has these values, nothing was changed."
-                        : $"{actionName} applied to {target.DisplayName}. Continue in FM to see updates.");
+                        ? Loc.F("{0}: {1} already has these values, nothing was changed.", Loc.S(actionName), target.DisplayName)
+                        : Loc.F("{0} applied to {1}. Continue in FM to see updates.", Loc.S(actionName), target.DisplayName));
                     onApplied?.Invoke();
                 }
                 catch (Exception ex)
                 {
-                    onStatus?.Invoke($"Failed {actionName}: {ex.Message}");
+                    onStatus?.Invoke(Loc.F("Failed {0}: {1}", Loc.S(actionName), UserMessage.For(ex)));
                 }
             }
         }
@@ -458,10 +441,19 @@ public sealed partial class MainWindow
         // FMRTE's Information-page presets; each returns false when the player already has what it adds.
         void RunPreset(string actionName, Func<PlayerRecord, bool> preset)
         {
+            if (isSquadMode)
+            {
+                var list = getSelectedPlayers?.Invoke() ?? [];
+                if (list.Count == 0) { onStatus?.Invoke(Loc.S("No players selected")); return; }
+                var report = RunBulk(backend.Edits, list, actionName, preset, RegisterPlayerLabels);
+                onStatus?.Invoke(report.FormatStatus(actionName));
+                if (report.Changed > 0) onApplied?.Invoke();
+                return;
+            }
             int unchanged = 0, failed = 0;
             RunAction(actionName, p => { try { if (!preset(p)) unchanged++; } catch { failed++; throw; } });
             if (unchanged > 0 && failed == 0)
-                onStatus?.Invoke($"{actionName}: {unchanged} player(s) already had it or have nothing to change.");
+                onStatus?.Invoke(Loc.F("{0}: {1} player(s) already had it or have nothing to change.", Loc.S(actionName), unchanged));
         }
         panel.Children.Add(ActionBtn("Remove Int. Withdrawal", () => RunPreset("Remove Int. Withdrawal", p => backend.Session.RemoveInternationalWithdrawal(p) > 0)));
         panel.Children.Add(ActionBtn("Register for UEFA", () => RunPreset("Register for UEFA", p => backend.Session.RegisterForUefa(p))));
@@ -482,7 +474,7 @@ public sealed partial class MainWindow
                 var row = new DockPanel { LastChildFill = true };
                 DockPanel.SetDock(box, Dock.Right);
                 row.Children.Add(box);
-                row.Children.Add(new TextBlock { Text = label, FontSize = 12.5, VerticalAlignment = VerticalAlignment.Center, Foreground = UiKit.TextSecondary });
+                row.Children.Add(new TextBlock { Text = Loc.S(label), FontSize = 12.5, VerticalAlignment = VerticalAlignment.Center, Foreground = UiKit.TextSecondary });
                 return row;
             }
             panel.Children.Add(Subhead("YOUTH"));
@@ -491,20 +483,20 @@ public sealed partial class MainWindow
             panel.Children.Add(ActionBtn("Golden Generation", () =>
             {
                 if (!int.TryParse(minPa.Text, out int lo) || !int.TryParse(maxPa.Text, out int hi) || lo is < 1 or > 200 || hi is < 1 or > 200 || lo > hi)
-                { onStatus?.Invoke("Golden Generation: enter PA from 1 to 200, lowest first"); return; }
+                { onStatus?.Invoke(Loc.S("Golden Generation: enter PA from 1 to 200, lowest first")); return; }
                 var youth = getYouthPlayers();
-                if (youth.Count == 0) { onStatus?.Invoke("Golden Generation: the club has no youth or reserve players"); return; }
+                if (youth.Count == 0) { onStatus?.Invoke(Loc.S("Golden Generation: the club has no youth or reserve players")); return; }
                 int done = 0;
                 var failed = new List<string>();
                 foreach (var p in youth)
                 {
                     try { RegisterPlayerLabels(p); backend.Edits.Execute("Player", p.DisplayName, "Golden Generation", () => backend.Session.GoldenGeneration(p, lo, hi)); done++; }
-                    catch (Exception ex) { failed.Add($"{p.DisplayName}: {ex.Message}"); }
+                    catch (Exception ex) { failed.Add($"{p.DisplayName}: {UserMessage.For(ex)}"); }
                 }
                 onApplied?.Invoke();
                 onStatus?.Invoke(failed.Count == 0
-                    ? $"Golden Generation: {done} youth and reserve player(s) updated. Continue in FM to see updates."
-                    : $"Golden Generation: {done} updated, {failed.Count} failed ({string.Join(", ", failed.Take(2))}).");
+                    ? Loc.F("Golden Generation: {0} youth and reserve player(s) updated. Continue in FM to see updates.", done)
+                    : Loc.F("Golden Generation: {0} updated, {1} failed ({2}).", done, failed.Count, string.Join(", ", failed.Take(2))));
             }));
         }
         if (!isSquadMode && player is not null)
@@ -529,13 +521,13 @@ public sealed partial class MainWindow
             var session = backend.Session;
             var writer = new KeepPlayingWriter(session.Memory, session.Profile, session.ModuleBase);
             var plan = writer.TryPlan(player);
-            if (plan is null) { status.Text = $"{player.DisplayName}: already set to keep playing"; return; }
+            if (plan is null) { status.Text = Loc.F("{0}: already set to keep playing", player.DisplayName); return; }
             backend.Edits.Execute("Player", player.DisplayName, "Prevent retirement", () => writer.Apply(plan));
             ReloadCurrentScreen();
             status.Text = plan.RetirementDate is { } was
-                ? $"{player.DisplayName} will not retire on {DateSetting.Format(was)}. Continue in FM to see updates."
-                : $"{player.DisplayName} will keep playing. Continue in FM to see updates.";
+                ? Loc.F("{0} will not retire on {1}. Continue in FM to see updates.", player.DisplayName, DateSetting.Format(was))
+                : Loc.F("{0} will keep playing. Continue in FM to see updates.", player.DisplayName);
         }
-        catch (Exception ex) { status.Text = $"Prevent retirement: {ex.Message}"; }
+        catch (Exception ex) { status.Text = Loc.F("Prevent retirement: {0}", UserMessage.For(ex)); }
     }
 }

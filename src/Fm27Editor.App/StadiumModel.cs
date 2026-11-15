@@ -40,7 +40,7 @@ public static class StadiumLabels
     };
 
     public static string Choice(StadiumField f, long code) =>
-        Choices.TryGetValue(f, out var m) && m.TryGetValue(code, out var s) ? s : $"Code {code}";
+        Choices.TryGetValue(f, out var m) && m.TryGetValue(code, out var s) ? Loc.S(s) : Loc.F("Code {0}", code);
 
     /// <summary>FMRTE's stand order: bottom, bottom-left, left, top-left, top, top-right, right, bottom-right.</summary>
     public static readonly string[] Stands = ["Bottom", "Bottom Left", "Left", "Top Left", "Top", "Top Right", "Right", "Bottom Right"];
@@ -95,11 +95,11 @@ public static class StadiumLabels
             if (text.Length == 0) { value = 0; return true; }
             if (DateSetting.TryParse(text, out var d) && d.Year is > 1900 and <= 2300)
             { value = d.Year * 10000L + d.Month * 100 + d.Day; return true; }
-            value = 0; error = $"{f}: enter a date as {DateSetting.Hint}"; return false;
+            value = 0; error = Loc.F("{0}: enter a date as {1}", Loc.S(f.ToString()), DateSetting.Hint); return false;
         }
         var (min, max) = Range(f);
         if (long.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out value) && value >= min && value <= max) return true;
-        error = $"{f}: enter a whole number {min}–{max}";
+        error = Loc.F("{0}: enter a whole number {1}–{2}", Loc.S(f.ToString()), min, max);
         return false;
     }
 }

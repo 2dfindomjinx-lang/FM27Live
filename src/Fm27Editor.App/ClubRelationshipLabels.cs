@@ -18,14 +18,14 @@ public static class ClubRelationshipLabels
     public static IReadOnlyList<string> Reasons(ClubRelationshipKind kind) => kind == ClubRelationshipKind.Rival ? RivalReasons : PersonReasons;
 
     public static string ReasonName(ClubRelationshipKind kind, int reason) =>
-        reason >= 0 && reason < Reasons(kind).Count ? Reasons(kind)[reason] : reason.ToString(CultureInfo.InvariantCulture);
+        reason >= 0 && reason < Reasons(kind).Count ? Loc.S(Reasons(kind)[reason]) : reason.ToString(CultureInfo.InvariantCulture);
 
     public static string TypeName(ClubRelationship row) => row.Kind switch
     {
-        ClubRelationshipKind.Rival => "Rival",
-        ClubRelationshipKind.LikesPerson => "Likes Person",
-        ClubRelationshipKind.DislikesPerson => "Dislikes Person",
-        _ => $"Unknown ({row.TypeCode.ToString(CultureInfo.InvariantCulture)})",
+        ClubRelationshipKind.Rival => Loc.S("Rival"),
+        ClubRelationshipKind.LikesPerson => Loc.S("Likes Person"),
+        ClubRelationshipKind.DislikesPerson => Loc.S("Dislikes Person"),
+        _ => Loc.F("Unknown ({0})", row.TypeCode.ToString(CultureInfo.InvariantCulture)),
     };
 
     /// <summary>FMRTE lists rows by descending type code (Unknown 68, Unknown 29, Rival, Dislikes, Likes); equal types keep RAM order.</summary>
@@ -37,8 +37,8 @@ public static class ClubRelationshipLabels
         ClubFieldInfo.SectionTitle(ClubSection.Relationships),
         HasReader: true,
         UsesTeamRoot: false,
-        [new("Type", 120), new("Name", 1, IsStar: true), new("Value", 60, RightAlign: true)],
+        [new(Loc.S("Type"), 120), new(Loc.S("Name"), 1, IsStar: true), new(Loc.S("Value"), 60, RightAlign: true)],
         ordered.Select(r => new ClubListRowModel(
-            [new(TypeName(r)), new(r.Name ?? "Unknown"), new(r.Value.ToString(CultureInfo.InvariantCulture), RightAlign: true)],
+            [new(TypeName(r)), new(r.Name ?? Loc.S("Unknown")), new(r.Value.ToString(CultureInfo.InvariantCulture), RightAlign: true)],
             [])).ToArray());
 }

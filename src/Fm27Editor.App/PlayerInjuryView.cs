@@ -26,7 +26,7 @@ public sealed partial class MainWindow
         var panel = new StackPanel { Spacing = 8 };
         var rowsHost = new StackPanel { Spacing = 8 };
         var rows = new List<InjuryRow>();
-        var save = new Button { IsVisible = false, Content = "Save changes", IsEnabled = false, Classes = { "accent" } };
+        var save = new Button { IsVisible = false, Content = Loc.S("Save changes"), IsEnabled = false, Classes = { "accent" } };
         var session = backend.Session;
         var existing = session.ReadInjuries(player);
 
@@ -51,7 +51,7 @@ public sealed partial class MainWindow
             var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto,24,Auto"), RowSpacing = 4, Margin = new Thickness(12, 8) };
             row.Minimum = new TextBox { Text = injury?.MinimumDays.ToString(Inv) ?? "", Width = 84, HorizontalContentAlignment = HorizontalAlignment.Right };
             row.Extra = new TextBox { Text = injury?.ExtraDays.ToString(Inv) ?? "", Width = 84, HorizontalContentAlignment = HorizontalAlignment.Right };
-            row.Boxes = TreatmentBoxes.Select(t => new CheckBox { Content = t.Label, IsChecked = injury?.Treatment.HasFlag(t.Flag) ?? false }).ToArray();
+            row.Boxes = TreatmentBoxes.Select(t => new CheckBox { Content = Loc.S(t.Label), IsChecked = injury?.Treatment.HasFlag(t.Flag) ?? false }).ToArray();
             var current = injury is null ? null : new InjuryType(0, injury.TypeId, injury.Name);
             row.Type = new ComboBox { Width = 220, ItemsSource = current is null ? Array.Empty<InjuryType>() : new[] { current }, SelectedIndex = current is null ? -1 : 0,
                 DisplayMemberBinding = new Avalonia.Data.Binding(nameof(InjuryType.Name)) };
@@ -59,7 +59,7 @@ public sealed partial class MainWindow
             int line = 0;
             foreach (var (label, input) in new (string, Control)[] { ("Type", row.Type), ("Minimum Days", row.Minimum), ("Extra Days", row.Extra) })
             {
-                var text = new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center };
+                var text = new TextBlock { Text = Loc.S(label), VerticalAlignment = VerticalAlignment.Center };
                 Grid.SetRow(text, line); Grid.SetRow(input, line); Grid.SetColumn(input, 1);
                 grid.Children.Add(text); grid.Children.Add(input); line++;
                 if (input is TextBox box) box.TextChanged += (_, _) => Changed();
@@ -79,14 +79,14 @@ public sealed partial class MainWindow
                 grid.Children.Add(row.Boxes[r]);
                 row.Boxes[r].IsCheckedChanged += (_, _) => Changed();
             }
-            var remove = new Button { Content = injury is null ? "Remove" : "Remove injury" };
+            var remove = new Button { Content = injury is null ? Loc.S("Remove") : Loc.S("Remove injury") };
             remove.Click += (_, _) =>
             {
                 if (injury is null) { rows.Remove(row); rowsHost.Children.Remove(row.Card); }
                 else
                 {
                     row.Removed = !row.Removed;
-                    remove.Content = row.Removed ? "Undo remove" : "Remove injury";
+                    remove.Content = row.Removed ? Loc.S("Undo remove") : Loc.S("Remove injury");
                     row.Card.Opacity = row.Removed ? 0.45 : 1;
                 }
                 Changed();
@@ -99,7 +99,7 @@ public sealed partial class MainWindow
 
         foreach (var injury in existing) BuildRow(injury);
 
-        var add = new Button { Content = "Add injury", IsEnabled = false };
+        var add = new Button { Content = Loc.S("Add injury"), IsEnabled = false };
         add.Click += (_, _) =>
         {
             var row = BuildRow(null);
@@ -128,10 +128,10 @@ public sealed partial class MainWindow
             var (template, types) = catalogue.IsCompletedSuccessfully ? catalogue.Result : (null, []);
             foreach (var r in rows)
             {
-                if (!ushort.TryParse(r.Minimum.Text, out ushort minimumDay) || minimumDay < 1 || !ushort.TryParse(r.Extra.Text, out _)) { status.Text = "Injury: Minimum Days is 1 or more, Extra Days 0 or more"; return; }
-                if (r.Injury is null && r.Type.SelectedItem is not InjuryType { Address: not 0 }) { status.Text = "Injury: pick a type for the new injury"; return; }
+                if (!ushort.TryParse(r.Minimum.Text, out ushort minimumDay) || minimumDay < 1 || !ushort.TryParse(r.Extra.Text, out _)) { status.Text = Loc.S("Injury: Minimum Days is 1 or more, Extra Days 0 or more"); return; }
+                if (r.Injury is null && r.Type.SelectedItem is not InjuryType { Address: not 0 }) { status.Text = Loc.S("Injury: pick a type for the new injury"); return; }
             }
-            if (rows.Any(r => r.Injury is null) && template is null) { status.Text = "Injury: no injury to build a new one from was found yet"; return; }
+            if (rows.Any(r => r.Injury is null) && template is null) { status.Text = Loc.S("Injury: no injury to build a new one from was found yet"); return; }
             try
             {
                 backend.Edits.Execute("Player", player.DisplayName, "Page save", () =>
@@ -167,7 +167,7 @@ public sealed partial class MainWindow
                         if (min != made.MinimumDays || extra != made.ExtraDays) writer.SetDuration(player, made, min, extra);
                     }
                 });
-                status.Text = "Saved injury. Continue in FM to see updates.";
+                status.Text = Loc.S("Saved injury. Continue in FM to see updates.");
                 RenderEditor();
             }
             catch (Exception ex) { status.Text = UserMessage.For(ex); }

@@ -12,7 +12,7 @@ internal sealed partial class MassEditWindow
     {
         try { return plan().ToArray(); }
         catch (Exception ex) when (ex is ArgumentOutOfRangeException or InvalidOperationException or ArgumentException or StaleObjectException)
-        { return [MassRow.Refused("(every target)", field, ex.Message)]; }
+        { return [MassRow.Refused(Loc.S("(every target)"), field, ex.Message)]; }
     }
 
     MassPlan CoachPlan()

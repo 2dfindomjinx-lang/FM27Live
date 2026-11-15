@@ -11,6 +11,7 @@ using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using Fm27Editor.Core.Players;
+using Fm27Editor.Core.Settings;
 
 namespace Fm27Editor.App;
 
@@ -21,14 +22,21 @@ public sealed partial class MainWindow : Window
     const string AllLeaguesLabel = "All Leagues";
     const string NoPresetLabel = "Preset: None";
 
-    sealed record SortOption(PlayerSortKey Key, string Label, PlayerAttribute? Attribute = null, bool DefaultDescending = true)
+    sealed record NoPresetChoice
     {
-        public override string ToString() => Label;
+        public override string ToString() => Loc.S(NoPresetLabel);
     }
 
-    sealed record AttributeOption(PlayerAttribute Attribute, string Label)
+    sealed record SortOption(PlayerSortKey Key, string LabelKey, PlayerAttribute? Attribute = null, bool DefaultDescending = true)
     {
-        public override string ToString() => Label;
+        public override string ToString() => Key == PlayerSortKey.Attribute
+            ? Loc.F("Attr: {0}", Loc.S(LabelKey))
+            : Loc.S(LabelKey);
+    }
+
+    sealed record AttributeOption(PlayerAttribute Attribute, string LabelKey)
+    {
+        public override string ToString() => Loc.S(LabelKey);
     }
 
     readonly EditorBackend backend = new();
@@ -48,10 +56,10 @@ public sealed partial class MainWindow : Window
         VerticalAlignment = VerticalAlignment.Center
     };
 
-    readonly TextBox search = new() { Watermark = "Search player name or ID..." };
+    readonly TextBox search = new() { Watermark = Loc.S("Search player name or ID...") };
     readonly ComboBox sortCombo = new() { HorizontalAlignment = HorizontalAlignment.Stretch };
     readonly Button sortDirButton = new() { Content = "↓", Width = 28, Padding = new Thickness(0), HorizontalContentAlignment = HorizontalAlignment.Center };
-    readonly Button resetFiltersButton = new() { Content = "Reset" };
+    readonly Button resetFiltersButton = new() { Content = Loc.S("Reset") };
     readonly Button exportCsvButton = new() { Content = "CSV", IsEnabled = false };
     readonly Button exportJsonButton = new() { Content = "JSON", IsEnabled = false };
 
@@ -60,7 +68,7 @@ public sealed partial class MainWindow : Window
     readonly ComboBox nationFilter = new() { HorizontalAlignment = HorizontalAlignment.Stretch };
 
 
-    readonly ComboBox genderFilter = new() { ItemsSource = new[] { "Men", "Women", "All" }, SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch, MaxDropDownHeight = 260 };
+    readonly ComboBox genderFilter = new() { ItemsSource = new[] { Loc.S("Men"), Loc.S("Women"), Loc.S("All") }, SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch, MaxDropDownHeight = 260 };
     readonly ComboBox quickPresetCombo = new() { HorizontalAlignment = HorizontalAlignment.Stretch };
 
     Fm27Editor.Core.Offsets.Gender? SelectedPlayerGender() => genderFilter.SelectedIndex switch
@@ -74,7 +82,7 @@ public sealed partial class MainWindow : Window
         Width = 34, MinWidth = 34, Height = 28, MinHeight = 28, Padding = new Thickness(0), HorizontalContentAlignment = HorizontalAlignment.Center,
         Background = UiKit.Brush("#181C29"), BorderBrush = UiKit.Brush("#272D42"), BorderThickness = new Thickness(1),
     };
-    readonly Button clearAttrButton = new() { Content = "Clear", IsVisible = false };
+    readonly Button clearAttrButton = new() { Content = Loc.S("Clear"), IsVisible = false };
     readonly WrapPanel attrChipsPanel = new() { Orientation = Orientation.Horizontal, IsVisible = false, Margin = new Thickness(0, 4, 0, 0) };
     readonly List<AttributeThreshold> activeAttrThresholds = [];
     readonly List<RelationshipCriterion> activeRelationships = [];
@@ -105,7 +113,7 @@ public sealed partial class MainWindow : Window
         AutoGenerateColumns = false,
         CanUserResizeColumns = true,
         CanUserSortColumns = true,
-        SelectionMode = DataGridSelectionMode.Single,
+        SelectionMode = DataGridSelectionMode.Extended,
         GridLinesVisibility = DataGridGridLinesVisibility.Horizontal,
         HorizontalGridLinesBrush = Brush("#1D2130"),
         RowHeight = 29,
@@ -210,10 +218,15 @@ public sealed partial class MainWindow : Window
         DockPanel.SetDock(entityRow, Dock.Top); root.Children.Add(entityRow);
 
         var filterArea = BuildFilterPanel();
-        var playersHost = new DockPanel { Background = UiKit.WindowBg };
+        var allPlayersDock = new DockPanel { Background = UiKit.WindowBg };
         DockPanel.SetDock(filterArea, Dock.Top);
-        playersHost.Children.Add(filterArea);
-        playersHost.Children.Add(grid);
+        allPlayersDock.Children.Add(filterArea);
+        allPlayersDock.Children.Add(grid);
+        var playersHost = UiKit.OptionTabs(
+            [("All Players", allPlayersDock), ("Retiring", BuildRetiringView())],
+            selectedIndex: 0,
+            onSelected: idx => { if (idx == 1 && retiringDirty) RefreshRetiringPlayers(); },
+            stretchContent: true);
 
         var bodyArea = new Grid();
         bodyArea.Children.Add(bodyHost);
@@ -251,8 +264,10 @@ public sealed partial class MainWindow : Window
                 e.Handled = true;
             }
         };
+        AttachPlayerContextMenu(grid, item => item as PlayerRecord);
         Opened += (_, _) => { modules.SelectedIndex = 0; timer.Start(); };
-        Closed += (_, _) => { timer.Stop(); backend.Dispose(); FlightRecorder.Current?.Close(); };
+        LanguageSetting.Changed += OnLanguageChanged;
+        Closed += (_, _) => { LanguageSetting.Changed -= OnLanguageChanged; timer.Stop(); backend.Dispose(); FlightRecorder.Current?.Close(); };
         timer.Tick += async (_, _) => await CheckSelectedAsync();
         timer.Tick += (_, _) =>
         {
@@ -261,7 +276,7 @@ public sealed partial class MainWindow : Window
             if (backend.FreezeError is { } error && error != lastFreezeError)
             {
                 lastFreezeError = error;
-                status.Text = $"Freezer stopped: {error}";
+                status.Text = Loc.F("Freezer stopped: {0}", error);
             }
         };
         RegisterClubs();
@@ -278,9 +293,13 @@ public sealed partial class MainWindow : Window
 
     void InitializeFilterControls()
     {
+        Loc.BindWatermark(search, "Search player name or ID...");
+        Loc.BindContent(resetFiltersButton, "Reset");
+        Loc.BindContent(clearAttrButton, "Clear");
+
         var attrOptions = Enum.GetValues<PlayerAttribute>()
             .Select(a => new AttributeOption(a, PlayerFields.All.First(f => f.Id == a.ToString()).Label))
-            .OrderBy(a => a.Label, StringComparer.InvariantCultureIgnoreCase)
+            .OrderBy(a => a.LabelKey, StringComparer.InvariantCultureIgnoreCase)
             .ToArray();
 
         var sortOptions = new List<SortOption>
@@ -294,7 +313,7 @@ public sealed partial class MainWindow : Window
             new(PlayerSortKey.Division, "Sort: League", null, false),
         };
         foreach (var a in attrOptions)
-            sortOptions.Add(new(PlayerSortKey.Attribute, $"Attr: {a.Label}", a.Attribute, true));
+            sortOptions.Add(new(PlayerSortKey.Attribute, a.LabelKey, a.Attribute, true));
 
         sortCombo.ItemsSource = sortOptions;
         sortCombo.SelectedIndex = 0;
@@ -302,11 +321,11 @@ public sealed partial class MainWindow : Window
         savedPresets = FilterPresetStore.LoadOrDefaults();
         RefreshQuickPresetCombo();
 
-        divisionFilter.ItemsSource = new[] { AllLeaguesLabel };
+        divisionFilter.ItemsSource = new[] { Loc.S(AllLeaguesLabel) };
         divisionFilter.SelectedIndex = 0;
-        clubFilter.ItemsSource = new[] { AllClubsLabel };
+        clubFilter.ItemsSource = new[] { Loc.S(AllClubsLabel) };
         clubFilter.SelectedIndex = 0;
-        nationFilter.ItemsSource = new[] { AllNationalitiesLabel };
+        nationFilter.ItemsSource = new[] { Loc.S(AllNationalitiesLabel) };
         nationFilter.SelectedIndex = 0;
 
         search.TextChanged += (_, _) => { if (!suppressFilterEvents) Filter(); };
@@ -337,7 +356,7 @@ public sealed partial class MainWindow : Window
         genderFilter.SelectionChanged += (_, _) => { if (!suppressFilterEvents) { PopulateFilterDropdowns(); Filter(); } };
 
         favouritesFilter.Content = new Avalonia.Controls.PathIcon { Width = 14, Height = 14, Data = Avalonia.Media.Geometry.Parse("M12,17.27L18.18,21L16.54,13.97L22,9.24L14.81,8.63L12,2L9.19,8.63L2,9.24L7.46,13.97L5.82,21L12,17.27Z") };
-        Avalonia.Controls.ToolTip.SetTip(favouritesFilter, "Favourites");
+        Loc.BindToolTip(favouritesFilter, "Favourites");
         favouritesFilter.Click += (_, _) => ShowFavourites();
 
         quickPresetCombo.SelectionChanged += (_, _) =>
@@ -554,7 +573,7 @@ public sealed partial class MainWindow : Window
     {
         bool wasSuppressed = suppressFilterEvents;
         suppressFilterEvents = true;
-        var items = new List<object> { NoPresetLabel };
+        var items = new List<object> { new NoPresetChoice() };
         items.AddRange(savedPresets);
         quickPresetCombo.ItemsSource = items;
 
@@ -573,7 +592,7 @@ public sealed partial class MainWindow : Window
         var stack = new StackPanel { Spacing = 8 };
 
         // Row 1: Search + Preset (Advanced Search now lives in the top bar)
-        ToolTip.SetTip(genderFilter, "Gender filter");
+        Loc.BindToolTip(genderFilter, "Gender filter");
         var row1 = new Grid
         {
             ColumnDefinitions = new ColumnDefinitions("*,104,180"),
@@ -598,16 +617,16 @@ public sealed partial class MainWindow : Window
 
     static string ContractStatusChip(ContractStatusFilter status) => status switch
     {
-        ContractStatusFilter.FreePlayer => "Free Player",
-        ContractStatusFilter.Expired => "Expired",
-        ContractStatusFilter.Expiring6Months => "Expiring in 6 Months",
-        _ => "Expiring in 1 Year",
+        ContractStatusFilter.FreePlayer => Loc.S("Free Player"),
+        ContractStatusFilter.Expired => Loc.S("Expired"),
+        ContractStatusFilter.Expiring6Months => Loc.S("Expiring in 6 Months"),
+        _ => Loc.S("Expiring in 1 Year"),
     };
 
     static string ClauseChip(ContractClauseCriterion clause)
     {
         if (!clause.HasClause)
-            return $"{ContractLabels.Term(clause.Type)} No";
+            return $"{ContractLabels.Term(clause.Type)} {Loc.S("No")}";
         string range = (clause.MinimumValue, clause.MaximumValue) switch
         {
             ({ } min, { } max) => $"{min:N0}–{max:N0}",
@@ -615,7 +634,7 @@ public sealed partial class MainWindow : Window
             (null, { } max) => $"<= {max:N0}",
             _ => "",
         };
-        return $"{ContractLabels.Term(clause.Type)} Yes{(range.Length > 0 ? " " + range : "")}";
+        return $"{ContractLabels.Term(clause.Type)} {Loc.S("Yes")}{(range.Length > 0 ? " " + range : "")}";
     }
 
     void RenderAttrChips()
@@ -642,11 +661,11 @@ public sealed partial class MainWindow : Window
         }
 
         if (!string.IsNullOrEmpty(activeDivision))
-            AddChip($"League: {activeDivision}", () => { activeDivision = null; });
+            AddChip(Loc.F("League: {0}", activeDivision), () => { activeDivision = null; });
         if (!string.IsNullOrEmpty(activeClub))
-            AddChip($"Club: {activeClub}", () => { activeClub = null; });
+            AddChip(Loc.F("Club: {0}", activeClub), () => { activeClub = null; });
         if (activeTeamClubAddress is not null && !string.IsNullOrEmpty(activeTeamClubName))
-            AddChip($"Team: {activeTeamClubName}", () => { activeTeamClubAddress = null; activeTeamClubName = null; });
+            AddChip(Loc.F("Team: {0}", activeTeamClubName), () => { activeTeamClubAddress = null; activeTeamClubName = null; });
         if (activeContractStatus is { } status)
             AddChip(ContractStatusChip(status), () => { activeContractStatus = null; });
         if (activeContractType is { } contractType)
@@ -656,16 +675,16 @@ public sealed partial class MainWindow : Window
         foreach (var clause in activeClauses.ToArray())
             AddChip(ClauseChip(clause), () => { activeClauses = activeClauses.Where(c => c.Type != clause.Type).ToArray(); });
         if (!string.IsNullOrEmpty(activeNationality))
-            AddChip($"Nation: {activeNationality}", () => { activeNationality = null; });
+            AddChip(Loc.F("Nation: {0}", activeNationality), () => { activeNationality = null; });
 
         if (activeMinAge is not null || activeMaxAge is not null)
         {
             var label = (activeMinAge, activeMaxAge) switch
             {
-                ({ } min, { } max) => $"Age {min}–{max}",
-                ({ } min, null) => $"Age >= {min}",
-                (null, { } max) => $"Age <= {max}",
-                _ => "Age"
+                ({ } min, { } max) => $"{Loc.S("Age")} {min}–{max}",
+                ({ } min, null) => $"{Loc.S("Age")} >= {min}",
+                (null, { } max) => $"{Loc.S("Age")} <= {max}",
+                _ => Loc.S("Age")
             };
             AddChip(label, () => { activeMinAge = null; activeMaxAge = null; });
         }
@@ -674,10 +693,10 @@ public sealed partial class MainWindow : Window
         {
             var label = (activeMinCa, activeMaxCa) switch
             {
-                ({ } min, { } max) => $"CA {min}–{max}",
-                ({ } min, null) => $"CA >= {min}",
-                (null, { } max) => $"CA <= {max}",
-                _ => "CA"
+                ({ } min, { } max) => $"{Loc.S("CA")} {min}–{max}",
+                ({ } min, null) => $"{Loc.S("CA")} >= {min}",
+                (null, { } max) => $"{Loc.S("CA")} <= {max}",
+                _ => Loc.S("CA")
             };
             AddChip(label, () => { activeMinCa = null; activeMaxCa = null; });
         }
@@ -686,17 +705,17 @@ public sealed partial class MainWindow : Window
         {
             var label = (activeMinPa, activeMaxPa) switch
             {
-                ({ } min, { } max) => $"PA {min}–{max}",
-                ({ } min, null) => $"PA >= {min}",
-                (null, { } max) => $"PA <= {max}",
-                _ => "PA"
+                ({ } min, { } max) => $"{Loc.S("PA")} {min}–{max}",
+                ({ } min, null) => $"{Loc.S("PA")} >= {min}",
+                (null, { } max) => $"{Loc.S("PA")} <= {max}",
+                _ => Loc.S("PA")
             };
             AddChip(label, () => { activeMinPa = null; activeMaxPa = null; });
         }
 
         foreach (var (key, range) in activeNumericRanges.ToArray())
-            AddChip($"{key} {range.Min?.ToString() ?? "…"}–{range.Max?.ToString() ?? "…"}", () => activeNumericRanges.Remove(key));
-        if (activePreferredMoves != 0) AddChip("Preferred Moves", () => activePreferredMoves = 0);
+            AddChip($"{Loc.S(key)} {range.Min?.ToString() ?? "…"}–{range.Max?.ToString() ?? "…"}", () => activeNumericRanges.Remove(key));
+        if (activePreferredMoves != 0) AddChip(Loc.S("Preferred Moves"), () => activePreferredMoves = 0);
 
         foreach (var pos in activePositions.ToArray())
         {
@@ -704,19 +723,19 @@ public sealed partial class MainWindow : Window
             if (activePositionRanges.TryGetValue(pos, out var pr) && (pr.Min is not null || pr.Max is not null))
             {
                 string text = pr.Max is not null && pr.Max < 20
-                    ? $"Pos: {shortPos} {pr.Min ?? 1}–{pr.Max}"
-                    : $"Pos: {shortPos} >= {pr.Min ?? activePosMinRating}";
+                    ? Loc.F("Pos: {0} {1}–{2}", shortPos, pr.Min ?? 1, pr.Max)
+                    : Loc.F("Pos: {0} >= {1}", shortPos, pr.Min ?? activePosMinRating);
                 AddChip(text, () => { activePositions.Remove(pos); activePositionThresholds.Remove(pos); activePositionRanges.Remove(pos); });
             }
             else
             {
-                AddChip($"Pos: {shortPos} >= {activePositionThresholds.GetValueOrDefault(pos, activePosMinRating)}", () => { activePositions.Remove(pos); activePositionThresholds.Remove(pos); activePositionRanges.Remove(pos); });
+                AddChip(Loc.F("Pos: {0} >= {1}", shortPos, activePositionThresholds.GetValueOrDefault(pos, activePosMinRating)), () => { activePositions.Remove(pos); activePositionThresholds.Remove(pos); activePositionRanges.Remove(pos); });
             }
         }
 
         foreach (var threshold in activeAttrThresholds.ToArray())
         {
-            var label = PlayerFields.All.First(f => f.Id == threshold.Attribute.ToString()).Label;
+            var label = Loc.S(PlayerFields.All.First(f => f.Id == threshold.Attribute.ToString()).Label);
             AddChip($"{label} >= {threshold.MinValue}", () => activeAttrThresholds.RemoveAll(t => t.Attribute == threshold.Attribute));
         }
 
@@ -737,14 +756,14 @@ public sealed partial class MainWindow : Window
             .Where(s => !string.IsNullOrWhiteSpace(s))
             .Distinct(StringComparer.InvariantCultureIgnoreCase)
             .OrderBy(s => s, StringComparer.InvariantCultureIgnoreCase)
-            .Prepend(AllLeaguesLabel)
+            .Prepend(Loc.S(AllLeaguesLabel))
             .ToArray();
         var nations = players
             .Select(p => p.NationalityName)
             .Where(s => !string.IsNullOrWhiteSpace(s))
             .Distinct(StringComparer.InvariantCultureIgnoreCase)
             .OrderBy(s => s, StringComparer.InvariantCultureIgnoreCase)
-            .Prepend(AllNationalitiesLabel)
+            .Prepend(Loc.S(AllNationalitiesLabel))
             .ToArray();
 
         suppressFilterEvents = true;
@@ -762,7 +781,7 @@ public sealed partial class MainWindow : Window
         var players = rows.OfType<PlayerRecord>()
             .Where(p => (g is null || p.Gender == g) && (g != Fm27Editor.Core.Offsets.Gender.Men || p.Club?.Gender != Fm27Editor.Core.Offsets.Gender.Women));
         var selectedLeague = divisionFilter.SelectedItem as string;
-        if (!string.IsNullOrEmpty(selectedLeague) && selectedLeague != AllLeaguesLabel)
+        if (!string.IsNullOrEmpty(selectedLeague) && selectedLeague != Loc.S(AllLeaguesLabel))
             players = players.Where(p => string.Equals(p.DivisionName, selectedLeague, StringComparison.InvariantCultureIgnoreCase));
 
         var clubs = players
@@ -770,7 +789,7 @@ public sealed partial class MainWindow : Window
             .Where(s => !string.IsNullOrWhiteSpace(s))
             .Distinct(StringComparer.InvariantCultureIgnoreCase)
             .OrderBy(s => s, StringComparer.InvariantCultureIgnoreCase)
-            .Prepend(AllClubsLabel)
+            .Prepend(Loc.S(AllClubsLabel))
             .ToArray();
 
         bool wasSuppressed = suppressFilterEvents;
@@ -804,8 +823,8 @@ public sealed partial class MainWindow : Window
     {
         if (busy) return;
         busy = true;
-        ShowLoading("Connecting to the game…");
-        connection.Text = "Connecting…"; connectionDot.Fill = Brush("#94A3B8");
+        ShowLoading(Loc.S("Connecting to the game…"));
+        connection.Text = Loc.S("Connecting…"); connectionDot.Fill = Brush("#94A3B8");
         try
         {
             await backend.ConnectAsync(CancellationToken.None);
@@ -816,11 +835,11 @@ public sealed partial class MainWindow : Window
             captainUndo.Clear();
             lastFreezeError = null;
             UpdateConnectionBadge();
-            connection.Text = backend.State.Message;
+            connection.Text = Loc.S(backend.State.Message);
             if (backend.State.Status == ConnectionStatus.Connected)
             {
                 backend.Edits.ContextProvider = EditContext;
-                ShowLoading("Reading players…");
+                ShowLoading(Loc.S("Reading players…"));
                 await LoadAsync();
                 bool saveLoaded = SaveIsLoaded();
                 if (!saveLoaded) ShowNoSaveNotice(); else noSaveAtConnect = false;
@@ -830,14 +849,14 @@ public sealed partial class MainWindow : Window
                     // time, under the loading screen. The work-permit table stays lazy: that heap scan is the slow one and
                     // only the tabs that need it should pay for it.
                     var loadedPlayers = rows.OfType<PlayerRecord>().ToArray();
-                    ShowLoading("Reading clubs and nations…");
+                    ShowLoading(Loc.S("Reading clubs and nations…"));
                     await Task.Run(() => WarmCatalogues(loadedPlayers));
-                    ShowLoading("Reading search lists…");
+                    ShowLoading(Loc.S("Reading search lists…"));
                     await EnsureUnifiedCacheAsync(SetLoadingDetail);
-                    ShowLoading("Reading career plans…");
+                    ShowLoading(Loc.S("Reading career plans…"));
                     try { await Task.Run(() => WarmCareerCatalogue(loadedPlayers)); }
                     catch (Exception ex) { FlightRecorder.Current?.Log("warm", $"career plans: {ex.Message}"); }
-                    ShowLoading("Reading…");
+                    ShowLoading(Loc.S("Reading…"));
                     await Task.Run(() =>
                     {
                         // Each step on its own, so one that fails on this build does not skip the others.
@@ -855,8 +874,8 @@ public sealed partial class MainWindow : Window
                         _ = Task.Run(() => backend.Session.EnsureTransferClausesLoaded());
                 }
             }
-            else { gameDateBadge.IsVisible = false; status.Text = backend.State.Message; }
-            if (backend.FreezeError is { } error) status.Text = $"Freezer unavailable: {error}";
+            else { gameDateBadge.IsVisible = false; status.Text = Loc.S(backend.State.Message); }
+            if (backend.FreezeError is { } error) status.Text = Loc.F("Freezer unavailable: {0}", error);
         }
         finally { HideLoading(); busy = false; }
     }
@@ -871,6 +890,8 @@ public sealed partial class MainWindow : Window
             var loaded = await module.LoadAsync(backend, CancellationToken.None);
             if (current != generation) return;
             rows = loaded;
+            InvalidateRetiringPlayers();
+            if (retiringGrid?.IsVisible == true) RefreshRetiringPlayers();
             selected = null;
             drafts.Clear();
             contractDrafts.Clear();
@@ -891,7 +912,7 @@ public sealed partial class MainWindow : Window
             Filter();
             RebindPlayerTabs();
             UpdateConnectionBadge();
-            if (rows.Count == 0) status.Text = "0 players";
+            if (rows.Count == 0) status.Text = Loc.S("0 players");
             FlightRecorder.Current?.Log("game", $"loaded {rows.Count} {module.Title} rows in {elapsed.ElapsedMilliseconds} ms");
         }
         catch (Exception ex) { status.Text = UserMessage.For(ex); }
@@ -917,7 +938,7 @@ public sealed partial class MainWindow : Window
             };
             var col = new DataGridTextColumn
             {
-                Header = c.Title,
+                Header = Loc.S(c.Title),
                 Binding = c.Title == "Asking Price" ? new Binding(c.Binding) { StringFormat = "N0" } : new Binding(c.Binding),
                 Width = width,
                 MinWidth = c.Title == "Name" ? 135 : 54,
@@ -1038,18 +1059,20 @@ public sealed partial class MainWindow : Window
         if (backend.State.Status == ConnectionStatus.Connected)
         {
             connection.Text = result.Count == rows.Count
-                ? $"{backend.State.Message} · {rows.Count:N0}"
-                : $"{backend.State.Message} · {result.Count:N0} / {rows.Count:N0}";
+                ? $"{Loc.S(backend.State.Message)} · {rows.Count:N0}"
+                : $"{Loc.S(backend.State.Message)} · {result.Count:N0} / {rows.Count:N0}";
         }
         if (reportStatus && rows.Count > 0)
         {
-            string noun = currentModule.Title.ToLowerInvariant();
+            string noun = Loc.S(currentModule.Title).ToLowerInvariant();
             if (result.Count == rows.Count)
-                status.Text = $"{rows.Count:N0} {noun}";
+                status.Text = Loc.F("{0:N0} {1}", rows.Count, noun);
             else
             {
-                string reason = SelectedPlayerGender() is { } g && !HasExtraPlayerFilters() ? $"{g} filter" : "filter";
-                status.Text = $"{result.Count:N0} of {rows.Count:N0} {noun} shown ({rows.Count - result.Count:N0} hidden by {reason})";
+                string reason = SelectedPlayerGender() is { } g && !HasExtraPlayerFilters()
+                    ? Loc.F("{0} filter", Loc.S(g.ToString()))
+                    : Loc.S("filter");
+                status.Text = Loc.F("{0:N0} of {1:N0} {2} shown ({3:N0} hidden by {4})", result.Count, rows.Count, noun, rows.Count - result.Count, reason);
             }
         }
 
@@ -1068,7 +1091,7 @@ public sealed partial class MainWindow : Window
         {
             var address = selected.Address;
             var player = await Task.Run(() => backend.Players.Reload(address));
-            if (player is null && selected?.Address == address) { status.Text = "Player no longer available; reloading"; await LoadAsync(); }
+            if (player is null && selected?.Address == address) { status.Text = Loc.S("Player no longer available; reloading"); await LoadAsync(); }
         }
         catch (Exception ex) { status.Text = UserMessage.For(ex); }
     }
@@ -1134,10 +1157,10 @@ public sealed partial class MainWindow : Window
                 draft.Stage(field, (int)e.NewValue.Value);
                 UpdateScalarDraftState(player);
             };
-            commands.Children.Add(UiKit.StatBox(field.Label, ability));
+            commands.Children.Add(UiKit.StatBox(Loc.S(field.Label), ability));
         }
 
-        saveButton = new Button { IsVisible = false, Content = "Save changes", IsEnabled = draft.Count > 0, Classes = { "accent" }, Margin = new Thickness(4, 0, 0, 0) };
+        saveButton = new Button { IsVisible = false, Content = Loc.S("Save changes"), IsEnabled = draft.Count > 0, Classes = { "accent" }, Margin = new Thickness(4, 0, 0, 0) };
         saveButton.Click += (_, _) => SavePlayerChanges(player);
 
         var badges = new WrapPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
@@ -1186,13 +1209,13 @@ public sealed partial class MainWindow : Window
         if (player.Age is { } age)
         {
             if (badges.Children.Count > 0) badges.Children.Add(UiKit.MetaDot());
-            badges.Children.Add(UiKit.MetaText($"{age} yrs"));
+            badges.Children.Add(UiKit.MetaText(Loc.F("{0} yrs", age)));
         }
 
         if (player.Gender == Fm27Editor.Core.Offsets.Gender.Women)
         {
             if (badges.Children.Count > 0) badges.Children.Add(UiKit.MetaDot());
-            badges.Children.Add(UiKit.MetaText("Women", highlight: true));
+            badges.Children.Add(UiKit.MetaText(Loc.S("Women"), highlight: true));
         }
 
         commands.Children.Insert(0, new FavoriteStar(player.Id));
@@ -1206,7 +1229,7 @@ public sealed partial class MainWindow : Window
         }
         else editor.Children.Add(identityHeader);
 
-        if (draft.Count > 0) status.Text = $"{draft.Count} unsaved change(s)";
+        if (draft.Count > 0) status.Text = Loc.F("{0} unsaved change(s)", draft.Count);
         int changeCount = draft.Count + (playerScalarDrafts.TryGetValue(player.Address, out var scalarsForCount) ? scalarsForCount.Count : 0);
         bool contractPending = contractDrafts.Any(c => c.Value.Player.Address == player.Address && c.Value.Changes.Count > 0);
         SetActiveTabDirty(changeCount > 0 || contractPending);
@@ -1379,7 +1402,7 @@ public sealed partial class MainWindow : Window
             ratingControl.Width = 72;
             var title = new TextBlock
             {
-                Text = $"{position.Label} ({PositionLabels.Short(position.Position)})",
+                Text = $"{Loc.S(position.Label)} ({PositionLabels.Short(position.Position)})",
                 FontSize = 13,
                 FontWeight = FontWeight.SemiBold,
                 Foreground = UiKit.TextPrimary,
@@ -1451,7 +1474,7 @@ public sealed partial class MainWindow : Window
                 };
                 var nameLbl = new TextBlock
                 {
-                    Text = pitchPos.Label,
+                    Text = Loc.S(pitchPos.Label),
                     FontSize = 13,
                     Foreground = UiKit.TextSecondary,
                     VerticalAlignment = VerticalAlignment.Center,
@@ -1577,7 +1600,11 @@ public sealed partial class MainWindow : Window
     Control FieldControl(FieldDescriptor<PlayerRecord> field, PlayerRecord player, bool compact = false, Action<int>? onChanged = null, string? labelOverride = null)
     {
         var line = new DockPanel { MinHeight = 24, LastChildFill = true };
-        string resolvedLabel = labelOverride ?? (compact ? field.Label.Replace("Defensive Midfielder", "DM").Replace("Attacking Mid", "AM").Replace("Midfielder", "M").Replace("Defender", "D").Replace("Wing Back", "WB").Replace("Goalkeeper", "GK").Replace("Striker", "ST") : field.Label);
+        string resolvedLabel = labelOverride is not null
+            ? Loc.S(labelOverride)
+            : compact
+                ? field.Label.Replace("Defensive Midfielder", "DM").Replace("Attacking Mid", "AM").Replace("Midfielder", "M").Replace("Defender", "D").Replace("Wing Back", "WB").Replace("Goalkeeper", "GK").Replace("Striker", "ST")
+                : Loc.S(field.Label);
         var label = new TextBlock
         {
             Text = resolvedLabel,
@@ -1710,7 +1737,7 @@ public sealed partial class MainWindow : Window
                         RenderEditor();
                     }
                     else UpdateScalarDraftState(player);
-                    status.Text = $"Some changes may have been saved. Failed to save {field}: {ex.Message}";
+                    status.Text = Loc.F("Some changes may have been saved. Failed to save {0}: {1}", Loc.S(field.ToString()), ex.Message);
                     return;
                 }
             }
@@ -1724,7 +1751,7 @@ public sealed partial class MainWindow : Window
             ReplaceRow(fresh);
         }
         RenderEditor();
-        status.Text = "Changes saved. Continue in FM to see updates.";
+        status.Text = Loc.S("Changes saved. Continue in FM to see updates.");
     }
 
     bool SaveDraft()
@@ -1738,7 +1765,7 @@ public sealed partial class MainWindow : Window
             selected.GameDate = backend.GameDate;
             drafts.Remove(address);
             ReplaceRow(selected);
-            status.Text = $"Saved {count} change(s). Continue in FM to see updates.";
+            status.Text = Loc.F("Saved {0} change(s). Continue in FM to see updates.", count);
             return true;
         }
         catch (Exception ex)
@@ -1750,11 +1777,43 @@ public sealed partial class MainWindow : Window
                 var fresh = backend.Players.Reload(address);
                 if (fresh is null) { drafts.Remove(address); _ = LoadAsync(); }
                 else { fresh.GameDate = backend.GameDate; selected = fresh; drafts[address] = draft.Rebase(fresh); ReplaceRow(fresh); RenderEditor(); }
-                status.Text = $"{saved} saved. {UserMessage.For(ex)} Review remaining changes.";
+                status.Text = Loc.F("{0} saved. {1} Review remaining changes.", saved, UserMessage.For(ex));
             }
-            catch (Exception reloadError) { status.Text = $"{saved} saved. {UserMessage.For(reloadError)}"; }
+            catch (Exception reloadError) { status.Text = Loc.F("{0} saved. {1}", saved, UserMessage.For(reloadError)); }
             return false;
         }
+    }
+
+    void OnLanguageChanged() => Dispatcher.UIThread.Post(RefreshLocalization);
+
+    void RefreshLocalization()
+    {
+        suppressFilterEvents = true;
+        int genderIdx = Math.Max(0, genderFilter.SelectedIndex);
+        genderFilter.ItemsSource = new[] { Loc.S("Men"), Loc.S("Women"), Loc.S("All") };
+        genderFilter.SelectedIndex = Math.Min(genderIdx, 2);
+
+        int sortIdx = Math.Max(0, sortCombo.SelectedIndex);
+        var sortItems = sortCombo.ItemsSource;
+        sortCombo.ItemsSource = null;
+        sortCombo.ItemsSource = sortItems;
+        sortCombo.SelectedIndex = sortIdx;
+        suppressFilterEvents = false;
+
+        RefreshQuickPresetCombo();
+        PopulateFilterDropdowns();
+        ConfigureColumns();
+        RenderAttrChips();
+        if (backend.State.Status != ConnectionStatus.Connected && !string.IsNullOrEmpty(backend.State.Message))
+            connection.Text = Loc.S(backend.State.Message);
+        _ = FilterInternal(reportStatus: rows.Count > 0);
+        RefreshRetiringLocalization();
+        foreach (var screen in screens)
+            screen.RefreshLanguage();
+        if (selected is not null)
+            RenderEditor();
+        if (searchOverlay.IsVisible)
+            RenderCurrentUnifiedResults();
     }
 
     void ReplaceRow(PlayerRecord p)
@@ -1763,6 +1822,8 @@ public sealed partial class MainWindow : Window
         var arr = rows.ToArray(); int index = Array.FindIndex(arr, x => x is PlayerRecord old && old.Address == p.Address);
         if (index >= 0) { arr[index] = p; rows = arr; }
         _ = FilterInternal(reportStatus: false); updating = true; grid.SelectedItem = p; updating = false;
+        InvalidateRetiringPlayers();
+        if (retiringGrid?.IsVisible == true) RefreshRetiringPlayers();
     }
 
     internal static IBrush RatingColor(int value) => Brush(value <= 5 ? "#64748B" : value <= 10 ? "#FACC15" : value <= 15 ? "#4ADE80" : "#38BDF8");

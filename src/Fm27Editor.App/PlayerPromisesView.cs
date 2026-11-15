@@ -68,7 +68,7 @@ public sealed partial class MainWindow
         Control Row(string label, Control value) => new StackPanel
         {
             Orientation = Orientation.Horizontal, Spacing = 8, MinHeight = 28,
-            Children = { new TextBlock { Text = Loc.S(label), Width = 100, VerticalAlignment = VerticalAlignment.Center, Foreground = UiKit.Brush("#94A3B8") }, value },
+            Children = { new TextBlock { Text = Loc.S(label), TextWrapping = Avalonia.Media.TextWrapping.Wrap, Width = 100, VerticalAlignment = VerticalAlignment.Center, Foreground = UiKit.Brush("#94A3B8") }, value },
         };
 
         Control Picker(string title, string current, Func<Task<(string Name, int Id)?>> choose, Action<int> set)

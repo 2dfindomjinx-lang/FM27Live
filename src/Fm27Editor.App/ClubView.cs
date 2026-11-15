@@ -2557,7 +2557,7 @@ public sealed partial class MainWindow : IClubPanels
             line.Children.Add(rightView);
             line.Children.Add(new TextBlock
             {
-                Text = Loc.S(field.Label),
+                Text = Loc.ClubField(field.Label),
                 FontSize = 13,
                 Foreground = Brush("#CBD5E1"),
                 VerticalAlignment = VerticalAlignment.Center,
@@ -2656,7 +2656,7 @@ public sealed partial class MainWindow : IClubPanels
         var line = new DockPanel { MinHeight = 29, LastChildFill = true };
         var label = new TextBlock
         {
-            Text = Loc.S(field.Meta.Label),
+            Text = Loc.ClubField(field.Meta.Label),
             FontSize = 13,
             Foreground = Brush("#CBD5E1"),
             VerticalAlignment = VerticalAlignment.Center,

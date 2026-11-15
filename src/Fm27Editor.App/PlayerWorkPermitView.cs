@@ -71,7 +71,7 @@ public sealed partial class MainWindow
                 {
                     int r = form.RowDefinitions.Count;
                     form.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-                    var text = new TextBlock { Text = Loc.S(label), VerticalAlignment = VerticalAlignment.Center, Foreground = UiKit.TextSecondary };
+                    var text = new TextBlock { Text = Loc.S(label), TextWrapping = Avalonia.Media.TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center, Foreground = UiKit.TextSecondary };
                     Grid.SetRow(text, r); Grid.SetRow(value, r); Grid.SetColumn(value, 1);
                     form.Children.Add(text); form.Children.Add(value);
                 }

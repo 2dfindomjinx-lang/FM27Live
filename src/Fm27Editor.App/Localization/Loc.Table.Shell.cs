@@ -4,6 +4,10 @@ public static partial class Loc
 {
     static partial void RegisterShell(Dictionary<string, string> m)
     {
+        m["Universal search: player, club, stadium, award or ID…"] = "Tìm kiếm tổng hợp…";
+        m["Injuries"] = "Chấn thương";
+        m["Search injury..."] = "Tìm chấn thương...";
+
         // Top toolbar & chrome (AppShell.cs)
         m["Reload active tab (Ctrl+R)"] = "Tải lại tab hiện tại (Ctrl+R)";
         m["Search"] = "Tìm kiếm";
@@ -52,7 +56,7 @@ public static partial class Loc
             "Đang hiển thị {0:N0} / {1:N0} kết quả — nhập thêm ký tự hoặc bấm Tất cả danh mục ở trên";
 
         // Module bar & entity screen labels
-        m["Staff"] = "Nhân viên";
+        m["Staff"] = "Nhân sự";
         m["Clubs"] = "Câu lạc bộ";
         m["Nations"] = "Quốc gia";
         m["Stadiums"] = "Sân vận động";
@@ -122,7 +126,7 @@ public static partial class Loc
         m["Expired"] = "Đã hết hạn";
         m["Expiring in 6 Months"] = "Hết hạn trong 6 tháng";
         m["Expiring in 1 Year"] = "Hết hạn trong 1 năm";
-        m["Preferred Moves"] = "Kỹ năng ưu tiên";
+        m["Preferred Moves"] = "Thói quen ưa thích";
         m["Pos: {0} {1}–{2}"] = "Vị trí: {0} {1}–{2}";
         m["Pos: {0} >= {1}"] = "Vị trí: {0} >= {1}";
         m["filter"] = "bộ lọc";
@@ -168,7 +172,7 @@ public static partial class Loc
         m["Personality"] = "Tính cách";
         m["Technical"] = "Kỹ thuật";
         m["Mental"] = "Tinh thần";
-        m["Physical"] = "Thể lực";
+        m["Physical"] = "Thể chất";
         m["Goalkeeping"] = "Thủ môn";
         m["Hidden"] = "Chỉ số ẩn";
         m["Home Reputation"] = "Danh tiếng trong nước";
@@ -235,7 +239,7 @@ public static partial class Loc
 
         m["Type the name to search"] = "Nhập tên để tìm kiếm";
         m["Advanced Search Results - {0:N0} {1}"] = "Kết quả Tìm kiếm nâng cao - {0:N0} {1}";
-        m["staff"] = "nhân viên";
+        m["staff"] = "nhân sự";
         m["clubs"] = "CLB";
         m["{0:N0} of {1:N0} {2} shown ({3:N0} hidden{4})"] = "{0:N0} / {1:N0} {2} hiển thị ({3:N0} bị ẩn{4})";
         m["Job"] = "Chức vụ";

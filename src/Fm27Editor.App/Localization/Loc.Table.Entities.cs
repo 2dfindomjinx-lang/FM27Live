@@ -149,7 +149,7 @@ public static partial class Loc
         m["The release has no checksum for the editor"] = "Bản phát hành không có mã checksum cho trình chỉnh sửa";
 
         // Staff
-        m["Staff"] = "Nhân viên";
+        m["Staff"] = "Nhân sự";
         m["All {0:N0} staff"] = "Tất cả {0:N0} nhân viên";
         m["{0:N0} staff"] = "{0:N0} nhân viên";
         m["{0:N0} staff (Advanced Search)"] = "{0:N0} nhân viên (Tìm kiếm nâng cao)";

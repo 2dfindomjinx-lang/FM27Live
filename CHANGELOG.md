@@ -18,6 +18,11 @@ Checked on Steam `27.0.1+2503222` and Game Pass `27.0.1+2494687`.
 - Move to club: the team is chosen in a list next to the club, and the first team is picked by default.
 
 ### App
+- Vietnamese UI: aligned selected football terms with the supplied FM27 language file, filled missing form labels,
+  and separated player Balance, club finances, training facilities and kit colours by context. Long labels now wrap
+  in forms, section lists, table headers and preferred-move checkboxes. Global Save and pending-edit stars recognise
+  translated child Save buttons, including after switching language.
+
 - Unticking Move now defaults Transfer Date to the day after the current in-game date.
 
 - Load Game removes stale Development Speed rows whose addresses now belong to different players, and reports the count.

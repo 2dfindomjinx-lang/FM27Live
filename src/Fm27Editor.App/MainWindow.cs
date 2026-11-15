@@ -30,13 +30,13 @@ public sealed partial class MainWindow : Window
     sealed record SortOption(PlayerSortKey Key, string LabelKey, PlayerAttribute? Attribute = null, bool DefaultDescending = true)
     {
         public override string ToString() => Key == PlayerSortKey.Attribute
-            ? Loc.F("Attr: {0}", Loc.S(LabelKey))
+            ? Loc.F("Attr: {0}", Loc.Attribute(LabelKey))
             : Loc.S(LabelKey);
     }
 
     sealed record AttributeOption(PlayerAttribute Attribute, string LabelKey)
     {
-        public override string ToString() => Loc.S(LabelKey);
+        public override string ToString() => Loc.Attribute(LabelKey);
     }
 
     readonly EditorBackend backend = new();
@@ -747,7 +747,7 @@ public sealed partial class MainWindow : Window
 
         foreach (var threshold in activeAttrThresholds.ToArray())
         {
-            var label = Loc.S(PlayerFields.All.First(f => f.Id == threshold.Attribute.ToString()).Label);
+            var label = Loc.Attribute(PlayerFields.All.First(f => f.Id == threshold.Attribute.ToString()).Label);
             AddChip($"{label} >= {threshold.MinValue}", () => activeAttrThresholds.RemoveAll(t => t.Attribute == threshold.Attribute));
         }
 
@@ -1331,7 +1331,7 @@ public sealed partial class MainWindow : Window
         var text = new TextBlock
         {
             Text = label, FontSize = 13, Foreground = Brush("#CBD5E1"),
-            VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.NoWrap,
+            VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap,
         };
         DockPanel.SetDock(value, Dock.Right);
         line.Children.Add(value);
@@ -1492,7 +1492,7 @@ public sealed partial class MainWindow : Window
                     FontSize = 13,
                     Foreground = UiKit.TextSecondary,
                     VerticalAlignment = VerticalAlignment.Center,
-                    TextWrapping = TextWrapping.NoWrap,
+                    TextWrapping = TextWrapping.Wrap,
                 };
 
                 int beforeEdit = initialVal;
@@ -1618,14 +1618,15 @@ public sealed partial class MainWindow : Window
             ? Loc.S(labelOverride)
             : compact
                 ? field.Label.Replace("Defensive Midfielder", "DM").Replace("Attacking Mid", "AM").Replace("Midfielder", "M").Replace("Defender", "D").Replace("Wing Back", "WB").Replace("Goalkeeper", "GK").Replace("Striker", "ST")
-                : Loc.S(field.Label);
+                : Loc.Attribute(field.Label);
         var label = new TextBlock
         {
             Text = resolvedLabel,
             FontSize = 13,
             Foreground = Brush("#CBD5E1"),
             VerticalAlignment = VerticalAlignment.Center,
-            TextWrapping = TextWrapping.NoWrap,
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 2, 6, 2),
             IsVisible = resolvedLabel.Length > 0,
         };
         if (field.Write is null)

@@ -62,6 +62,8 @@ internal static class ToolGrid
             VerticalAlignment = VerticalAlignment.Center,
             HorizontalAlignment = align,
             TextTrimming = TextTrimming.None,
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 4),
         };
         Loc.Bind(tb, () =>
         {

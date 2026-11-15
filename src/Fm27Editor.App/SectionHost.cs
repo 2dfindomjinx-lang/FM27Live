@@ -51,7 +51,9 @@ static class SectionHost
     public static event Action<string, bool>? SectionEdited;
 
     static readonly string[] SaveLabels = ["Save changes", "Save contract", "Save loan", "Save"];
-    static bool IsPendingSave(Button b) => !b.IsVisible && b.IsEnabled && b.Content is string label && SaveLabels.Contains(label);
+    internal static bool IsSaveButton(Button button) => button.Content is string label &&
+        SaveLabels.Any(key => label == key || (Loc.VietnameseTable.TryGetValue(key, out var vi) && label == vi));
+    static bool IsPendingSave(Button b) => !b.IsVisible && b.IsEnabled && IsSaveButton(b);
 
     static SectionHost()
     {
@@ -65,7 +67,7 @@ static class SectionHost
 
     static void OnSaveButtonChanged(Button button)
     {
-        if (button.IsVisible || button.Content is not string label || !SaveLabels.Contains(label)) return;
+        if (button.IsVisible || !IsSaveButton(button)) return;
         foreach (var ancestor in button.GetLogicalAncestors().OfType<Control>())
         {
             if (!Bodies.TryGetValue(ancestor, out var owner)) continue;
@@ -133,7 +135,7 @@ static class SectionHost
         var list = CreateRailListBox(stretchVertically: entity != "player");
         list.ItemTemplate = new FuncDataTemplate<Entry>((entry, _) =>
         {
-            var label = new TextBlock { FontSize = 13, VerticalAlignment = VerticalAlignment.Center };
+            var label = new TextBlock { FontSize = 13, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
             label.Bind(TextBlock.TextProperty, new Avalonia.Data.Binding(nameof(Entry.Label)));
             return label;
         }, false);
@@ -224,7 +226,7 @@ static class SectionHost
         {
             ColumnDefinitions = new ColumnDefinitions
             {
-                new ColumnDefinition(new GridLength(entity == "player" ? 144 : 168)) { MinWidth = 140 },
+                new ColumnDefinition(new GridLength(190)) { MinWidth = 160 },
                 new ColumnDefinition(new GridLength(1, GridUnitType.Star)),
             },
         };
@@ -246,11 +248,17 @@ static class SectionHost
             CornerRadius = new CornerRadius(4),
             Padding = new Thickness(3),
         };
+        ScrollViewer.SetHorizontalScrollBarVisibility(list, ScrollBarVisibility.Disabled);
+        list.Styles.Add(new Style(x => x.OfType<ListBoxItem>().Descendant().OfType<TextBlock>())
+        {
+            Setters = { new Setter(TextBlock.TextWrappingProperty, TextWrapping.Wrap) }
+        });
         list.Styles.Add(new Style(x => x.OfType<ListBoxItem>())
         {
             Setters =
             {
                 new Setter(TemplatedControl.PaddingProperty, new Thickness(5, 4)),
+                new Setter(ContentControl.HorizontalContentAlignmentProperty, HorizontalAlignment.Stretch),
                 new Setter(TemplatedControl.MinHeightProperty, 25.0),
                 new Setter(TemplatedControl.MarginProperty, new Thickness(0, 1)),
                 new Setter(TemplatedControl.CornerRadiusProperty, new CornerRadius(3)),

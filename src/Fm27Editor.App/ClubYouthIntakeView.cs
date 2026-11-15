@@ -205,7 +205,7 @@ public sealed partial class MainWindow
             return AttributeRow(label, box);
         }
 
-        string Label(PlayerAttribute a) => Loc.S(PlayerFields.All.First(f => f.Id == a.ToString()).Label);
+        string Label(PlayerAttribute a) => Loc.Attribute(PlayerFields.All.First(f => f.Id == a.ToString()).Label);
         Control Group(string title, AttributeGroup group, Control? header = null) =>
             AttributeCard(title, Enum.GetValues<PlayerAttribute>().Where(a => PlayerAttributeInfo.GroupOf(a) == group)
                 .Select(a => Rating(Label(a), $"attr:{a}")), header);

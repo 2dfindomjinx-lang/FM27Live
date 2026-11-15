@@ -45,10 +45,10 @@ public sealed partial class MainWindow
             if (combo.SelectedItem is not DateChoice chosen || chosen.Layout == DateSetting.Layout) return;
             DateSetting.Set(chosen.Layout);
             ReloadCurrentScreen();
-            status.Text = $"Date format {DateSetting.Hint}";
+            status.Text = $"{Loc.S("Date format")}: {DateSetting.Hint}";
         };
-        var row = new Grid { ColumnDefinitions = new ColumnDefinitions("110,*"), ColumnSpacing = 12 };
-        var label = new TextBlock { Text = Loc.S("Date format"), VerticalAlignment = VerticalAlignment.Center, Foreground = UiKit.TextSecondary };
+        var row = new Grid { ColumnDefinitions = new ColumnDefinitions("140,*"), ColumnSpacing = 12 };
+        var label = new TextBlock { Text = Loc.S("Date format"), TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center, Foreground = UiKit.TextSecondary };
         Grid.SetColumn(combo, 1);
         row.Children.Add(label); row.Children.Add(combo);
 
@@ -78,10 +78,10 @@ public sealed partial class MainWindow
             else Fm27Editor.Core.Settings.CurrencySetting.Set(chosen.Info);
             ReloadCurrentScreen();
             var now = Fm27Editor.Core.Settings.CurrencySetting.Current;
-            status.Text = $"Currency {now.Code} - {now.Name}";
+            status.Text = $"{Loc.S("Currency")}: {now.Code} - {now.Name}";
         };
-        var currencyRow = new Grid { ColumnDefinitions = new ColumnDefinitions("110,*"), ColumnSpacing = 12 };
-        var currencyLabel = new TextBlock { Text = Loc.S("Currency"), VerticalAlignment = VerticalAlignment.Center, Foreground = UiKit.TextSecondary };
+        var currencyRow = new Grid { ColumnDefinitions = new ColumnDefinitions("140,*"), ColumnSpacing = 12 };
+        var currencyLabel = new TextBlock { Text = Loc.S("Currency"), TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center, Foreground = UiKit.TextSecondary };
         Grid.SetColumn(currencyCombo, 1);
         currencyRow.Children.Add(currencyLabel); currencyRow.Children.Add(currencyCombo);
 
@@ -101,14 +101,14 @@ public sealed partial class MainWindow
             if (langCombo.SelectedItem is not LanguageChoice chosen || chosen.Language == LanguageSetting.Current) return;
             LanguageSetting.Set(chosen.Language);
         };
-        var langRow = new Grid { ColumnDefinitions = new ColumnDefinitions("110,*"), ColumnSpacing = 12 };
-        var langLabel = new TextBlock { Text = Loc.S("Language"), VerticalAlignment = VerticalAlignment.Center, Foreground = UiKit.TextSecondary };
+        var langRow = new Grid { ColumnDefinitions = new ColumnDefinitions("140,*"), ColumnSpacing = 12 };
+        var langLabel = new TextBlock { Text = Loc.S("Language"), TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center, Foreground = UiKit.TextSecondary };
         Grid.SetColumn(langCombo, 1);
         langRow.Children.Add(langLabel); langRow.Children.Add(langCombo);
 
         var window = new Window
         {
-            Title = Loc.S("Settings"), Width = 420, SizeToContent = SizeToContent.Height, CanResize = false,
+            Title = Loc.S("Settings"), Width = 470, SizeToContent = SizeToContent.Height, CanResize = false,
             WindowStartupLocation = WindowStartupLocation.CenterOwner, Background = UiKit.WindowBg,
             Content = new StackPanel { Margin = new Thickness(20), Spacing = 14, Children = { row, currencyRow, langRow } },
         };

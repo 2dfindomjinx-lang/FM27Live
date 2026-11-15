@@ -177,7 +177,7 @@ public sealed partial class MainWindow
                 string text = kitDrafts.GetValueOrDefault(ownerAddress)?.GetValueOrDefault(item.Slot)?.Colours.GetValueOrDefault(i) ?? original;
                 var box = new TextBox { Text = text, Width = 110 };
                 box.TextChanged += (_, _) => { SetKitDraft(item, colourIndex, box.Text ?? "", onDraftChanged); onEdited(); };
-                panel.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { new TextBlock { Text = Loc.S(names[i]), Width = 148, VerticalAlignment = VerticalAlignment.Center }, ColourInput(box) } });
+                panel.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { new TextBlock { Text = Loc.KitColour(names[i]), TextWrapping = TextWrapping.Wrap, Width = 148, VerticalAlignment = VerticalAlignment.Center }, ColourInput(box) } });
             }
             var style = new TextBox { Text = kitDrafts.GetValueOrDefault(ownerAddress)?.GetValueOrDefault(item.Slot)?.Style ?? item.Style.ToString(Inv), Width = 110, HorizontalContentAlignment = HorizontalAlignment.Right };
             style.TextChanged += (_, _) => SetKitDraft(item, null, style.Text ?? "", onDraftChanged);

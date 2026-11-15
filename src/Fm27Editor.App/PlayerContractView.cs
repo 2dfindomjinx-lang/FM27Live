@@ -1017,7 +1017,7 @@ public sealed partial class MainWindow
     {
         if (control is NumericUpDown or DateBox) { control.Width = double.NaN; control.HorizontalAlignment = HorizontalAlignment.Stretch; }
         var g = new Grid { ColumnDefinitions = new ColumnDefinitions("170,*"), ColumnSpacing = 8 };
-        var lbl = new TextBlock { Text = Loc.S(label), FontSize = 13, VerticalAlignment = VerticalAlignment.Center, Foreground = UiKit.TextSecondary };
+        var lbl = new TextBlock { Text = Loc.S(label), TextWrapping = Avalonia.Media.TextWrapping.Wrap, FontSize = 13, VerticalAlignment = VerticalAlignment.Center, Foreground = UiKit.TextSecondary };
         Grid.SetColumn(lbl, 0);
         Grid.SetColumn(control, 1);
         g.Children.Add(lbl);

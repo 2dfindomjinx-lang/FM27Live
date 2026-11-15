@@ -40,7 +40,7 @@ static class UiKit
     /// </summary>
     public static Control OptionTabs(IReadOnlyList<(string Title, Control Content)> pages, int selectedIndex = 0, Action<int>? onSelected = null, bool stretchContent = false)
     {
-        var bar = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 2, Margin = new Thickness(0, 0, 0, stretchContent ? 0 : 8) };
+        var bar = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, stretchContent ? 0 : 8) };
         var host = new ContentControl
         {
             HorizontalAlignment = HorizontalAlignment.Stretch,
@@ -169,6 +169,7 @@ static class UiKit
                 Foreground = Brush("#E2E8F0"),
                 VerticalAlignment = VerticalAlignment.Center,
                 LetterSpacing = 0.3,
+                TextWrapping = TextWrapping.Wrap,
             };
             Loc.Bind(titleBlock, () => titleBlock.Text = Loc.S(title).ToUpperInvariant());
             headerDock.Children.Add(titleBlock);
@@ -522,7 +523,9 @@ static class UiKit
             {
                 FontSize = 13,
                 VerticalAlignment = VerticalAlignment.Center,
-                Foreground = Brush("#CBD5E1")
+                Foreground = Brush("#CBD5E1"),
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 2, 8, 2),
             }, label);
             Grid.SetRow(name, row);
             Grid.SetColumn(name, colIndex == 0 ? 0 : 3);
@@ -573,6 +576,7 @@ static class UiKit
                 var head = new TextBlock
                 {
                     Text = i == 0 ? Loc.S("Item") : $"{Loc.S(periodHeaders[i - 1])} (£)",
+                    TextWrapping = TextWrapping.Wrap,
                     FontSize = 12.5,
                     FontWeight = FontWeight.Bold,
                     Foreground = Brush("#94A3B8"),
@@ -591,6 +595,7 @@ static class UiKit
                 var name = new TextBlock
                 {
                     Text = Loc.S(label),
+                    TextWrapping = TextWrapping.Wrap,
                     FontSize = 13,
                     FontWeight = bold ? FontWeight.SemiBold : FontWeight.Normal,
                     VerticalAlignment = VerticalAlignment.Center,

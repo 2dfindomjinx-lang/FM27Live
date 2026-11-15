@@ -323,14 +323,13 @@ public sealed partial class MainWindow
         {
             var btn = new Button
             {
-                Content = Loc.S(text),
+                Content = new TextBlock { Text = Loc.S(text), TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center },
                 FontSize = 12.5,
-                Height = 24,
                 MinHeight = 24,
-                Padding = new Thickness(3, 0),
+                Padding = new Thickness(3, 3),
                 VerticalContentAlignment = VerticalAlignment.Center,
                 HorizontalAlignment = HorizontalAlignment.Stretch,
-                HorizontalContentAlignment = HorizontalAlignment.Center,
+                HorizontalContentAlignment = HorizontalAlignment.Stretch,
                 IsEnabled = enabled,
             };
             if (ToolTips.TryGetValue(text, out var tip)) ToolTip.SetTip(btn, Loc.S(tip));
@@ -474,7 +473,7 @@ public sealed partial class MainWindow
                 var row = new DockPanel { LastChildFill = true };
                 DockPanel.SetDock(box, Dock.Right);
                 row.Children.Add(box);
-                row.Children.Add(new TextBlock { Text = Loc.S(label), FontSize = 12.5, VerticalAlignment = VerticalAlignment.Center, Foreground = UiKit.TextSecondary });
+                row.Children.Add(new TextBlock { Text = Loc.S(label), TextWrapping = Avalonia.Media.TextWrapping.Wrap, FontSize = 12.5, VerticalAlignment = VerticalAlignment.Center, Foreground = UiKit.TextSecondary });
                 return row;
             }
             panel.Children.Add(Subhead("YOUTH"));

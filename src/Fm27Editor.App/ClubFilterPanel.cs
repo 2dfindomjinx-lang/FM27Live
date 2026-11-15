@@ -100,7 +100,7 @@ internal sealed class ClubFilterPanel : UserControl
                 var row = new DockPanel { LastChildFill = true, MinHeight = 30 };
                 DockPanel.SetDock(max, Dock.Right); row.Children.Add(max);
                 DockPanel.SetDock(min, Dock.Right); row.Children.Add(min);
-                row.Children.Add(new TextBlock { Text = Loc.S(label), Margin = new Thickness(0, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center });
+                row.Children.Add(new TextBlock { Text = Loc.ClubField(label), TextWrapping = Avalonia.Media.TextWrapping.Wrap, Margin = new Thickness(0, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center });
                 rows.Children.Add(row);
             }
             if (rows.Children.Count > 0)

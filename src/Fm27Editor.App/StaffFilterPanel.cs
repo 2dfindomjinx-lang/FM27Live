@@ -197,7 +197,7 @@ internal sealed class StaffFilterPanel : UserControl
                 DockPanel.SetDock(min, Dock.Right); row.Children.Add(min);
                 row.Children.Add(new TextBlock
                 {
-                    Text = Loc.S(label),
+                    Text = Loc.S(label), TextWrapping = Avalonia.Media.TextWrapping.Wrap,
                     Margin = new Thickness(0, 0, 10, 0),
                     VerticalAlignment = VerticalAlignment.Center,
                     TextTrimming = TextTrimming.CharacterEllipsis,
@@ -289,7 +289,7 @@ internal sealed class StaffFilterPanel : UserControl
         Orientation = Orientation.Horizontal,
         Spacing = 8,
         VerticalAlignment = VerticalAlignment.Center,
-        Children = { new TextBlock { Text = Loc.S(label), Width = 90, VerticalAlignment = VerticalAlignment.Center }, min, new TextBlock { Text = Loc.S("to"), VerticalAlignment = VerticalAlignment.Center, Foreground = UiKit.TextMuted }, max }
+        Children = { new TextBlock { Text = Loc.S(label), TextWrapping = Avalonia.Media.TextWrapping.Wrap, Width = 90, VerticalAlignment = VerticalAlignment.Center }, min, new TextBlock { Text = Loc.S("to"), VerticalAlignment = VerticalAlignment.Center, Foreground = UiKit.TextMuted }, max }
     };
 
     static TextBlock Label(string text) => new()

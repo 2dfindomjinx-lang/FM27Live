@@ -37,12 +37,12 @@ internal sealed class SectionNav : Grid
         for (int i = 0; i < pages.Count; i++)
         {
             int index = i;
-            var text = new TextBlock { Text = Loc.S(pages[i].Title), VerticalAlignment = VerticalAlignment.Center, FontSize = 13 };
+            var text = Loc.BindText(new TextBlock { TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center, FontSize = 13 }, pages[i].Title);
             var button = new Button
             {
                 Content = text,
                 Width = NavWidth - 6,
-                HorizontalContentAlignment = HorizontalAlignment.Left,
+                HorizontalContentAlignment = HorizontalAlignment.Stretch,
                 VerticalContentAlignment = VerticalAlignment.Center,
                 Padding = new Thickness(12, 7),
                 MinHeight = 32,

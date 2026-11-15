@@ -25,10 +25,21 @@ public sealed class NationAgreements(IProcessMemory memory, OffsetProfile profil
     public const int RecordSize = 0x30, RegionSlot = 0x18, AgreementSlot = 0x20, FromOffset = 0x28, UntilOffset = 0x2C;
     const int MaxRows = 64, MaxName = 200;
     List<AgreementRegion>? _regions;
+    Exception? regionLoadError;
+
+    /// <summary>Load-time discovery retains errors too, so opening a tab cannot retry a failed heap sweep.</summary>
+    public IReadOnlyList<AgreementRegion> PreloadRegions(Func<IReadOnlyList<ulong>> discover)
+    {
+        if (regionLoadError is not null) throw new InvalidOperationException("Agreement region index is unavailable. Load Game to refresh it.", regionLoadError);
+        if (_regions is not null) return _regions;
+        try { return Regions(discover()); }
+        catch (Exception ex) { regionLoadError = ex; throw; }
+    }
 
     /// <summary>Region catalogue in the game database; unknown names remain numeric IDs.</summary>
-    public IReadOnlyList<AgreementRegion> Regions()
+    public IReadOnlyList<AgreementRegion> Regions(IReadOnlyList<ulong>? heapCandidates = null)
     {
+        if (regionLoadError is not null) throw new InvalidOperationException("Agreement region index is unavailable. Load Game to refresh it.", regionLoadError);
         if (_regions is not null) return _regions;
         if (profile.AgreementRegionVtable is not { } regionVtable || profile.Nation?.ListRootRva is not { } rootRva)
             return _regions = [];
@@ -59,50 +70,27 @@ public sealed class NationAgreements(IProcessMemory memory, OffsetProfile profil
         }
         // 27.0.1+ keeps the region catalogue only in the database table (no vector next to the nation list),
         // so fall back to every heap object of the region class, keyed by its ID.
-        return _regions = best.Count > 0 ? best.OrderBy(r => r.Id).ToList() : ScannedRegions(regionVtable);
+        return _regions = best.Count > 0 ? best.OrderBy(r => r.Id).ToList() : ScannedRegions(regionVtable, heapCandidates);
     }
 
-    List<AgreementRegion> ScannedRegions(uint regionVtable)
+    List<AgreementRegion> ScannedRegions(uint regionVtable, IReadOnlyList<ulong>? candidates)
     {
-        if (memory is not IMemoryRegions regions) return [];
-        ulong vtable = moduleBase + regionVtable;
         var byId = new Dictionary<int, AgreementRegion>();
-        var buffer = new byte[1 << 22];
-        foreach (var region in regions.EnumerateWritableRegions())
-        {
-            if (region.IsModuleData) continue;
-            for (ulong offset = 0; offset + 8 <= region.Size; offset += (ulong)buffer.Length)
-            {
-                int length = (int)Math.Min((ulong)buffer.Length, region.Size - offset);
-                if (!memory.TryRead(region.Start + offset, buffer.AsSpan(0, length))) break;
-                var words = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, ulong>(buffer.AsSpan(0, length));
-                int word = 0;
-                while (word < words.Length)
-                {
-                    int next = words[word..].IndexOf(vtable);
-                    if (next < 0) break;
-                    int i = (word + next) * 8;
-                    word += next + 1;
-                    ulong address = region.Start + offset + (ulong)i;
-                    if (i + 0x18 > length)
-                    {
-                        // A record can straddle two scan chunks. Validate the exact object instead of losing it.
-                        if (ReadRegion(address) is { } tail) byId.TryAdd(tail.Id, tail);
-                        continue;
-                    }
-                    int id = BitConverter.ToInt32(buffer, i + 0x10);
-                    if (id is >= 1 and <= 255) byId.TryAdd(id, new AgreementRegion(address, id, RegionName(id)));
-                }
-            }
-        }
+        candidates ??= HeapVtableScanner.Scan(memory, moduleBase + regionVtable).Select(m => m.Address).ToArray();
+        foreach (ulong address in candidates)
+            if (ReadRegion(address, requireReadable: true) is { } region) byId.TryAdd(region.Id, region);
         return byId.Values.OrderBy(r => r.Id).ToList();
     }
-
-    AgreementRegion? ReadRegion(ulong address)
+    AgreementRegion? ReadRegion(ulong address, bool requireReadable = false)
     {
         if (profile.AgreementRegionVtable is null || address == 0) return null;
         var bytes = new byte[24];
-        if (!memory.TryRead(address, bytes) || BitConverter.ToUInt64(bytes) != moduleBase + profile.AgreementRegionVtable.Value) return null;
+        if (!memory.TryRead(address, bytes))
+        {
+            if (requireReadable) throw new MemoryAccessException("An agreement region candidate could not be read");
+            return null;
+        }
+        if (BitConverter.ToUInt64(bytes) != moduleBase + profile.AgreementRegionVtable.Value) return null;
         int id = BitConverter.ToInt32(bytes, 0x10);
         if (id is < 1 or > 255) return null;
         return new(address, id, RegionName(id));

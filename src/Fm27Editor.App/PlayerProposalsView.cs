@@ -1,4 +1,4 @@
-﻿using Avalonia;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Fm27Editor.Core.Clubs;
@@ -75,10 +75,6 @@ public sealed partial class MainWindow
         Child = child,
     };
 
-    static readonly object dealCandidateLock = new();
-    static IReadOnlyList<ulong>? cachedDealCandidates;
-    static DateTime lastDealScanUtc = DateTime.MinValue;
-
     /// <summary>FMRTE 27's Transfer Proposals: the offers FMRTE lists, each with its fee and offered contract editable.</summary>
     Control ProposalsPanel(PlayerRecord player)
     {
@@ -92,64 +88,38 @@ public sealed partial class MainWindow
         };
         host.Child = loading;
 
-        ulong playerAddress = player.Address;
         var session = backend.Session;
-
-        // Two steps, so the list never waits for the heap scan: the proposals and offered contracts first, then the live deal
-        // (found by scanning the heap, which takes a while) is added when it is found. Any failure is shown instead of leaving "Loading".
-        void Show(Control content) => Avalonia.Threading.Dispatcher.UIThread.Post(() => host.Child = content);
+        var data = backend.Data;
+        int currentGeneration = generation;
         _ = Task.Run(() =>
         {
-            IReadOnlyList<TransferProposal> proposals = [];
-            IReadOnlyDictionary<int, OfferContract> contracts = new Dictionary<int, OfferContract>();
-            TransferDeal? liveDeal = null;
             try
             {
-                proposals = session.Profile.Proposals is null
-                    ? []
+                var candidates = data?.TransferDealCandidates(session)
+                    ?? throw new InvalidOperationException("Transfer deal index is unavailable. Load Game to refresh it.");
+                var personOffset = session.Profile.Relations?.PlayerPerson
+                    ?? throw new NotSupportedException("Player person offset is unavailable");
+                var proposals = session.Profile.Proposals is null
+                    ? new List<TransferProposal>()
                     : session.Proposals.Read(player).Where(p => TransferProposalReader.ShownByFmrte(p.Status)).ToList();
-                // An offer made after Load Game can live only in the heap: the cached map misses it. The player's
-                // id list still names it, so rescan once instead of showing an empty tab.
-                if (proposals.Count == 0 && session.Profile.Proposals is not null && HasOfferIds(player))
+                IReadOnlyDictionary<int, OfferContract> contracts = session.Profile.FutureTransfers is null
+                    ? new Dictionary<int, OfferContract>() : session.FutureTransfers.OfferContracts(player);
+                var deal = session.TransferDeals.FindForPlayer(player.Address + (ulong)personOffset, candidates);
+                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
                 {
-                    session.Proposals.Refresh();
-                    proposals = session.Proposals.Read(player).Where(p => TransferProposalReader.ShownByFmrte(p.Status)).ToList();
-                }
-                contracts = session.Profile.FutureTransfers is null
-                    ? new Dictionary<int, OfferContract>()
-                    : session.FutureTransfers.OfferContracts(player);
-                lock (dealCandidateLock)
-                {
-                    if (cachedDealCandidates is not null && (DateTime.UtcNow - lastDealScanUtc).TotalSeconds < 60)
-                        liveDeal = session.TransferDeals.FindForPlayer(playerAddress + 0x288, cachedDealCandidates);
-                }
+                    if (generation != currentGeneration || !ReferenceEquals(backend.Data, data)) return;
+                    host.Child = BuildProposalsPanelContent(player, deal, proposals, contracts);
+                });
             }
             catch (Exception ex)
             {
-                Show(new TextBlock { Text = Loc.F("Transfer proposals could not be read: {0}", UserMessage.For(ex)), Foreground = Brush("#F87171"), FontSize = 13.5, Margin = new Thickness(4), TextWrapping = Avalonia.Media.TextWrapping.Wrap });
-                return;
-            }
-            var firstView = BuildOnUi(proposals, contracts, liveDeal);
-            Show(firstView);
-
-            if (liveDeal is not null) return;
-            try
-            {
-                // The scan runs outside the lock: the window checks the cache on its own thread and must not wait for it.
-                var candidates = session.TransferDeals.Scan();
-                lock (dealCandidateLock)
+                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
                 {
-                    cachedDealCandidates = candidates;
-                    lastDealScanUtc = DateTime.UtcNow;
-                }
-                if (session.TransferDeals.FindForPlayer(playerAddress + 0x288, candidates) is { } found)
-                    Show(BuildOnUi(proposals, contracts, found));
+                    if (generation != currentGeneration || !ReferenceEquals(backend.Data, data)) return;
+                    host.Child = new TextBlock { Text = Loc.F("Transfer proposals could not be read: {0}", UserMessage.For(ex)), Foreground = Brush("#F87171"), TextWrapping = Avalonia.Media.TextWrapping.Wrap };
+                });
             }
-            catch { /* the proposals are already shown; a failed scan only means no live deal is listed */ }
         });
-
-        Control BuildOnUi(IReadOnlyList<TransferProposal> p, IReadOnlyDictionary<int, OfferContract> c, TransferDeal? deal) =>
-            Avalonia.Threading.Dispatcher.UIThread.Invoke(() => BuildProposalsPanelContent(player, deal, p, c));
         return host;
     }
 
@@ -192,7 +162,6 @@ public sealed partial class MainWindow
                 try
                 {
                     backend.Edits.Execute("Player", player.DisplayName, "Page save", () => session.TransferDealWriter.SetFee(deal, deal.Fee, v));
-                    lock (dealCandidateLock) { cachedDealCandidates = null; }
                     status.Text = Loc.S("Saved transfer fee. Continue in FM to see updates.");
                     RenderEditor();
                 }
@@ -237,7 +206,6 @@ public sealed partial class MainWindow
                 try
                 {
                     backend.Edits.Execute("Player", player.DisplayName, "Page save", () => session.TransferDealWriter.SetStatus(deal, deal.StatusRaw, newStatus));
-                    lock (dealCandidateLock) { cachedDealCandidates = null; }
                     status.Text = Loc.S("Saved deal status. Continue in FM to see updates.");
                     RenderEditor();
                 }
@@ -264,7 +232,6 @@ public sealed partial class MainWindow
                     try
                     {
                         backend.Edits.Execute("Player", player.DisplayName, "Page save", () => session.TransferDealWriter.AcceptOffer(deal));
-                        lock (dealCandidateLock) { cachedDealCandidates = null; }
                         status.Text = Loc.S("Offer accepted. Continue in FM to see updates.");
                         RenderEditor();
                     }
@@ -327,7 +294,6 @@ public sealed partial class MainWindow
                     foreach (var c in feeChanges) session.ProposalWriter.SetValue(c.Proposal, c.Value);
                     foreach (var c in contractChanges) session.FutureTransferWriter.SetContract(c.Contract, c.Fields);
                 });
-                lock (dealCandidateLock) { cachedDealCandidates = null; }
                 status.Text = Loc.S("Saved transfer proposals. Continue in FM to see updates.");
                 RenderEditor();
             }
@@ -459,11 +425,9 @@ public sealed partial class MainWindow
     {
         var session = backend.Session;
         try { if (HasOfferIds(player)) return true; } catch { }
-        lock (dealCandidateLock)
-        {
-            if (cachedDealCandidates is null || (DateTime.UtcNow - lastDealScanUtc).TotalSeconds >= 60) return false;
-            try { return session.TransferDeals.FindForPlayer(player.Address + 0x288, cachedDealCandidates) is not null; } catch { return false; }
-        }
+        if (session.Profile.Relations is not { } relations || backend.Data is not { DealIndexLoaded: true } data) return false;
+        try { return session.TransferDeals.FindForPlayer(player.Address + (ulong)relations.PlayerPerson, data.TransferDealCandidates(session)) is not null; }
+        catch { return false; }
     }
     bool HasFutureTransfer(PlayerRecord player)
     {

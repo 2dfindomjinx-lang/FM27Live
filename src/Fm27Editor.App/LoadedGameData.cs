@@ -32,47 +32,97 @@ internal sealed class LoadedGameData(GameSession session)
     public IReadOnlyDictionary<CityLink, IReadOnlyList<CityLinkTarget>> CityLinkCatalogues { get; private set; } = new Dictionary<CityLink, IReadOnlyList<CityLinkTarget>>();
     public IReadOnlyList<AgreementTargetOption> AgreementOrganisations { get; private set; } = [];
     public DateOnly? GameDate { get; private set; }
+    public bool DealIndexAttempted { get; private set; }
+    public bool DealIndexLoaded { get; private set; }
+    public Exception? DealIndexError { get; private set; }
+    IReadOnlyList<ulong> dealCandidates = [];
+
+    // Only Load Game creates a new index. Tab reads and fee/status writes never trigger discovery.
+    internal void LoadTransferDeals(GameLoadReport report, Func<IReadOnlyList<ulong>> scan)
+    {
+        if (DealIndexAttempted) return;
+        DealIndexAttempted = true;
+        report.Run("transfer deals", "Reading…", () =>
+        {
+            try { dealCandidates = scan(); DealIndexLoaded = true; }
+            catch (Exception ex) { DealIndexError = ex; throw; }
+        }, () => dealCandidates.Count);
+    }
+
+    public IReadOnlyList<ulong> TransferDealCandidates(GameSession current)
+    {
+        if (!ReferenceEquals(Session, current))
+            throw new InvalidOperationException("The game connection changed while reading transfer deals");
+        if (!DealIndexLoaded)
+            throw new InvalidOperationException("Transfer deal index is unavailable. Load Game to refresh it.", DealIndexError);
+        return dealCandidates;
+    }
 
     public static LoadedGameData Read(GameSession session, GameLoadReport report)
     {
         var data = new LoadedGameData(session) { GameDate = session.ReadGameDate() };
-        data.Players = report.Read("players", "Reading players…", () => session.Players.LoadAll());
-        foreach (var player in data.Players) player.GameDate = data.GameDate;
-        data.Clubs = report.Read("clubs", "Reading clubs…", () => session.LoadClubs(data.Players));
-        data.Nations = report.Read("nations", "Reading nations…", () => session.Nations.LoadAll());
-        if (session.Profile.Competition is not null)
-            data.Competitions = report.Read("competitions", "Reading competitions…", () => session.Competitions.LoadAll());
-        if (session.Profile.Staff is not null)
-            data.Staff = report.Read("staff", "Reading staff…", () => session.Staff.LoadAll());
-        if (session.Profile.Stadium is not null)
-            data.Stadiums = report.Read("stadiums", "Reading stadiums…", () => session.Stadiums.LoadAll());
-        if (session.Profile.Award is not null)
-            data.Awards = report.Read("awards", "Reading awards…", () => session.Awards.LoadAll());
-        data.Referees = report.Read("referees", "Reading referees…", () => session.ReadReferees());
-        data.Cities = report.Read("cities", "Reading cities…", () => session.Cities.LoadAll());
-        if (session.Profile.Cities?.Links is not null)
+        // Deals and agreement regions otherwise read the same multi-gigabyte heap independently.
+        bool needsRegions = session.Profile.AgreementRegionVtable is not null && session.Profile.Nation?.ListRootRva is not null;
+        var vtables = session.TransferDeals.VtableAddresses.ToList();
+        ulong regionVtable = needsRegions ? session.ModuleBase + session.Profile.AgreementRegionVtable!.Value : 0;
+        if (needsRegions) vtables.Add(regionVtable);
+        var index = new Lazy<IReadOnlyList<HeapVtableMatch>>(() => HeapVtableScanner.Scan(session.Memory, vtables.ToArray()));
+        // Start the raw heap pass alongside catalogue materialization, but join it before publication.
+        // Lazy retains any scan exception; the reporting stages below surface it without retrying.
+        var discovery = Task.Run(() =>
         {
-            using var reads = new BulkReadScope(session.Memory);
-            var links = new CityLinks(reads.Memory, session.Profile, session.ModuleBase);
-            var catalogues = new Dictionary<CityLink, IReadOnlyList<CityLinkTarget>>();
-            foreach (var link in new[] { CityLink.Region, CityLink.Language, CityLink.Weather })
-                catalogues[link] = report.Read($"city {link.ToString().ToLowerInvariant()} catalogue", "Reading cities…", () => links.Catalogue(data.Cities, link));
-            data.CityLinkCatalogues = catalogues;
-        }
-        if (session.Profile.Nation is not null)
-            data.AgreementOrganisations = report.Read("agreement organisations", "Reading nations…", () =>
+            var watch = Stopwatch.StartNew();
+            try { _ = index.Value; return (Exception?)null; }
+            catch (Exception ex) { return ex; }
+            finally { FlightRecorder.Current?.Log("load", $"shared heap scan elapsed: {watch.ElapsedMilliseconds} ms"); }
+        });
+        try
+        {
+            data.Players = report.Read("players", "Reading players…", () => session.Players.LoadAll());
+            foreach (var player in data.Players) player.GameDate = data.GameDate;
+            data.Clubs = report.Read("clubs", "Reading clubs…", () => session.LoadClubs(data.Players));
+            data.Nations = report.Read("nations", "Reading nations…", () => session.Nations.LoadAll());
+            if (session.Profile.Competition is not null)
+                data.Competitions = report.Read("competitions", "Reading competitions…", () => session.Competitions.LoadAll());
+            if (session.Profile.Staff is not null)
+                data.Staff = report.Read("staff", "Reading staff…", () => session.Staff.LoadAll());
+            if (session.Profile.Stadium is not null)
+                data.Stadiums = report.Read("stadiums", "Reading stadiums…", () => session.Stadiums.LoadAll());
+            if (session.Profile.Award is not null)
+                data.Awards = report.Read("awards", "Reading awards…", () => session.Awards.LoadAll());
+            data.Referees = report.Read("referees", "Reading referees…", () => session.ReadReferees());
+            data.Cities = report.Read("cities", "Reading cities…", () => session.Cities.LoadAll());
+            if (session.Profile.Cities?.Links is not null)
             {
                 using var reads = new BulkReadScope(session.Memory);
-                var agreements = new NationAgreements(reads.Memory, session.Profile, session.ModuleBase);
-                var continents = session.NationLinks.Continents(data.Nations);
-                var found = new Dictionary<ulong, AgreementTargetOption>();
-                foreach (var nation in data.Nations)
-                    foreach (int vector in new[] { NationAgreements.EuVector, NationAgreements.NonForeignVector })
-                        foreach (var row in agreements.Read(nation.Address, vector, continents, data.Nations))
-                            if (row.Kind == AgreementKind.Agreement && !string.IsNullOrWhiteSpace(row.TargetName))
-                                found.TryAdd(row.Target, new(row.Target, row.TargetName));
-                return found.Values.OrderBy(x => x.Name).ToArray();
-            });
+                var links = new CityLinks(reads.Memory, session.Profile, session.ModuleBase);
+                var catalogues = new Dictionary<CityLink, IReadOnlyList<CityLinkTarget>>();
+                foreach (var link in new[] { CityLink.Region, CityLink.Language, CityLink.Weather })
+                    catalogues[link] = report.Read($"city {link.ToString().ToLowerInvariant()} catalogue", "Reading cities…", () => links.Catalogue(data.Cities, link));
+                data.CityLinkCatalogues = catalogues;
+            }
+            if (session.Profile.Nation is not null)
+                data.AgreementOrganisations = report.Read("agreement organisations", "Reading nations…", () =>
+                {
+                    using var reads = new BulkReadScope(session.Memory);
+                    var agreements = new NationAgreements(reads.Memory, session.Profile, session.ModuleBase);
+                    var continents = session.NationLinks.Continents(data.Nations);
+                    var found = new Dictionary<ulong, AgreementTargetOption>();
+                    foreach (var nation in data.Nations)
+                        foreach (int vector in new[] { NationAgreements.EuVector, NationAgreements.NonForeignVector })
+                            foreach (var row in agreements.Read(nation.Address, vector, continents, data.Nations))
+                                if (row.Kind == AgreementKind.Agreement && !string.IsNullOrWhiteSpace(row.TargetName))
+                                    found.TryAdd(row.Target, new(row.Target, row.TargetName));
+                    return found.Values.OrderBy(x => x.Name).ToArray();
+                });
+            }
+        finally { discovery.GetAwaiter().GetResult(); }
+        report.Run("shared heap discovery join", "Reading…", () => _ = index.Value, () => index.Value.Count);
+        var dealVtables = session.TransferDeals.VtableAddresses;
+        data.LoadTransferDeals(report, () => index.Value.Where(m => dealVtables.Contains(m.Vtable)).Select(m => m.Address).ToArray());
+        if (needsRegions)
+            report.Run("agreement regions", "Reading…", () => session.NationAgreements.PreloadRegions(() =>
+                index.Value.Where(m => m.Vtable == regionVtable).Select(m => m.Address).ToArray()));
         return data;
     }
 }

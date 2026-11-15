@@ -1,3 +1,40 @@
+# Windows continuation — 15 November 2026
+
+The deferred Transfer Deals work is implemented and measured on Windows Steam `27.0.1+2503222`. The overall performance goal remains incomplete: three complete UI loads took **8.569 / 10.093 / 7.723 seconds**, with zero stage errors. One run exceeded ten seconds and none reached three seconds. Keep PR #2 draft pending the remaining verification and performance work.
+
+## Current implementation
+
+- `LoadedGameData` retains a session-owned deal index with attempted, loaded and error state. Empty success is retained. Failed discovery is reported as incomplete loading and cannot retry implicitly on tab access.
+- `PlayerProposalsView` uses non-null retained candidates, profile-derived person offsets and session/generation checks. The static cache, sixty-second expiry, first-tab sweep, automatic empty-result proposal refresh and invalidation after fee/status writes are removed. Deal records and write guards remain live. **Load Game is the explicit refresh for newly created/deleted deals.**
+- `HeapVtableScanner` discovers deals and agreement regions together, preserving enumeration order, all three previously accepted deal vtables, vector tails and ordinary unreadable-range failures. A failed wide read retries bounded pages; a failed page produces an error rather than partial success.
+- Windows region enumeration explicitly marks OS guard pages. Discovery excludes these access traps rather than treating them as readable object storage. This was checked against VirtualQueryEx (`PAGE_READWRITE | PAGE_GUARD`) for the failed range in the initial strict scan. Other region consumers retain their existing behavior.
+- Providers explicitly implementing `IConcurrentMemoryReads` use at most four dedicated workers, each holding a 4 MiB buffer. Other providers are serial. The raw provider handles discovery; scoped bulk-read caches are never shared across workers.
+- The shared heap pass overlaps catalogue materialization and is joined before publishing loaded data. Errors remain captured in the same load report; agreement-region preload failures are retained as well. No work is moved behind the ready marker and no forced GC was added.
+
+## Executed evidence
+
+- Original complete deal scan: **36.870 seconds**, 7,371 candidates; all 7,371 live reads succeeded. Writable region inventory was approximately 3.92 GB.
+- Allocation-free sequential discovery: approximately 16.3 seconds; approximately 16.0 seconds were process reads.
+- Bounded parallel deal discovery: **4.019 seconds**, exact candidate-address sequence/hash equality against the original capture.
+- Final shared-discovery algorithm: **4.481 seconds** in the isolated read-only harness; all 7,371 deal candidates and all 28 agreement-region records (addresses, IDs and names) exactly matched independent pre-change captures.
+- End-to-end UI loads, including fresh reconnect, all catalogues, shared heap discovery, binding, hooks/freezer initialization and cleanup: **8.569 / 10.093 / 7.723 seconds**. All three reported zero errors and stable dataset counts. These are release Windows app measurements, not Mac measurements or an isolated scan benchmark.
+- Stable counts: 50,038 players, 23,536 staff, 5,239 clubs, 231 nations, 8,215 competitions, 29,460 stadiums, 58,475 cities, 263 awards, 2,078 referees, 136 injury types, 104 languages, 73,574 person names, 13,560 career entries, 9 retirements, 194 future transfers, 7,371 deals and 28 agreement regions.
+- Windows release suite: **1,309 Core + 297 App tests**, zero skips/failures. Added coverage includes empty/failed/uninitialized indexes, reconnect isolation, live fee/status and stale-vtable reads, compatibility types on Steam/Game Pass fixtures, chunk tails, multiple target types, original region order, wide-read fallback, unreadable ranges, guard-region exclusion and agreement-region preload errors.
+- In a separate isolated copy, dropping compatibility vtables made seven scan tests fail; removing the attempted-index guard made both empty/failed lifecycle tests fail. Production sources were not mutated. No tests were removed, skipped or weakened.
+- Observed process working set settled near **453 MiB**, with a process peak near **467 MiB**. A five-second post-load sample used **1.375 CPU seconds** (27.5% of one core); this does **not** establish zero idle CPU. A separate 15.24-second reload-plus-idle sample used 25.47 CPU seconds. Do not compare these Windows measurements directly with the older Mac RSS/CPU figures.
+- Investigation of the existing manager prefix found that its primary offer vector omitted two baseline candidates. Another vector contained those two, but that observation does not prove a complete authoritative source across builds. No guessed manager offsets or new JSON offsets were introduced.
+
+## Remaining work
+
+1. Reduce full-load variability and the remaining heap-read cost; the strict ten-second ceiling and three-second aspiration are not established.
+2. Investigate sustained Windows post-load CPU with profiling, distinguishing UI rendering and existing polling from discovery. Do not force GC or hide the loading indicator early.
+3. Run live Game Pass validation and repeat final Mac native-package measurements. This machine supplied only a running Steam game. Profile fixtures and Windows tests do not replace live evidence for other builds/platforms.
+4. Preserve the live UI restriction (Load Game and Wonderkid popup only). No broader tab navigation or game-edit actions were used here. First-tab lifecycle behavior was covered with fake-memory tests and source audit; mutation planning and explicit refresh paths still intentionally read live data.
+5. Keep raw captures, candidate addresses, probe projects, mutation copies and timing logs local. They are under the continuation worktree's ignored `re/load-perf/` directory.
+
+The sections below are the historical Mac checkpoint and its original continuation strategy. Their statements that the deferred deal scan remains unimplemented or Windows timing is unavailable are superseded by this section. Their platform caveats and evidence provenance still apply.
+
+---
 # Load performance strategy and handoff
 
 ## Status: reviewable checkpoint, original goal still incomplete

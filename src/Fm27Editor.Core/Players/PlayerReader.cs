@@ -13,7 +13,11 @@ public sealed class PlayerReader(IProcessMemory memory, OffsetProfile profile)
     const int ClubReadSize = 0xD0;
     const int NationReadSize = 0x38;
     const int CompetitionReadSize = 0x50;
+    static readonly int AttributeCount = Enum.GetValues<PlayerAttribute>().Length;
+    static readonly int PositionCount = Enum.GetValues<PlayerPosition>().Length;
+    static readonly int PersonalityCount = Enum.GetValues<PersonalityAttribute>().Length;
     readonly Dictionary<ulong, string?> _strings = new();
+    readonly Dictionary<ulong, string?> _entries = new();
     readonly Dictionary<ulong, ClubInfo?> _clubsByTeam = new();
     readonly Dictionary<ulong, NationInfo?> _nations = new();
     readonly Dictionary<ulong, CompetitionInfo?> _divisionsByTeam = new();
@@ -22,11 +26,11 @@ public sealed class PlayerReader(IProcessMemory memory, OffsetProfile profile)
     public PlayerRecord Decode(ulong address, ReadOnlySpan<byte> obj, uint vtableRva)
     {
         var f = profile.Fields;
-        var attrs = new byte[Enum.GetValues<PlayerAttribute>().Length];
+        var attrs = new byte[AttributeCount];
         foreach (var (a, off) in profile.Attributes) attrs[(int)a] = obj[off];
-        var positions = new byte[Enum.GetValues<PlayerPosition>().Length];
+        var positions = new byte[PositionCount];
         foreach (var (p, off) in profile.Positions) positions[(int)p] = obj[off];
-        var personality = new byte[Enum.GetValues<PersonalityAttribute>().Length];
+        var personality = new byte[PersonalityCount];
         foreach (var (p, off) in profile.Personality) personality[(int)p] = obj[off];
 
         ulong contractTeam = 0;
@@ -177,8 +181,9 @@ public sealed class PlayerReader(IProcessMemory memory, OffsetProfile profile)
     internal string? EntryString(ulong entry)
     {
         if (entry == 0) return null;
+        if (_entries.TryGetValue(entry, out var cached)) return cached;
         Span<byte> b = stackalloc byte[8];
-        return memory.TryRead(entry, b) ? StringAt(BitConverter.ToUInt64(b)) : null;
+        return memory.TryRead(entry, b) ? _entries[entry] = StringAt(BitConverter.ToUInt64(b)) : null;
     }
 
     /// <summary>Length-prefixed UTF-8: int32 byte count followed by the bytes.</summary>

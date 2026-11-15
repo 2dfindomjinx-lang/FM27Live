@@ -435,6 +435,12 @@ public sealed class PlayerSearchIndex
     PlayerSortSpec? sort;
     IReadOnlyList<PlayerRecord> ordered = [];
 
+    /// <summary>Releases the previous save, including when reconnecting does not produce a new source.</summary>
+    internal void Clear()
+    {
+        lock (gate) { source = null; sort = null; ordered = []; }
+    }
+
     public IReadOnlyList<PlayerRecord> Filter(IReadOnlyList<object> rows, PlayersModule module, PlayerFilter filter, PlayerSortSpec order, CancellationToken cancellationToken = default)
     {
         lock (gate)
@@ -464,6 +470,16 @@ public sealed class LatestSearch
 {
     readonly object gate = new();
     CancellationTokenSource? current;
+
+    /// <summary>Invalidates pending and running searches without requiring a replacement query.</summary>
+    internal void Cancel()
+    {
+        lock (gate)
+        {
+            current?.Cancel();
+            current = null;
+        }
+    }
 
     public async Task<T?> RunAsync<T>(Func<CancellationToken, T> search, TimeSpan delay) where T : class
     {

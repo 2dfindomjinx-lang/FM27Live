@@ -11,9 +11,9 @@ public sealed partial class MainWindow
     PlayerRecord[]? playerSource;
 
     /// <summary>The loaded players, or on other screens (Staff, Clubs) every player read once: clubs, competitions and languages come from them.</summary>
-    PlayerRecord[] Players() => rows.OfType<PlayerRecord>().ToArray() is { Length: > 0 } shown ? shown : playerSource ??= backend.Session.Players.LoadAll().ToArray();
+    PlayerRecord[] Players() => rows.OfType<PlayerRecord>().ToArray() is { Length: > 0 } shown ? shown : playerSource ??= (backend.Data?.Players ?? backend.Session.Players.LoadAll()).ToArray();
 
-    /// <summary>Builds the career-plan picker catalogue once, in the background after Load Game.</summary>
+    /// <summary>Builds the career-plan picker catalogue before Load Game completes.</summary>
     void WarmCareerCatalogue(IReadOnlyList<PlayerRecord> players)
     {
         var session = backend.Session;

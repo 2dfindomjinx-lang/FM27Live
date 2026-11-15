@@ -64,23 +64,34 @@ public sealed class NationAgreements(IProcessMemory memory, OffsetProfile profil
 
     List<AgreementRegion> ScannedRegions(uint regionVtable)
     {
-        if (memory is not WindowsProcessMemory windows) return [];
+        if (memory is not IMemoryRegions regions) return [];
         ulong vtable = moduleBase + regionVtable;
         var byId = new Dictionary<int, AgreementRegion>();
         var buffer = new byte[1 << 22];
-        foreach (var region in windows.EnumerateWritableRegions())
+        foreach (var region in regions.EnumerateWritableRegions())
         {
             if (region.IsModuleData) continue;
             for (ulong offset = 0; offset + 8 <= region.Size; offset += (ulong)buffer.Length)
             {
                 int length = (int)Math.Min((ulong)buffer.Length, region.Size - offset);
                 if (!memory.TryRead(region.Start + offset, buffer.AsSpan(0, length))) break;
-                for (int i = 0; i + 0x18 <= length; i += 8)
+                var words = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, ulong>(buffer.AsSpan(0, length));
+                int word = 0;
+                while (word < words.Length)
                 {
-                    if (BitConverter.ToUInt64(buffer, i) != vtable) continue;
+                    int next = words[word..].IndexOf(vtable);
+                    if (next < 0) break;
+                    int i = (word + next) * 8;
+                    word += next + 1;
+                    ulong address = region.Start + offset + (ulong)i;
+                    if (i + 0x18 > length)
+                    {
+                        // A record can straddle two scan chunks. Validate the exact object instead of losing it.
+                        if (ReadRegion(address) is { } tail) byId.TryAdd(tail.Id, tail);
+                        continue;
+                    }
                     int id = BitConverter.ToInt32(buffer, i + 0x10);
-                    if (id is < 1 or > 255) continue;
-                    byId.TryAdd(id, new AgreementRegion(region.Start + offset + (ulong)i, id, RegionName(id)));
+                    if (id is >= 1 and <= 255) byId.TryAdd(id, new AgreementRegion(address, id, RegionName(id)));
                 }
             }
         }

@@ -10,6 +10,12 @@ public sealed class PlayerRepository(IProcessMemory memory, OffsetProfile profil
 
     public IReadOnlyList<PlayerRecord> LoadAll()
     {
+        using var reads = new BulkReadScope(memory);
+        return new PlayerRepository(reads.Memory, profile, moduleBase).LoadAllCore();
+    }
+
+    IReadOnlyList<PlayerRecord> LoadAllCore()
+    {
         var pointers = ReadPointerArray();
         var reader = new PlayerReader(memory, profile) { ModuleBase = moduleBase };
         var vtables = profile.PlayerVtableRvas.Select(v => moduleBase + v).ToHashSet();

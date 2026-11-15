@@ -5,6 +5,7 @@ using Avalonia.Threading;
 using Fm27Editor.Core.Clubs;
 using Fm27Editor.Core.Game;
 using Fm27Editor.Core.History;
+using Fm27Editor.Core.Memory;
 using Fm27Editor.Core.Players;
 
 namespace Fm27Editor.App;
@@ -33,12 +34,18 @@ internal interface IClubPanels
 }
 
 /// <summary>Clubs: the list with balance and reputation, and a tab per club with sections down its left.</summary>
-internal sealed class ClubScreen(IScreenHost host, IClubPanels panels)
+internal class ClubScreen(IScreenHost host, IClubPanels panels)
     : EntityScreen<ClubEntry, MainWindow.ClubPickerItem, ClubDraft>(host, "club", "Clubs", "clubs", "Club or ID")
 {
     IReadOnlyList<PlayerRecord> playersAtLoad = [];
-    IReadOnlyList<ClubEntry>? cachedAtLoad;
-    (IReadOnlyList<ClubEntry> Clubs, IReadOnlyList<PlayerRecord>? Fresh, DateOnly? Date)? loaded;
+    // Metadata travels with the row result: an old worker cannot overwrite the next connection's publication.
+    internal sealed class LoadedRows(IReadOnlyList<ClubEntry> clubs, IReadOnlyList<PlayerRecord>? fresh, DateOnly? date)
+        : List<MainWindow.ClubPickerItem>(clubs.Count)
+    {
+        public IReadOnlyList<ClubEntry> Clubs { get; } = clubs;
+        public IReadOnlyList<PlayerRecord>? Fresh { get; } = fresh;
+        public DateOnly? Date { get; } = date;
+    }
     static readonly string[] GenderFilterKeys = ["Men", "Women", "All"];
     readonly ComboBox genderFilter = new()
     {
@@ -108,15 +115,14 @@ internal sealed class ClubScreen(IScreenHost host, IClubPanels panels)
     protected override void BeforeLoad()
     {
         playersAtLoad = panels.ShownPlayers;
-        cachedAtLoad = panels.CachedClubs;
     }
 
-    protected override IReadOnlyList<MainWindow.ClubPickerItem> LoadRows(GameSession session)
+    protected override IReadOnlyList<MainWindow.ClubPickerItem> LoadRows(GameSession session, LoadedGameData? data)
     {
         var date = session.ReadGameDate();
         IReadOnlyList<PlayerRecord>? fresh = null;
         IReadOnlyList<ClubEntry> clubs;
-        if (cachedAtLoad is not null) clubs = cachedAtLoad;
+        if (data is not null) clubs = data.Clubs;
         else
         {
             IReadOnlyList<PlayerRecord> source = playersAtLoad;
@@ -129,9 +135,9 @@ internal sealed class ClubScreen(IScreenHost host, IClubPanels panels)
             }
             clubs = session.LoadClubs(source.ToArray());
         }
-        loaded = (clubs, fresh, date);
-        var access = session.ClubFields;
-        var items = new List<MainWindow.ClubPickerItem>(clubs.Count);
+        using var reads = new BulkReadScope(session.Memory);
+        var access = new ClubFieldAccess(reads.Memory, session.Profile, session.ModuleBase);
+        var items = new LoadedRows(clubs, fresh, date);
         foreach (var club in ClubCatalog.Filter(clubs, null))
         {
             var item = new MainWindow.ClubPickerItem(club);
@@ -148,11 +154,10 @@ internal sealed class ClubScreen(IScreenHost host, IClubPanels panels)
 
     protected override void RowsLoaded()
     {
-        if (loaded is { } done)
+        if (Rows is LoadedRows done)
         {
             panels.ClubsLoaded(done.Clubs, done.Fresh, done.Date);
             Clubs = Rows.Select(r => r.Club).ToList();
-            loaded = null;
         }
         if (StartupClubId is { } id)
         {
@@ -164,6 +169,7 @@ internal sealed class ClubScreen(IScreenHost host, IClubPanels panels)
     protected override void OnReconnected()
     {
         Clubs = [];
+        playersAtLoad = [];
         genderFilter.SelectedIndex = 0;
         panels.Reconnected();
     }

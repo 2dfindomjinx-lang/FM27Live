@@ -22,6 +22,7 @@ static class SectionHost
         public Section(string key, string title, Func<Control> factory) : this(key, title, factory, null) { }
 
         Control? _body = Prebuilt;
+        internal Control? BuiltBody => _body;
         public Control Body => _body ??= (Factory?.Invoke() ?? new Panel());
     }
 
@@ -36,7 +37,7 @@ static class SectionHost
         public override string ToString() => Label;
     }
     /// <summary>Rail lists by entity, so the shell can put a star on the section that holds unsaved edits.</summary>
-    static readonly Dictionary<string, (ListBox List, List<Entry> Items)> Rails = [];
+    static readonly Dictionary<string, (ListBox List, List<Entry> Items, object? Owner)> Rails = [];
     static readonly Dictionary<string, HashSet<string>> DirtyKeys = [];
 
     /// <summary>
@@ -58,7 +59,7 @@ static class SectionHost
         InputElement.IsEnabledProperty.Changed.AddClassHandler<Button>((button, _) => OnSaveButtonChanged(button));
         Fm27Editor.Core.Settings.LanguageSetting.Changed += () =>
         {
-            foreach (var (_, items) in Rails.Values)
+            foreach (var (_, items, _) in Rails.Values)
                 foreach (var entry in items) entry.NotifyLabelChanged();
         };
     }
@@ -70,6 +71,7 @@ static class SectionHost
         {
             if (!Bodies.TryGetValue(ancestor, out var owner)) continue;
             var (entity, key) = (owner.Item1, owner.Item2);
+            if (!Rails.TryGetValue(entity, out var rail) || !rail.Items.Any(e => ReferenceEquals(e.Section.BuiltBody, ancestor))) return;
             bool dirty = ancestor.GetLogicalDescendants().OfType<Button>().Any(IsPendingSave);
             var set = WatchedKeys.TryGetValue(entity, out var existing) ? existing : (WatchedKeys[entity] = []);
             bool changed = dirty ? set.Add(key) : set.Remove(key);
@@ -79,6 +81,22 @@ static class SectionHost
             return;
         }
     }
+
+    /// <summary>Releases one window's save-specific controls and closures, retaining its section selection preference.</summary>
+    public static void Release(object owner)
+    {
+        foreach (var (entity, rail) in Rails.Where(pair => ReferenceEquals(pair.Value.Owner, owner)).ToArray())
+        {
+            Rails.Remove(entity);
+            DirtyKeys.Remove(entity);
+            WatchedKeys.Remove(entity);
+            foreach (var entry in rail.Items)
+                if (entry.Section.BuiltBody is { } body) Bodies.Remove(body);
+        }
+    }
+
+    public static bool OwnedBy(string entity, object owner) =>
+        Rails.TryGetValue(entity, out var rail) && ReferenceEquals(rail.Owner, owner);
 
     static readonly Dictionary<string, string> SelectedKey = [];
     const string DragFormat = "fm27-section";
@@ -110,7 +128,7 @@ static class SectionHost
         }
         _ = changed;
     }
-    public static Control Build(string entity, IReadOnlyList<Section> sections, string? selectKey = null, Action<string>? onSelected = null, ContentControl? railHost = null)
+    public static Control Build(string entity, IReadOnlyList<Section> sections, string? selectKey = null, Action<string>? onSelected = null, ContentControl? railHost = null, object? owner = null)
     {
         if (sections.Count == 0) return new Panel();
 
@@ -155,7 +173,7 @@ static class SectionHost
 
         list.ItemsSource = items;
         // Registered at once (it used to be only after a drag), so MarkDirty and Selected find this rail.
-        Rails[entity] = (list, items);
+        Rails[entity] = (list, items, owner);
         int start = SelectedKey.TryGetValue(entity, out var key) ? items.FindIndex(i => i.Section.Key == key) : 0;
         Select(start);
 
@@ -208,7 +226,7 @@ static class SectionHost
             items.Insert(to, moved);
             list.ItemsSource = null;
             list.ItemsSource = items;
-            Rails[entity] = (list, items);
+            Rails[entity] = (list, items, owner);
             list.SelectedItem = moved;
             UiOrderStore.Save(entity, [.. items.Select(i => i.Section.Key)]);
         });

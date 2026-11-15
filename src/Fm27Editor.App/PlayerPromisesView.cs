@@ -2,6 +2,7 @@
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Fm27Editor.Core.Players;
+using Fm27Editor.Core.Memory;
 
 namespace Fm27Editor.App;
 
@@ -41,9 +42,9 @@ public sealed partial class MainWindow
         var save = new Button { IsVisible = false, Content = Loc.S("Save changes"), IsEnabled = false, Classes = { "accent" } };
 
         IReadOnlyList<Fm27Editor.Core.Competitions.CompetitionRecord> Competitions() =>
-            unifiedCompetitions.Count > 0 ? unifiedCompetitions : unifiedCompetitions = session.Competitions.LoadAll();
+            backend.Data?.Competitions ?? (unifiedCompetitions.Count > 0 ? unifiedCompetitions : unifiedCompetitions = session.Competitions.LoadAll());
         IReadOnlyList<Fm27Editor.Core.Staff.StaffRecord> Staff() =>
-            unifiedStaff.Count > 0 ? unifiedStaff : unifiedStaff = session.Staff.LoadAll();
+            backend.Data?.Staff ?? (unifiedStaff.Count > 0 ? unifiedStaff : unifiedStaff = session.Staff.LoadAll());
         string CompetitionName(int index) => index < 0 ? "" : Competitions().FirstOrDefault(c => c.Index == index)?.Name ?? Loc.F("Competition {0}", index);
         string PersonName(int index) => index < 0 ? "" : PersonNames().TryGetValue((uint)index, out var n) ? n : Loc.F("Person {0}", index);
         // The person who made the promise is usually a manager, but the game also makes some on a player's own behalf (Bruno Fernandes shows himself).
@@ -156,7 +157,7 @@ public sealed partial class MainWindow
             if (manager == 0 || team == 0)
             {
                 var club = player.Club;
-                var entry = club is null ? null : session.LoadClubs(AllPlayers()).FirstOrDefault(c => c.Address == club.Address);
+                var entry = club is null ? null : (clubCache ?? session.LoadClubs(AllPlayers())).FirstOrDefault(c => c.Address == club.Address);
                 manager = club is null ? 0 : Staff().Where(s => s.JobCode == 16 && s.Club?.Address == club.Address)
                     .OrderByDescending(s => s.TeamName is { } n && (n == club.Name || n == club.ShortName || n == club.DisplayName)).ThenByDescending(s => s.CurrentReputation)
                     .FirstOrDefault()?.Address ?? 0;
@@ -191,7 +192,7 @@ public sealed partial class MainWindow
     }
 
     /// <summary>Every player in the game, not just the rows the list is showing.</summary>
-    PlayerRecord[] AllPlayers() => rows.OfType<PlayerRecord>().ToArray() is { Length: > 0 } loaded ? loaded : playerSource ??= backend.Session.Players.LoadAll().ToArray();
+    PlayerRecord[] AllPlayers() => rows.OfType<PlayerRecord>().ToArray() is { Length: > 0 } loaded ? loaded : playerSource ??= (backend.Data?.Players ?? backend.Session.Players.LoadAll()).ToArray();
 
     Dictionary<uint, string>? personNames;
 
@@ -200,10 +201,11 @@ public sealed partial class MainWindow
     {
         if (personNames is not null) return personNames;
         var session = backend.Session;
-        var store = session.Promises;
+        using var reads = new BulkReadScope(session.Memory);
+        var store = new PromiseStore(reads.Memory, session.Profile, session.ModuleBase);
         var names = new Dictionary<uint, string>();
-        foreach (var p in AllPlayers()) names[store.PersonIndex(p.Address + 0x288)] = $"{p.DisplayName} ({p.ClubName})";
-        foreach (var s in unifiedStaff.Count > 0 ? unifiedStaff : unifiedStaff = session.Staff.LoadAll()) names[store.PersonIndex(s.Address)] = $"{s.DisplayName} ({s.Club?.DisplayName})";
+        foreach (var p in AllPlayers()) names[p.PersonIndex is { } index ? (uint)index : store.PersonIndex(p.Address + (ulong)(session.Profile.Relations?.PlayerPerson ?? 0x288))] = $"{p.DisplayName} ({p.ClubName})";
+        foreach (var s in backend.Data?.Staff ?? (unifiedStaff.Count > 0 ? unifiedStaff : unifiedStaff = session.Staff.LoadAll())) names[s.PersonIndex is { } index ? (uint)index : store.PersonIndex(s.Address)] = $"{s.DisplayName} ({s.Club?.DisplayName})";
         return personNames = names;
     }
 

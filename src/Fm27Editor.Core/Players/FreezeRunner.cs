@@ -20,12 +20,13 @@ public sealed class FreezeRunner
     public IReadOnlyList<ClubBalanceFreezer> Clubs => clubs;
     public IReadOnlyList<FrozenStaff> Staff => staff;
 
-    public FreezeRunner(GameSession session, string path)
+    public FreezeRunner(GameSession session, string path, IReadOnlyList<PlayerRecord>? loadedPlayers = null,
+        IReadOnlyList<ClubEntry>? loadedClubs = null, IReadOnlyList<StaffRecord>? loadedStaff = null)
     {
         if (!session.CanWrite) throw new InvalidOperationException("Freeze requires a writable game connection");
         this.session = session;
         this.path = path;
-        key = FreezeStore.SaveKey(session);
+        key = FreezeStore.SaveKey(session.Profile, loadedStaff ?? session.Staff.LoadAll());
         rootBegin = CurrentRoot();
         if (rootBegin == 0) throw new StaleObjectException("Player list is not available");
         var saved = FreezeStore.Load(path, key);
@@ -39,9 +40,9 @@ public sealed class FreezeRunner
             CheckSave();
             return;
         }
-        var all = session.Players.LoadAll();
-        var allStaff = session.Profile.Staff is not null ? session.Staff.LoadAll() : [];
-        var entries = FreezeStore.Resolve(saved, all, session.LoadClubs(all), allStaff);
+        var all = loadedPlayers ?? session.Players.LoadAll();
+        var allStaff = loadedStaff ?? (session.Profile.Staff is not null ? session.Staff.LoadAll() : []);
+        var entries = FreezeStore.Resolve(saved, all, loadedClubs ?? session.LoadClubs(all), allStaff);
         if (entries.Players.Count != saved.Players.Length || entries.Clubs.Count != saved.Clubs.Length ||
             (saved.Staff is not null && entries.Staff.Count != saved.Staff.Length) ||
             saved.Players.Select(p => p.Id).Distinct().Count() != saved.Players.Length ||

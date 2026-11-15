@@ -9,6 +9,12 @@ public interface IProcessMemory
     bool TryWrite(ulong address, ReadOnlySpan<byte> data);
 }
 
+/// <summary>Optional enumeration of writable regions for read-only discovery; callers must not infer unmapped bytes from omissions.</summary>
+public interface IMemoryRegions
+{
+    IEnumerable<MemoryRegion> EnumerateWritableRegions(ulong imageStart = 0, ulong imageEnd = 0);
+}
+
 public static class ProcessMemoryExtensions
 {
     public static byte[] Read(this IProcessMemory memory, ulong address, int length)

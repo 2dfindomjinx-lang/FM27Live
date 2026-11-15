@@ -76,10 +76,112 @@ public sealed class WorkPermitTable(IProcessMemory memory, OffsetProfile profile
     {
         if (knownHeader is { } given) return given;
         if (header is { } known && Valid(known)) return known;
-        if (memory is not WindowsProcessMemory windows) throw new InvalidOperationException("The permit table can only be found in a live game");
+        if (FindInTransferManager() is { } managerHeader) return (header = managerHeader).Value;
+        if (memory is not IMemoryRegions regions) throw new InvalidOperationException("The permit table can only be found in a live game");
+        var found = Scan(regions.EnumerateWritableRegions(moduleBase, moduleBase + 1));
+        if (found.Address == 0) throw new InvalidOperationException("The work permit table was not found; is a save loaded?");
+        // Read-ahead is local to discovery. The game can reallocate a vector while the scan runs: publish
+        // only the same header, checked once more against live records with no cached bytes.
+        Span<byte> live = stackalloc byte[24];
+        if (!memory.TryRead(found.Address, live) || BitConverter.ToUInt64(live) != found.Begin ||
+            BitConverter.ToUInt64(live[8..]) != found.End || BitConverter.ToUInt64(live[16..]) != found.Capacity ||
+            !Valid(found.Address))
+            throw new StaleObjectException("The work permit table changed while it was being located; load the game data again");
+        return (header = found.Address).Value;
+    }
+
+    ulong? FindInTransferManager()
+    {
+        if (profile.Proposals is not { ManagerRva: { } root, ManagerVtable: { } vtable } o ||
+            FutureTransferCreator.OfferSerial < 24 || FutureTransferCreator.OfferSerial > 4092) return null;
+        // The measured offer-serial field bounds a known part of TRANSFER_MANAGER. Discover the permit vector
+        // structurally inside that owner instead of assuming a build-specific offset or scanning the whole heap.
+        Span<byte> pointer = stackalloc byte[8];
+        if (!memory.TryRead(moduleBase + root, pointer)) return null;
+        ulong manager = BitConverter.ToUInt64(pointer);
+        if (manager == 0) return null;
+        var owner = new byte[FutureTransferCreator.OfferSerial + 4];
+        if (!memory.TryRead(manager, owner) || BitConverter.ToUInt64(owner) != moduleBase + vtable) return null;
+        int found = -1;
+        try
+        {
+            for (int at = 0; at + 24 <= owner.Length; at += 8)
+            {
+                ulong begin = BitConverter.ToUInt64(owner, at), end = BitConverter.ToUInt64(owner, at + 8), capacity = BitConverter.ToUInt64(owner, at + 16);
+                if (!CandidateShape(begin, end, capacity)) continue;
+                bool? valid = FullyValidVector(begin, end);
+                if (valid is null) return null; // An unreadable candidate cannot establish uniqueness.
+                if (valid != true) continue;
+                if (found >= 0) return null; // Ambiguous owner: preserve the existing global selection rule.
+                found = at;
+            }
+        }
+        catch (MemoryAccessException) { return null; }
+        if (found < 0) return null;
+        ulong address = manager + (ulong)found;
+        Span<byte> liveHeader = stackalloc byte[24];
+        if (!memory.TryRead(moduleBase + root, pointer) || BitConverter.ToUInt64(pointer) != manager ||
+            !memory.TryRead(manager, pointer) || BitConverter.ToUInt64(pointer) != moduleBase + vtable ||
+            !memory.TryRead(address, liveHeader) || !liveHeader.SequenceEqual(owner.AsSpan(found, 24)) || !Valid(address))
+            throw new StaleObjectException("The transfer manager changed while locating work permits; load the game data again");
+        return address;
+    }
+
+    bool? FullyValidVector(ulong begin, ulong end)
+    {
+        int count = (int)((end - begin) / 8);
+        var pointers = new byte[count * 8];
+        if (!memory.TryRead(begin, pointers)) return null;
+        var recordBytes = new byte[CandidateBatchSize * RecordSize];
+        var addresses = new ulong[CandidateBatchSize];
+        var succeeded = new bool[CandidateBatchSize];
+        var nations = new HashSet<ulong>();
+        Span<byte> vtable = stackalloc byte[8];
+        long previous = -1;
+        bool unreadable = false;
+        for (int start = 0; start < count; start += CandidateBatchSize)
+        {
+            int take = Math.Min(CandidateBatchSize, count - start);
+            for (int i = 0; i < take; i++)
+            {
+                ulong record = BitConverter.ToUInt64(pointers, (start + i) * 8);
+                if (record == 0) return false;
+                addresses[i] = record;
+            }
+            for (int i = 0; i < take; i++) succeeded[i] = memory.TryRead(addresses[i], recordBytes.AsSpan(i * RecordSize, RecordSize));
+            for (int i = 0; i < take; i++)
+            {
+                if (!succeeded[i]) { unreadable = true; continue; }
+                long person = BitConverter.ToUInt32(recordBytes, i * RecordSize + 8);
+                if (person < previous) return false;
+                previous = person;
+                ulong nation = BitConverter.ToUInt64(recordBytes, i * RecordSize);
+                if (nation == 0) return false;
+                if (!nations.Contains(nation))
+                {
+                    if (!memory.TryRead(nation, vtable)) { unreadable = true; continue; }
+                    if (BitConverter.ToUInt64(vtable) != moduleBase + N.VtableRva) return false;
+                    nations.Add(nation);
+                }
+            }
+        }
+        // One proven wrong nation or decreasing person index disproves a candidate even if another record
+        // was unreadable. Missing bytes alone never prove either validity or invalidity.
+        return unreadable ? null : true;
+    }
+
+    static bool CandidateShape(ulong begin, ulong end, ulong capacity) =>
+        begin >= 0x10000 && end > begin && capacity >= end && (end - begin) % 8 == 0 &&
+        (end - begin) / 8 is >= 100 and <= 200_000 && (capacity - begin) / 8 <= 400_000;
+
+    (ulong Address, ulong Begin, ulong End, ulong Capacity) Scan(IEnumerable<MemoryRegion> mapped)
+    {
         ulong best = 0; int bestCount = 0;
+        (ulong Begin, ulong End, ulong Capacity) bestVector = default;
+        using var candidates = new BulkReadScope(memory, pageCount: 4096, failedPageHintCount: 16384);
+        var checkedNations = new HashSet<ulong>();
         var buffer = new byte[1 << 22];
-        foreach (var region in windows.EnumerateWritableRegions(moduleBase, moduleBase + 1).Where(r => !r.IsModuleData))
+        foreach (var region in mapped.Where(r => !r.IsModuleData))
             for (ulong offset = 0; offset < region.Size; offset += (ulong)buffer.Length - 32)
             {
                 int length = (int)Math.Min((ulong)buffer.Length, region.Size - offset);
@@ -87,13 +189,50 @@ public sealed class WorkPermitTable(IProcessMemory memory, OffsetProfile profile
                 for (int i = 0; i + 24 <= length; i += 8)
                 {
                     ulong b = BitConverter.ToUInt64(buffer, i), e = BitConverter.ToUInt64(buffer, i + 8), c = BitConverter.ToUInt64(buffer, i + 16);
-                    if (b < 0x10000 || e <= b || c < e || (e - b) % 8 != 0 || (e - b) / 8 < 100 || (e - b) / 8 > 200_000 || (c - b) / 8 > 400_000) continue;
-                    ulong at = region.Start + offset + (ulong)i;
-                    if (Valid(at, out int count) && count > bestCount) { best = at; bestCount = count; }
+                    if (!CandidateShape(b, e, c)) continue;
+                    int count = (int)((e - b) / 8);
+                    // The scan already holds the header. A shorter/tied vector cannot replace the first largest
+                    // valid table, so neither it nor a duplicate of that vector needs remote validation again.
+                    if (count <= bestCount || !ValidCandidate(candidates.Memory, b, count, checkedNations)) continue;
+                    best = region.Start + offset + (ulong)i;
+                    bestCount = count;
+                    bestVector = (b, e, c);
                 }
             }
-        if (best == 0) throw new InvalidOperationException("The work permit table was not found; is a save loaded?");
-        return (header = best).Value;
+        return (best, bestVector.Begin, bestVector.End, bestVector.Capacity);
+    }
+
+    const int CandidateBatchSize = 1024;
+
+    bool ValidCandidate(IProcessMemory candidateMemory, ulong begin, int total, HashSet<ulong> checkedNations)
+    {
+        try
+        {
+            Span<int> samples = stackalloc int[] { 0, 1, 2, 3, total / 2, total - 2, total - 1 };
+            Span<byte> pointer = stackalloc byte[8];
+            Span<byte> bytes = stackalloc byte[RecordSize];
+            long previous = -1;
+            for (int i = 0; i < samples.Length; i++)
+            {
+                int k = samples[i];
+                if (k < 0 || k >= total || samples[..i].Contains(k)) continue;
+                if (!candidateMemory.TryRead(begin + (ulong)k * 8, pointer)) return false;
+                ulong record = BitConverter.ToUInt64(pointer);
+                if (record == 0 || !candidateMemory.TryRead(record, bytes)) return false;
+                ulong nation = BitConverter.ToUInt64(bytes);
+                if (nation == 0) return false;
+                if (!checkedNations.Contains(nation))
+                {
+                    if (!candidateMemory.TryRead(nation, pointer) || BitConverter.ToUInt64(pointer) != moduleBase + N.VtableRva) return false;
+                    checkedNations.Add(nation);
+                }
+                long person = BitConverter.ToUInt32(bytes[8..]);
+                if (person < previous) return false;
+                previous = person;
+            }
+            return true;
+        }
+        catch (MemoryAccessException) { return false; }
     }
 
     bool Valid(ulong at) => Valid(at, out _);

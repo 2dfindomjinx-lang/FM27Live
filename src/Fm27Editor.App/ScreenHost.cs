@@ -30,6 +30,7 @@ public sealed partial class MainWindow : IScreenHost
     }
 
     EditorBackend IScreenHost.Backend => backend;
+    bool IScreenHost.IsLoading => busy;
     GraphicsCatalog IScreenHost.Graphics => graphics;
     void IScreenHost.SetStatus(string text) => status.Text = text;
     void IScreenHost.SetUnsaved(bool dirty) => SetActiveTabDirty(dirty);

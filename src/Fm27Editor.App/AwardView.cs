@@ -25,7 +25,7 @@ internal sealed class AwardScreen(IScreenHost host)
         grid.Columns.Add(id);
     }
 
-    protected override IReadOnlyList<AwardRow> LoadRows(GameSession session) => session.Awards.LoadAll()
+    protected override IReadOnlyList<AwardRow> LoadRows(GameSession session, LoadedGameData? data) => (data?.Awards ?? session.Awards.LoadAll())
         .Select(a => new AwardRow(a, a.DisplayName, a.Reputation, a.Id))
         .OrderByDescending(r => r.Reputation).ThenBy(r => r.Name, StringComparer.OrdinalIgnoreCase).ToList();
 

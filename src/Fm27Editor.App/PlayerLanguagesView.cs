@@ -43,7 +43,7 @@ public sealed partial class MainWindow
             value.TextChanged += (_, _) => save.IsEnabled = Pending();
         }
 
-        if (languageCatalogue is not { Count: > 0 }) languageCatalogue = backend.Session.LanguageCatalogue(Players());
+        languageCatalogue ??= backend.Session.LanguageCatalogue(Players());
         var addLanguage = new ComboBox { Width = 220, PlaceholderText = Loc.S("Add language"), ItemsSource = languageCatalogue.Where(c => languages.All(l => l.LanguageObject != c.Address)).Select(c => c.Name).ToArray() };
         var addValue = new TextBox { Width = 84, Text = "10", HorizontalContentAlignment = HorizontalAlignment.Right };
         var add = new Button { Content = Loc.S("Add"), IsEnabled = false };

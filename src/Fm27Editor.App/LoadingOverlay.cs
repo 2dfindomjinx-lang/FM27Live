@@ -12,6 +12,7 @@ public sealed partial class MainWindow
     Grid? loadingOverlay;
     TextBlock? loadingHeading;
     TextBlock? loadingDetail;
+    ProgressBar? loadingBar;
     DispatcherTimer? loadingDots;
     int loadingDotCount;
 
@@ -27,9 +28,9 @@ public sealed partial class MainWindow
             Text = Loc.S("Connecting to the game…"), FontSize = 12.5, Foreground = UiKit.TextSecondary,
             TextWrapping = TextWrapping.Wrap, MaxWidth = 420,
         };
-        var bar = new ProgressBar
+        loadingBar = new ProgressBar
         {
-            IsIndeterminate = true, Height = 6, MinHeight = 6, Margin = new Thickness(0, 12, 0, 0),
+            IsIndeterminate = false, IsVisible = false, Height = 6, MinHeight = 6, Margin = new Thickness(0, 12, 0, 0),
             Foreground = UiKit.Accent, Background = UiKit.BorderSubtle,
         };
         var card = new Border
@@ -37,7 +38,7 @@ public sealed partial class MainWindow
             Width = 460, Padding = new Thickness(22, 18, 22, 22),
             Background = UiKit.Surface, BorderBrush = UiKit.BorderSubtle, BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(6),
-            Child = new StackPanel { Spacing = 3, Children = { loadingHeading, loadingDetail, bar } },
+            Child = new StackPanel { Spacing = 3, Children = { loadingHeading, loadingDetail, loadingBar } },
         };
         loadingOverlay = new Grid
         {
@@ -65,6 +66,7 @@ public sealed partial class MainWindow
     {
         if (loadingOverlay is null) return;
         loadingOverlay.IsVisible = true;
+        if (loadingBar is not null) { loadingBar.IsVisible = true; loadingBar.IsIndeterminate = true; }
         SetLoadingDetail(detail);
         loadingDots?.Start();
     }
@@ -82,6 +84,7 @@ public sealed partial class MainWindow
         loadingDots?.Stop();
         loadingDotCount = 0;
         if (loadingHeading is not null) loadingHeading.Text = Loc.S("Loading game data");
+        if (loadingBar is not null) { loadingBar.IsIndeterminate = false; loadingBar.IsVisible = false; }
         if (loadingOverlay is not null) loadingOverlay.IsVisible = false;
     }
 }

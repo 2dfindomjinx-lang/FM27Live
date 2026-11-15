@@ -46,6 +46,12 @@ public sealed class RefereeDirectory(IProcessMemory memory, ulong moduleBase, ul
     /// <summary>Every referee the array holds; empty when the anchor or the array is not readable.</summary>
     public IReadOnlyList<RefereeRecord> ReadAll()
     {
+        using var reads = new BulkReadScope(memory);
+        return new RefereeDirectory(reads.Memory, moduleBase, moduleSize).ReadAllCore();
+    }
+
+    IReadOnlyList<RefereeRecord> ReadAllCore()
+    {
         if (GlobalArrayFinder.Read(memory, moduleBase, moduleSize) is not { } arrays) return [];
         int count = GlobalArrays.Count(arrays.RefereesBegin, arrays.RefereesEnd);
         if (count is 0 or > MaxReferees) return [];

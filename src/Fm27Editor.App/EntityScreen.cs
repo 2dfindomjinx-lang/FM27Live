@@ -14,6 +14,7 @@ namespace Fm27Editor.App;
 internal interface IScreenHost
 {
     EditorBackend Backend { get; }
+    bool IsLoading => false;
     GraphicsCatalog Graphics { get; }
     void SetStatus(string text);
 
@@ -54,6 +55,10 @@ internal interface IRegisterable { void Register(); }
 internal interface IEntityScreen : IRegisterable
 {
     string Kind { get; }
+    void ResetForConnection();
+    Task PreloadAsync(LoadedGameData data);
+    int RowCount { get; }
+    bool IsLoaded { get; }
     bool OwnsBody(Control body);
     Button? SaveButton { get; }
     /// <summary>The thing the user is editing now, as the edit history names it; null when this screen is not the one showing.</summary>
@@ -101,6 +106,11 @@ internal abstract class EntityScreen<TRecord, TRow, TDraft> : IEntityScreen
     protected virtual bool HasRail => false;
     protected readonly Dictionary<ulong, TDraft> Drafts = [];
     bool active;
+    bool hasLoaded, loadAttempted;
+    Exception? loadError;
+    int loadGeneration;
+    public int RowCount => Rows.Count;
+    public bool IsLoaded => hasLoaded;
     Control detailRoot = new Panel();
 
     public string Kind { get; }
@@ -119,7 +129,7 @@ internal abstract class EntityScreen<TRecord, TRow, TDraft> : IEntityScreen
 
     // What a kind supplies.
     protected abstract void ConfigureColumns(DataGrid grid);
-    protected abstract IReadOnlyList<TRow> LoadRows(GameSession session);
+    protected abstract IReadOnlyList<TRow> LoadRows(GameSession session, LoadedGameData? data);
     protected abstract bool Matches(TRow row, string foldedQuery);
     protected abstract TRecord RecordOf(TRow row);
     protected abstract ulong AddressOf(TRecord record);
@@ -225,21 +235,36 @@ internal abstract class EntityScreen<TRecord, TRow, TDraft> : IEntityScreen
             bool now = ReferenceEquals(Host.SelectedNav, nav);
             if (now == active) return;
             active = now;
-            if (now && Rows.Count == 0 && Host.Backend.State.Status == ConnectionStatus.Connected) await LoadAsync();
+            if (now && !loadAttempted && !Host.IsLoading && Host.Backend.State.Status == ConnectionStatus.Connected) await LoadAsync();
+            else if (now && loadError is { } error) Host.SetStatus(UserMessage.For(error));
         };
-        Host.Backend.StateChanged += (_, _) => Dispatcher.UIThread.Post(async () =>
+        Host.Backend.StateChanged += (_, _) =>
         {
-            Rows = [];
-            Drafts.Clear();
-            Selected = null;
-            SaveButton = null;
-            ListGrid.ItemsSource = null;
-            HeaderHost.Content = null;
-            RailHost.Content = null;
-            Editor.Children.Clear();
-            OnReconnected();
-            if (active && Host.Backend.State.Status == ConnectionStatus.Connected) await LoadAsync();
-        });
+            if (Host.IsLoading) return;
+            Dispatcher.UIThread.Post(async () =>
+            {
+                if (Host.IsLoading) return;
+                ResetForConnection();
+                if (active && Host.Backend.State.Status == ConnectionStatus.Connected) await LoadAsync();
+            });
+        };
+    }
+
+    public void ResetForConnection()
+    {
+        loadGeneration++;
+        filterVersion++;
+        hasLoaded = loadAttempted = false;
+        loadError = null;
+        Rows = [];
+        Drafts.Clear();
+        Selected = null;
+        SaveButton = null;
+        ListGrid.ItemsSource = null;
+        HeaderHost.Content = null;
+        RailHost.Content = null;
+        Editor.Children.Clear();
+        OnReconnected();
     }
 
     /// <summary>What sits above the list: the search box alone, or the box with extra filters and buttons.</summary>
@@ -255,46 +280,59 @@ internal abstract class EntityScreen<TRecord, TRow, TDraft> : IEntityScreen
     /// <summary>The rows the list shows now (after search and filters).</summary>
     public IReadOnlyList<TRow> Visible => ListGrid.ItemsSource as IReadOnlyList<TRow> ?? Rows;
 
-    /// <summary>Loads the rows again from the game.</summary>
+    /// <summary>Loads the rows again from live memory for an explicit refresh.</summary>
     public async Task LoadAsync()
     {
-        Host.SetStatus(Loc.F("Loading {0}...", Loc.S(plural)));
+        try { await LoadAsync(Host.Backend.Session, null, reportStatus: true); }
+        catch (Exception ex) { Host.SetStatus(UserMessage.For(ex)); }
+    }
+
+    /// <summary>Prepares the complete list before Load Game publishes readiness, even for an inactive tab.</summary>
+    public Task PreloadAsync(LoadedGameData data) => LoadAsync(data.Session, data, reportStatus: active);
+
+    async Task LoadAsync(GameSession session, LoadedGameData? data, bool reportStatus)
+    {
+        int current = ++loadGeneration;
+        loadAttempted = true;
+        hasLoaded = false;
+        loadError = null;
         try
         {
-            var session = Host.Backend.Session;
+            if (reportStatus) Host.SetStatus(Loc.F("Loading {0}...", Loc.S(plural)));
             BeforeLoad();
-            Rows = await Task.Run(() => LoadRows(session));
+            var loaded = await Task.Run(() => LoadRows(session, data));
+            if (current != loadGeneration) return;
+            Rows = loaded;
             RowsLoaded();
-            Filter(reportStatus: true);
-            if (Rows.Count == 0) Host.SetStatus(LoadedMessage(0));
+            await FilterAsync(reportStatus);
+            if (current != loadGeneration) return;
+            hasLoaded = true;
+            if (reportStatus && Rows.Count == 0) Host.SetStatus(LoadedMessage(0));
         }
-        catch (Exception ex) { Host.SetStatus(UserMessage.For(ex)); }
+        catch (Exception ex)
+        {
+            if (current == loadGeneration) { hasLoaded = false; loadError = ex; }
+            throw;
+        }
     }
 
     protected void Filter() => Filter(reportStatus: true);
 
     int filterVersion;
 
-    protected void Filter(bool reportStatus)
+    protected void Filter(bool reportStatus) => _ = FilterAsync(reportStatus);
+
+    async Task FilterAsync(bool reportStatus)
     {
+        int version = ++filterVersion;
         string q = Fold(SearchText);
         var keep = Selected;
-        // A long list (tens of thousands of cities or stadiums) is filtered in the background per keystroke;
-        // only the newest filter is shown. Short lists keep the immediate synchronous path.
-        if (q.Length > 0 && Rows.Count > 2000)
-        {
-            int version = ++filterVersion;
-            var snapshot = Rows;
-            _ = Task.Run(() => Apply(snapshot, q)).ContinueWith(task =>
-                Dispatcher.UIThread.Post(() =>
-                {
-                    if (task.IsFaulted || version != filterVersion || !ReferenceEquals(Rows, snapshot)) return;
-                    ShowFiltered(task.Result, keep, reportStatus);
-                }));
-            return;
-        }
-        filterVersion++;
-        ShowFiltered(Apply(Rows, q), keep, reportStatus);
+        var snapshot = Rows;
+        var filtered = q.Length > 0 && snapshot.Count > 2000
+            ? await Task.Run(() => Apply(snapshot, q))
+            : Apply(snapshot, q);
+        if (version != filterVersion || !ReferenceEquals(Rows, snapshot)) return;
+        ShowFiltered(filtered, keep, reportStatus);
     }
 
     void ShowFiltered(IReadOnlyList<TRow> filtered, TRecord? keep, bool reportStatus)
@@ -377,7 +415,7 @@ internal abstract class EntityScreen<TRecord, TRow, TDraft> : IEntityScreen
             // empty, so load the list and draw the item again.
             Dispatcher.UIThread.Post(async () =>
             {
-                if (Rows.Count == 0) await LoadAsync();
+                if (!loadAttempted && !Host.IsLoading) await LoadAsync();
                 if (Selected is { } open && AddressOf(open) == address) Render();
             });
         }

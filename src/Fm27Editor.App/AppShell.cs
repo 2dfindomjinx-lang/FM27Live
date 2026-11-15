@@ -170,7 +170,6 @@ public sealed partial class MainWindow
 
     void OpenUnified()
     {
-        unifiedReleaseTimer.Stop();
         searchOverlay.IsVisible = true;
         unifiedResultsLabel.Text = Loc.S("Results");
         unifiedCountBadge.IsVisible = false;
@@ -182,7 +181,6 @@ public sealed partial class MainWindow
 
     readonly StackPanel unifiedList = new() { Spacing = 2 };
     readonly DispatcherTimer unifiedTimer = new() { Interval = TimeSpan.FromMilliseconds(160) };
-    readonly DispatcherTimer unifiedReleaseTimer;
     IReadOnlyList<ClubEntry> unifiedClubs = [];
     IReadOnlyList<NationRecord> unifiedNations = [];
     IReadOnlyList<CompetitionRecord> unifiedCompetitions = [];
@@ -193,7 +191,6 @@ public sealed partial class MainWindow
     IReadOnlyList<CityRecord> unifiedCities = [];
     readonly object unifiedCacheLock = new();
     bool unifiedCacheLoaded;
-    Task? unifiedCacheTask;
     int unifiedSearchVersion;
     readonly Dictionary<string, string> foldCache = [];
     Dictionary<ulong, string> unifiedNationNames = [];
@@ -975,19 +972,13 @@ public sealed partial class MainWindow
         unifiedTimer.Stop();
         searchOverlay.IsVisible = false;
         unifiedList.Children.Clear();
-        unifiedReleaseTimer.Stop();
-        unifiedReleaseTimer.Start();
     }
 
-    /// <summary>
-    /// The search index holds every club, staff member, city and stadium (about 100 MB). It is dropped once search has been
-    /// closed for a minute; the next search loads it again.
-    /// </summary>
+    /// <summary>Drops the previous connection's catalogue only when Load Game replaces it.</summary>
     void ReleaseUnifiedCache()
     {
         lock (unifiedCacheLock)
         {
-            if (!unifiedCacheLoaded) return;
             unifiedClubs = [];
             unifiedNations = [];
             unifiedCompetitions = [];
@@ -997,90 +988,30 @@ public sealed partial class MainWindow
             unifiedReferees = [];
             unifiedCities = [];
             unifiedNationNames = [];
-            foldCache.Clear();
-            unifiedCacheTask = null;
+            lock (foldCache) foldCache.Clear();
             unifiedCacheLoaded = false;
         }
     }
 
-    DispatcherTimer CreateUnifiedReleaseTimer()
-    {
-        var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(60) };
-        timer.Tick += (_, _) => { timer.Stop(); ReleaseUnifiedCache(); };
-        return timer;
-    }
-
     void EnsureUnifiedCache(Action<string>? progress = null)
     {
-        if (unifiedCacheLoaded || backend.State.Status != ConnectionStatus.Connected) return;
-        lock (unifiedCacheLock)
-        {
-            if (unifiedCacheLoaded || backend.State.Status != ConnectionStatus.Connected) return;
-            var session = backend.Session;
-            var players = rows.OfType<PlayerRecord>().ToArray();
-            if (players.Length == 0)
-            {
-                try { players = session.Players.LoadAll().ToArray(); } catch { }
-            }
-            // The club and nation catalogues are warmed first by Load Game; reuse them instead of reading the same
-            // objects twice (the nation catalogue costs over a second).
-            progress?.Invoke(Loc.S("Reading clubs…"));
-            try { unifiedClubs = clubCache ?? session.LoadClubs(players); } catch { }
-            progress?.Invoke(Loc.S("Reading nations…"));
-            try { unifiedNations = nationCatalogue ?? session.Nations.LoadAll(); } catch { }
-            if (session.Profile.Competition is not null)
-            {
-                progress?.Invoke(Loc.S("Reading competitions…"));
-                try
-                {
-                    unifiedCompetitions = session.Competitions.LoadAll();
-                }
-                catch
-                {
-                    var compList = new List<CompetitionRecord>();
-                    var seen = new HashSet<ulong>();
-                    foreach (var p in players)
-                    {
-                        if (p.Division is { Address: > 0 } div && seen.Add(div.Address))
-                        {
-                            try { if (session.Competitions.Reload(div.Address) is { } c) compList.Add(c); } catch { }
-                        }
-                    }
-                    unifiedCompetitions = compList;
-                }
-            }
-            if (session.Profile.Staff is not null)
-            {
-                progress?.Invoke(Loc.S("Reading staff…"));
-                try { unifiedStaff = session.Staff.LoadAll(); } catch { }
-            }
-            if (session.Profile.Stadium is not null)
-            {
-                progress?.Invoke(Loc.S("Reading stadiums…"));
-                try { unifiedStadiums = session.Stadiums.LoadAll(); } catch { }
-            }
-            if (session.Profile.Award is not null)
-            {
-                progress?.Invoke(Loc.S("Reading awards…"));
-                try { unifiedAwards = session.Awards.LoadAll(); } catch { }
-            }
-            progress?.Invoke(Loc.S("Reading referees…"));
-            try { unifiedReferees = session.ReadReferees(); } catch { }
-            progress?.Invoke(Loc.S("Reading cities…"));
-            try { unifiedCities = session.Cities.LoadAll(); } catch { }
-            unifiedNationNames = unifiedNations.Where(nat => nat.Address != 0).GroupBy(nat => nat.Address).ToDictionary(g => g.Key, g => g.First().DisplayName);
-            unifiedCacheLoaded = true;
-        }
+        if (unifiedCacheLoaded || backend.Data is not { } data) return;
+        unifiedClubs = data.Clubs;
+        unifiedNations = data.Nations;
+        unifiedCompetitions = data.Competitions;
+        unifiedStaff = data.Staff;
+        unifiedStadiums = data.Stadiums;
+        unifiedAwards = data.Awards;
+        unifiedReferees = data.Referees;
+        unifiedCities = data.Cities;
+        unifiedNationNames = data.Nations.Where(n => n.Address != 0).GroupBy(n => n.Address).ToDictionary(g => g.Key, g => g.First().DisplayName);
+        unifiedCacheLoaded = true;
     }
 
-    /// <summary>Loads the search lists in the background (once), so a keystroke never pays for them.</summary>
-    async Task EnsureUnifiedCacheAsync(Action<string>? progress = null)
+    Task EnsureUnifiedCacheAsync(Action<string>? progress = null)
     {
-        if (unifiedCacheLoaded) return;
-        var task = unifiedCacheTask;
-        if (task is null || task.IsCompleted) unifiedCacheTask = task = Task.Run(() => EnsureUnifiedCache(progress));
-        await task;
-        if (!unifiedCacheLoaded) unifiedCacheTask = null;
+        EnsureUnifiedCache(progress);
+        return Task.CompletedTask;
     }
 
     /// <summary>Folded (accent-free, lower-case) text, cached per string: a search folds each name once, not once per keystroke.</summary>

@@ -142,10 +142,10 @@ internal sealed partial class StaffScreen(IScreenHost host, IStaffPanels panels)
         }
     }
 
-    protected override IReadOnlyList<StaffRow> LoadRows(GameSession session)
+    protected override IReadOnlyList<StaffRow> LoadRows(GameSession session, LoadedGameData? data)
     {
-        var all = session.Staff.LoadAll();
-        var date = session.ReadGameDate();
+        var all = data?.Staff ?? session.Staff.LoadAll();
+        var date = data?.GameDate ?? session.ReadGameDate();
         return all
             .Select(s => new StaffRow(s, s.DisplayName, StaffLabels.Job(s.JobCode), s.Club?.DisplayName ?? "", s.Nationality?.DisplayName ?? "",
                 date is { } d && s.DateOfBirth is { } b ? d.Year - b.Year - (d < b.AddYears(d.Year - b.Year) ? 1 : 0) : null,
@@ -464,7 +464,7 @@ internal sealed partial class StaffScreen(IScreenHost host, IStaffPanels panels)
             new("Tendencies", "Tendencies", panels.Tendencies(s)),
             new("Move to club", "Move to club", moveHost),
         };
-        var hostContent = SectionHost.Build("staff", sections, sectionKey, key => { sectionKey = key; EnsureMoveLoaded(); }, RailHost);
+        var hostContent = SectionHost.Build("staff", sections, sectionKey, key => { sectionKey = key; EnsureMoveLoaded(); }, RailHost, Host.Window);
         EnsureMoveLoaded();
         Editor.Children.Add(hostContent);
     }

@@ -58,6 +58,12 @@ public sealed class StaffRepository(IProcessMemory memory, OffsetProfile profile
 
     public IReadOnlyList<StaffRecord> LoadAll()
     {
+        using var reads = new BulkReadScope(memory);
+        return new StaffRepository(reads.Memory, profile, moduleBase).LoadAllCore();
+    }
+
+    IReadOnlyList<StaffRecord> LoadAllCore()
+    {
         var s = S;
         ulong root = s.DirectStaffVector ? moduleBase + s.PersonListRootRva : memory.ReadUInt64(moduleBase + s.PersonListRootRva);
         ulong begin = memory.ReadUInt64(root + (ulong)s.PersonListOffset), end = memory.ReadUInt64(root + (ulong)s.PersonListOffset + 8);

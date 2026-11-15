@@ -115,6 +115,12 @@ public sealed class StadiumRepository(IProcessMemory memory, OffsetProfile profi
 
     public IReadOnlyList<StadiumRecord> LoadAll()
     {
+        using var reads = new BulkReadScope(memory);
+        return new StadiumRepository(reads.Memory, profile, moduleBase).LoadAllCore();
+    }
+
+    IReadOnlyList<StadiumRecord> LoadAllCore()
+    {
         var s = S;
         var reader = new PlayerReader(memory, profile) { ModuleBase = moduleBase };
         var result = new List<StadiumRecord>();

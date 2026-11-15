@@ -95,6 +95,12 @@ public sealed class CityRepository(IProcessMemory memory, OffsetProfile profile,
     /// <summary>Every city in the game's list, in its order.</summary>
     public IReadOnlyList<CityRecord> LoadAll()
     {
+        using var reads = new BulkReadScope(memory);
+        return new CityRepository(reads.Memory, profile, moduleBase).LoadAllCore();
+    }
+
+    IReadOnlyList<CityRecord> LoadAllCore()
+    {
         var o = profile.Cities ?? throw new InvalidOperationException("Profile has no city offsets");
         ulong vector = memory.ReadUInt64(moduleBase + o.ListRootRva);
         ulong begin = vector == 0 ? 0 : memory.ReadUInt64(vector), end = vector == 0 ? 0 : memory.ReadUInt64(vector + 8);

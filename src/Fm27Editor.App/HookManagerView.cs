@@ -63,6 +63,7 @@ public sealed partial class MainWindow
             Watermark = Loc.S("Pick a club…"), Cursor = new Cursor(StandardCursorType.Hand),
         };
         var add = new Button { Content = Loc.S("Add"), Height = 24, MinHeight = 24, Padding = new Thickness(12, 0), FontSize = 12.5 };
+        var toggle = new Button { Content = Loc.S("Turn on"), Height = 24, MinHeight = 24, Padding = new Thickness(12, 0), FontSize = 12.5, Margin = new Thickness(10, 8, 0, 0), VerticalAlignment = VerticalAlignment.Center };
         var undo = new Button { Content = Loc.S("Undo"), Height = 24, MinHeight = 24, Padding = new Thickness(10, 0), FontSize = 12.5, IsEnabled = false };
         var targets = new StackPanel { Spacing = 4 };
         var accelPanel = new StackPanel { Spacing = 6 };
@@ -149,11 +150,14 @@ public sealed partial class MainWindow
         void UpdatePicker()
         {
             var sc = CurrentScope();
+            bool isOn = installed is { Enabled: true };
             picker.IsVisible = sc != GoldenGenerationScope.All;
             picker.Watermark = Placeholder();
             picker.Text = picked?.Name ?? "";
             picker.IsEnabled = catalogues.ContainsKey(sc) || sc == GoldenGenerationScope.All;
             add.IsEnabled = sc == GoldenGenerationScope.All || picked is not null;
+            toggle.Content = Loc.S(isOn ? "Turn off" : "Turn on");
+            toggle.IsEnabled = isOn || sc == GoldenGenerationScope.All || drafts[sc].Count > 0 || picked is not null;
         }
 
         Control TargetRow(HookTarget target)
@@ -264,7 +268,19 @@ public sealed partial class MainWindow
                 }
                 catch (Exception ex) { status.Text = Loc.F("Wonderkid Academy: {0}", UserMessage.For(ex)); }
             }
-            else status.Text = Loc.F("{0} removed from the {1} list; the active setting is unchanged.", target.Name, ScopeLabel(sc));
+            else
+            {
+                if (installed is not null && installed.Scope == sc)
+                {
+                    try
+                    {
+                        if (list.Count == 0) { academy.Uninstall(); installed = null; }
+                        else { academy.Configure(false, lo, hi, wk, sc, list.Select(c => c.Id).ToList()); installed = academy.Read()?.Settings; }
+                    }
+                    catch (Exception ex) { status.Text = Loc.F("Wonderkid Academy: {0}", UserMessage.For(ex)); }
+                }
+                status.Text = Loc.F("{0} removed from the {1} list; the active setting is unchanged.", target.Name, ScopeLabel(sc));
+            }
             UpdateActive();
             ShowTargets();
             UpdatePicker();
@@ -442,6 +458,52 @@ public sealed partial class MainWindow
             UpdatePicker();
             _ = RefreshAsync();
         };
+        toggle.Click += (_, _) =>
+        {
+            var sc = CurrentScope();
+            int lo = (int)(minPa.Value ?? 150), hi = (int)(maxPa.Value ?? 190), wk = (int)(wonderkid.Value ?? 0);
+            try
+            {
+                if (installed is { Enabled: true })
+                {
+                    Remember();
+                    academy.SwitchOff();
+                    installed = academy.Read()?.Settings;
+                    status.Text = Loc.S("Wonderkid Academy turned off.");
+                }
+                else if (sc == GoldenGenerationScope.All)
+                {
+                    Remember();
+                    academy.Configure(true, lo, hi, wk, sc, []);
+                    drafts[GoldenGenerationScope.Club].Clear();
+                    drafts[GoldenGenerationScope.Nation].Clear();
+                    drafts[GoldenGenerationScope.Continent].Clear();
+                    installed = academy.Read()?.Settings;
+                    status.Text = Loc.F("On: every new regen gets PA {0}-{1}.", lo, hi);
+                }
+                else
+                {
+                    var list = drafts[sc];
+                    if (picked is not null && list.All(c => c.Id != picked.Id))
+                    {
+                        if (list.Count >= GoldenGenerationHook.MaxIds) { status.Text = Loc.F("At most {0} entries.", GoldenGenerationHook.MaxIds); return; }
+                        Remember();
+                        list.Add(picked);
+                        picked = null;
+                    }
+                    else if (list.Count == 0) { status.Text = Loc.S("Pick a club, nation or continent first."); return; }
+                    else Remember();
+                    academy.Configure(true, lo, hi, wk, sc, list.Select(c => c.Id).ToList());
+                    installed = academy.Read()?.Settings;
+                    status.Text = Loc.F("On: new regens from {0} get PA {1}-{2}.", string.Join(", ", list.Select(c => c.Name)), lo, hi);
+                }
+            }
+            catch (Exception ex) { status.Text = Loc.F("Wonderkid Academy: {0}", UserMessage.For(ex)); }
+            UpdateActive();
+            ShowTargets();
+            UpdatePicker();
+            _ = RefreshAsync();
+        };
         undo.Click += (_, _) =>
         {
             if (history.Count == 0) return;
@@ -504,9 +566,9 @@ public sealed partial class MainWindow
         TextBlock Header(string text) => new() { Text = Loc.S(text), FontSize = 14, FontWeight = FontWeight.SemiBold, Margin = new Thickness(0, 8, 0, 0) };
 
         var stack = new StackPanel { Spacing = 8, Margin = new Thickness(14) };
-        var howTo = new Button { Content = Loc.S("How to use"), FontSize = 12, Height = 24, MinHeight = 24, Padding = new Thickness(10, 0), Margin = new Thickness(10, 8, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+        var howTo = new Button { Content = Loc.S("How to use"), FontSize = 12, Height = 24, MinHeight = 24, Padding = new Thickness(10, 0), Margin = new Thickness(6, 8, 0, 0), VerticalAlignment = VerticalAlignment.Center };
         howTo.Click += (_, _) => { if (window is not null) WonderkidAcademyHelp.Show(window); };
-        stack.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Children = { Header("Wonderkid Academy (Experimental)"), howTo } });
+        stack.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Children = { Header("Wonderkid Academy (Experimental)"), toggle, howTo } });
         stack.Children.Add(academyState);
         stack.Children.Add(activeText);
         stack.Children.Add(Row(Label("PA"), minPa, Label("to"), maxPa, Label("Wonderkid %"), wonderkid));

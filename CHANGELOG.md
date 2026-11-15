@@ -18,7 +18,7 @@ Checked on Steam `27.0.1+2503222` and Game Pass `27.0.1+2494687`.
 - Move to club: the team is chosen in a list next to the club, and the first team is picked by default.
 
 ### App
-- Load Game prepares entity lists, search and picker catalogues, retirement and future-transfer lists, and shared lookups before reporting ready. Reloading from another module keeps its list populated.
+- Load Game prepares entity lists, search and picker catalogues, retirement and future-transfer lists, and most shared lookups before reporting ready. Reloading from another module keeps its list populated. The Transfer Deals heap index remains a documented follow-up in LOAD-PERFORMANCE-STRATEGY.md.
 - Bulk reads reuse nearby memory pages and shared names; work permits are discovered and fully validated inside the known transfer manager before falling back to a heap scan.
 - Search catalogues stay available for the loaded save. Reload and window close release old search results and stop their timers; the loading animation stops when hidden.
 - Wonderkid Academy has a Turn on / Turn off button that keeps its configuration and supports Undo.

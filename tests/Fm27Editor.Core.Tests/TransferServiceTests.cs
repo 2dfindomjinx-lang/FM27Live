@@ -118,6 +118,26 @@ public class TransferServiceTests
     }
 
     /// <summary>
+    /// A player sold Dorgu from a Man Utd whose transfer budget had been raised to the int32 maximum; the editor refused with
+    /// "seller transfer budget would overflow int32". The budget stays at 2,147,483,647 and the rest of the move goes through.
+    /// </summary>
+    [Fact]
+    public void Seller_budget_already_at_the_maximum_stays_there()
+    {
+        Assert.True(_w.Memory.TryWrite(SellerFin + 0x7C4, BitConverter.GetBytes(int.MaxValue)));
+        Assert.True(_w.Memory.TryWrite(SellerFin + 0xC, BitConverter.GetBytes(int.MaxValue - 5_000_000)));
+        var (service, clubs, mainoo) = Setup();
+        var plan = service.Plan(mainoo, clubs, clubs.Single(c => c.Id == 868), 20_000_000);
+        service.Apply(plan);
+
+        Assert.Equal(int.MaxValue, I32(SellerFin + 0x7C4));
+        Assert.Equal(int.MaxValue, I32(SellerFin + 0xC));             // 2,142,483,647 + 20M is past the limit too
+        Assert.Equal(20_000_000, I32(SellerFin + 0x32C));
+        Assert.Equal(50_000_000 - 20_000_000, I32(BuyerFin + 0xC));
+        Assert.Equal(BuyerTeam, Q(TestWorld.Mainoo + 0x130));
+    }
+
+    /// <summary>
     /// Small clubs (Oxford United 695 in FM27) have a 0x38-byte finance object, vtable +0x4CF07F8, laid out back to back
     /// with the next club's. Only balance and embargo fit; budget/spend/wage offsets would write into the neighbour.
     /// </summary>

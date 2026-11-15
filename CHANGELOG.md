@@ -16,6 +16,7 @@ Checked on Steam `27.0.1+2503222` and Game Pass `27.0.1+2494687`.
   - The selling club gets the fee as Transfer Income for the season.
   - FM keeps a finished-transfer record for the buying club. The buyer's FFP updates once game time moves on.
 - Move to club: the team is chosen in a list next to the club, and the first team is picked by default.
+- Move to club: selling to or from a club whose budget or balance is already at the maximum no longer fails with an overflow; the value stays at the maximum.
 
 ### App
 - Vietnamese UI: aligned selected football terms with the supplied FM27 language file, filled missing form labels,

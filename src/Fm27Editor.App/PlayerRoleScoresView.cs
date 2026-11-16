@@ -60,7 +60,7 @@ public sealed partial class MainWindow
         ]);
     }
 
-    Control RoleScoresPanel(PlayerRecord player)
+    Control LegacyRoleScoresPanel(PlayerRecord player)
     {
         var rca = RcaCalculator.Analyze(player);
         var allScores = RoleScores.ForPlayer(player);

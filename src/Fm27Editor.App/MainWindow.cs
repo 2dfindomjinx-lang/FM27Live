@@ -1414,7 +1414,7 @@ public sealed partial class MainWindow : Window
             new("Promises", "Promises", () => PromisesPanel(player)),
             new("Unavailability", "Unavailability", () => UnavailabilityPanel(player)),
         };
-        if (LegacyScoutingAvailability.Enabled) sections.Insert(1, new("Role Scores", "Role Scores", () => RoleScoresPanel(player)));
+        sections.Insert(1, new("Role Scores", "Role Scores", () => RoleScoresPanel(player)));
         // Like FMRTE, Future Transfer appears only for players with an agreed future move.
         if (HasFutureTransfer(player))
             sections.Add(new("Future Transfer", "Future Transfer", () => FutureTransferPanel(player)!));

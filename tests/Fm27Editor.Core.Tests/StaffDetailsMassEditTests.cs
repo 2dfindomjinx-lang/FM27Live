@@ -75,6 +75,8 @@ public class StaffDetailsMassEditTests
         Assert.Equal(8, (int)StaffLicense.NoLicence);
         Assert.Empty(StaffDetailsMassEdit.License([Orlandoni()], StaffLicense.StudyingToContinentalA, null!));
         Assert.Single(StaffDetailsMassEdit.License([Orlandoni()], StaffLicense.ContinentalA, null!));
-        Assert.Throws<ArgumentOutOfRangeException>(() => StaffDetailsMassEdit.Caps([Orlandoni()], Players.MassEditMode.Change, -1, null!));
+        var staff = Orlandoni() with { Caps = 10 };
+        var lowered = Assert.Single(StaffDetailsMassEdit.Caps([staff], Players.MassEditMode.Change, -15, null!));
+        Assert.Equal((10, 0), (lowered.Before, lowered.After));
     }
 }

@@ -328,6 +328,12 @@ public static partial class Loc
         m["Nation name"] = "Tên quốc gia";
         m["Nation unavailable"] = "Quốc gia không khả dụng";
         m["{0:N0} nations"] = "{0:N0} quốc gia";
+        m["All Continents"] = "Tất cả châu lục";
+        m["All Regions"] = "Tất cả khu vực";
+        m["No nations match the filter."] = "Không có quốc gia nào khớp bộ lọc.";
+        m["All {0:N0} nations"] = "Tất cả {0:N0} quốc gia";
+        m["{0:N0} / {1:N0} nations match"] = "{0:N0} / {1:N0} quốc gia khớp";
+        m["{0:N0} nations (Advanced Search)"] = "{0:N0} quốc gia (Tìm kiếm nâng cao)";
         m["Agreements"] = "Hiệp định / Thỏa thuận";
         m["Agreement dates: use {0} or leave blank"] = "Ngày thỏa thuận: nhập dạng {0} hoặc để trống";
         m["Agreements: no Non-Foreign template is available"] = "Thỏa thuận: không có mẫu Không tính ngoại binh";

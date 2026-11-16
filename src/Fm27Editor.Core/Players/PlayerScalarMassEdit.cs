@@ -23,7 +23,7 @@ public static class PlayerScalarMassEdit
         {
             if (player.Id is not > 0 || !ids.Add(player.Id.Value)) throw new ArgumentException("Players must have unique positive IDs");
             long current = access.Read(player, field) ?? throw new StaleObjectException($"{player.DisplayName}: {field} is not readable");
-            long target = mode == MassEditMode.Set ? value : checked(current + value);
+            long target = MassEditValue.Resolve(mode, current, value, minimum, maximum);
             if (target < minimum || target > maximum) throw new ArgumentOutOfRangeException(nameof(value), target, $"{field} must be between {minimum} and {maximum}");
             access.ValidateValue(field, target);
             if (target != current) changes.Add(new(player, field, current, target));

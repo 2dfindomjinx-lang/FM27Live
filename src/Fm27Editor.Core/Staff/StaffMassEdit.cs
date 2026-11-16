@@ -21,7 +21,7 @@ public static class StaffMassEdit
             int[] group = ability ? [person.CurrentAbility, person.PotentialAbility] : [person.HomeReputation, person.CurrentReputation, person.WorldReputation];
             if (group.Any(n => n < min || n > max)) throw new ArgumentException($"{person.DisplayName}: original values cannot be restored by the writer");
             int before = Read(person, field);
-            int after = mode == MassEditMode.Set ? value : checked(before + value);
+            int after = (int)MassEditValue.Resolve(mode, before, value, min, max);
             if (after < min || after > max) throw new ArgumentOutOfRangeException(nameof(value), after, $"{field} must be between {min} and {max}");
             if (before != after) changes.Add(new(person, field, before, after));
         }

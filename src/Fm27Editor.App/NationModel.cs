@@ -6,12 +6,47 @@ namespace Fm27Editor.App;
 /// <summary>Nation screen labels, groups (FMRTE 27's Information / National Teams order) and input ranges.</summary>
 public static class NationLabels
 {
-    // Development: England 1 Developed, Vietnam 2 Developing (FMRTE); other codes stay raw.
-    static readonly Dictionary<long, string> Development = new() { [1] = "Developed", [2] = "Developing" };
+    public static readonly (long Code, string Label)[] DevelopmentOptions =
+    [
+        (0, "Not Set"),
+        (1, "Developed State"),
+        (2, "Developing State"),
+        (3, "Lower Developed State"),
+    ];
 
-    public static string DevelopmentName(long code) => Development.TryGetValue(code, out var s) ? Loc.S(s) : Loc.F("Level {0}", code);
+    public static readonly (long Code, string Label)[] ImportanceOptions =
+    [
+        (1, "Very Important"),
+        (2, "Important"),
+        (3, "Unimportant"),
+        (4, "No One Cares"),
+    ];
+
+    public static readonly (long Code, string Label)[] GainNationalityTypeOptions =
+    [
+        (1, "Continuous"),
+        (2, "Accumulative"),
+    ];
+
+    public static string DevelopmentName(long code) => code switch
+    {
+        0 => Loc.S("Not Set"),
+        1 => Loc.S("Developed State"),
+        2 => Loc.S("Developing State"),
+        3 => Loc.S("Lower Developed State"),
+        _ => Loc.F("Level {0}", code),
+    };
     public static string ImportanceName(long code) => code switch { 1 => Loc.S("Very Important"), 2 => Loc.S("Important"), 3 => Loc.S("Unimportant"), 4 => Loc.S("No One Cares"), _ => Loc.F("Level {0}", code) };
     public static string GainNationalityTypeName(long code) => code switch { 1 => Loc.S("Continuous"), 2 => Loc.S("Accumulative"), _ => Loc.F("Level {0}", code) };
+
+    public static string FormatValue(NationField field, long value) => field switch
+    {
+        NationField.Development => DevelopmentName(value),
+        NationField.Importance => ImportanceName(value),
+        NationField.GainNationalityType => GainNationalityTypeName(value),
+        NationField.AllowMultipleAssistantManagers or NationField.DoesNotAllowDualNationality => value != 0 ? Loc.S("Yes") : Loc.S("No"),
+        _ => value.ToString(CultureInfo.InvariantCulture),
+    };
 
     public static readonly (string Title, (NationField Field, string Label)[] Items)[] Groups =
     [

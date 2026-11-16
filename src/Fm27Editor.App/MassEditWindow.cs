@@ -69,6 +69,8 @@ internal sealed partial class MassEditWindow : Window
     bool chosenFromGrid;
     IReadOnlyList<StaffRecord>? chosenStaff;
     IReadOnlyList<ClubEntry>? chosenClubs;
+    IReadOnlyList<NationRecord>? chosenNations;
+    NationSearchCriteria? nationCriteria;
     ComboBox? injuryType;
     CheckBox? injuryClear;
 
@@ -422,8 +424,29 @@ internal sealed partial class MassEditWindow : Window
             AddHeader(panel, title);
             foreach (var (field, label) in items)
             {
-                var (min, max) = NationFieldInfo.Range(field);
-                Add(panel, Kind.NationField, (int)field, title, label, min, max);
+                switch (field)
+                {
+                    case NationField.Development:
+                        AddChoice(panel, Kind.NationField, (int)field, title, label,
+                            NationLabels.DevelopmentOptions.Select(o => ((int)o.Code, o.Label)).ToArray());
+                        break;
+                    case NationField.Importance:
+                        AddChoice(panel, Kind.NationField, (int)field, title, label,
+                            NationLabels.ImportanceOptions.Select(o => ((int)o.Code, o.Label)).ToArray());
+                        break;
+                    case NationField.GainNationalityType:
+                        AddChoice(panel, Kind.NationField, (int)field, title, label,
+                            NationLabels.GainNationalityTypeOptions.Select(o => ((int)o.Code, o.Label)).ToArray());
+                        break;
+                    case NationField.AllowMultipleAssistantManagers:
+                    case NationField.DoesNotAllowDualNationality:
+                        AddChoice(panel, Kind.NationField, (int)field, title, label, [(0, "No"), (1, "Yes")]);
+                        break;
+                    default:
+                        var (min, max) = NationFieldInfo.Range(field);
+                        Add(panel, Kind.NationField, (int)field, title, label, min, max);
+                        break;
+                }
             }
         }
         return [("Status", panel)];
@@ -496,7 +519,12 @@ internal sealed partial class MassEditWindow : Window
         panel.Children.Add(Row(label, mode, value));
         var row = new FieldRow(kind, index, group, label, min, max, mode, value, () => (long)(value.Value ?? 0), () => value.Value = initial);
         fields.Add(row);
-        mode.SelectionChanged += (_, _) => { value.IsEnabled = mode.SelectedIndex != ModeNone; MarkDirty(); };
+        mode.SelectionChanged += (_, _) =>
+        {
+            MassEditNumberInput.Configure(value, mode.SelectedIndex == ModeChange, min, max);
+            value.IsEnabled = mode.SelectedIndex != ModeNone;
+            MarkDirty();
+        };
         value.ValueChanged += (_, _) => MarkDirty();
         return row;
     }
@@ -519,7 +547,13 @@ internal sealed partial class MassEditWindow : Window
         var row = new FieldRow(kind, index, group, label, min, max, mode, value,
             () => Fm27Editor.Core.Settings.CurrencySetting.FromDisplay(value.Value ?? 0), () => value.Value = 0);
         fields.Add(row);
-        mode.SelectionChanged += (_, _) => { value.IsEnabled = mode.SelectedIndex != ModeNone; MarkDirty(); };
+        mode.SelectionChanged += (_, _) =>
+        {
+            MassEditNumberInput.Configure(value, mode.SelectedIndex == ModeChange,
+                Fm27Editor.Core.Settings.CurrencySetting.ToDisplay(min), Fm27Editor.Core.Settings.CurrencySetting.ToDisplay(max));
+            value.IsEnabled = mode.SelectedIndex != ModeNone;
+            MarkDirty();
+        };
         value.ValueChanged += (_, _) => MarkDirty();
         return row;
     }
@@ -654,7 +688,12 @@ internal sealed partial class MassEditWindow : Window
             staffSource: () => StaffTargets(),
             clubSource: () => ClubTargets(),
             clubAccess: new ClubFieldAccess(backend.Session.Memory, backend.Session.Profile, backend.Session.ModuleBase),
-            today: backend.Session.ReadGameDate());
+            today: backend.Session.ReadGameDate(),
+            nationSource: () => targets.Nations,
+            nationAccess: new NationFieldAccess(backend.Session.Memory, backend.Session.Profile, backend.Session.ModuleBase),
+            nationLinks: backend.Session.NationLinks,
+            nationAgreements: backend.Session.NationAgreements,
+            initialNationCriteria: nationCriteria);
         await dialog.ShowDialog(this);
         if (!dialog.Saved) return;
 
@@ -667,6 +706,11 @@ internal sealed partial class MassEditWindow : Window
             case "Club":
                 chosenClubs = dialog.MatchedClubs;
                 SelectScope("Club");
+                break;
+            case "Nation":
+                chosenNations = dialog.MatchedNations;
+                nationCriteria = dialog.ResultNationCriteria;
+                SelectScope("Nation");
                 break;
             default:
             {
@@ -749,6 +793,7 @@ internal sealed partial class MassEditWindow : Window
 
     IReadOnlyList<NationRecord> NationTargets()
     {
+        if (chosenNations is not null) return chosenNations;
         var shown = snapShownNations ?? host.MassEditNations;
         if (shown.Count > 0) return shown;
         if (cachedNations is not null) return cachedNations;
@@ -764,7 +809,8 @@ internal sealed partial class MassEditWindow : Window
             MarkDirty();
             return;
         }
-        choose.IsEnabled = Scope is "Player" or "Coach" or "Club";
+        choose.Content = Loc.S(Scope == "Nation" ? "Filter nations..." : "Choose who to edit...");
+        choose.IsEnabled = Scope is "Player" or "Coach" or "Club" or "Nation";
         if (Scope == "Player" && chosenPlayers is not null)
         {
             target.Text = chosenFromGrid
@@ -782,6 +828,12 @@ internal sealed partial class MassEditWindow : Window
         if (Scope == "Club" && chosenClubs is not null)
         {
             target.Text = Loc.F("{0:N0} clubs (Advanced Search)", chosenClubs.Count);
+            MarkDirty();
+            return;
+        }
+        if (Scope == "Nation" && chosenNations is not null)
+        {
+            target.Text = Loc.F("{0:N0} nations (Advanced Search)", chosenNations.Count);
             MarkDirty();
             return;
         }
@@ -870,7 +922,7 @@ internal sealed partial class MassEditWindow : Window
 
     static long Target(FieldInput row, MassEditMode mode, long before)
     {
-        long after = mode == MassEditMode.Set ? row.Number : checked(before + row.Number);
+        long after = MassEditValue.Resolve(mode, before, row.Number, row.Min, row.Max);
         if (after < row.Min || after > row.Max) throw new ArgumentOutOfRangeException(nameof(row.Number), after, Loc.F("{0} must be between {1} and {2}", Loc.S(row.Label), row.Min, row.Max));
         return after;
     }

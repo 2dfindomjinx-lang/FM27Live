@@ -93,9 +93,11 @@ internal sealed partial class MassEditWindow
         // Only this scope's rows: every scope's fields share one list, and an index means a different field in each.
         foreach (var row in planFields.Where(f => f.ModeIndex != ModeNone && f.Kind == Kind.NationField))
         {
+            var field = (NationField)row.Index;
             var mode = row.ModeIndex == ModeSet ? MassEditMode.Set : MassEditMode.Change;
-            rows.AddRange(Guarded(row.Label, () => NationMassEdit.Plan(nations, session.NationFields, (NationField)row.Index, mode, row.Number)
-                .Select(c => MassRow.Change(c.Nation.DisplayName, row.Label, c.Before, c.After, () => { NationMassEdit.Apply(c, session.NationFields); return 1; }))));
+            rows.AddRange(Guarded(row.Label, () => NationMassEdit.Plan(nations, session.NationFields, field, mode, row.Number)
+                .Select(c => MassRow.Change(c.Nation.DisplayName, row.Label, NationLabels.FormatValue(field, c.Before), NationLabels.FormatValue(field, c.After),
+                    () => { NationMassEdit.Apply(c, session.NationFields); return 1; }))));
         }
         return new MassPlan("Nation", nations.Count, rows);
     }

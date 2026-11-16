@@ -153,6 +153,82 @@ public sealed class NationAgreements(IProcessMemory memory, OffsetProfile profil
         return new(address, id, RegionName(id));
     }
 
+    /// <summary>The geographical agreement region linked directly on a nation object, or null when unset/unmapped.</summary>
+    public AgreementRegion? RegionOf(ulong nation)
+    {
+        if (!IsNation(nation) || profile.AgreementRegionVtable is null) return null;
+        var bytes = new byte[0x200];
+        if (!memory.TryRead(nation, bytes)) return null;
+        if (profile.Nation?.Continent is { } cont)
+        {
+            foreach (int offset in new[] { cont + 8, cont - 8 })
+            {
+                if (offset >= 0 && offset + 8 <= bytes.Length && BitConverter.ToUInt64(bytes, offset) is var directPtr
+                    && directPtr >= 0x10000 && ReadRegion(directPtr) is { } direct)
+                    return direct;
+            }
+        }
+        for (int off = 0x20; off + 8 <= bytes.Length; off += 8)
+        {
+            ulong ptr = BitConverter.ToUInt64(bytes, off);
+            if (ptr >= 0x10000 && ReadRegion(ptr) is { } region) return region;
+        }
+        return null;
+    }
+
+    /// <summary>Bulk lookup of direct geographical region and EU/Non-Foreign treaty regions for each nation.</summary>
+    public (IReadOnlyDictionary<ulong, AgreementRegion?> Direct, IReadOnlyDictionary<ulong, HashSet<ulong>> Agreements) ReadNationRegionLinks(IEnumerable<NationRecord> nations)
+    {
+        using var reads = new BulkReadScope(memory);
+        var scoped = new NationAgreements(reads.Memory, profile, moduleBase);
+        var direct = new Dictionary<ulong, AgreementRegion?>();
+        var treaty = new Dictionary<ulong, HashSet<ulong>>();
+        foreach (var nation in nations)
+        {
+            if (direct.ContainsKey(nation.Address)) continue;
+            var region = scoped.RegionOf(nation.Address);
+            direct[nation.Address] = region;
+            if (region is null)
+            {
+                var set = new HashSet<ulong>();
+                foreach (int vector in new[] { EuVector, NonForeignVector })
+                    foreach (var row in scoped.Read(nation.Address, vector, []))
+                        if (row.Kind == AgreementKind.Region && row.Target != 0) set.Add(row.Target);
+                treaty[nation.Address] = set;
+            }
+            else
+            {
+                treaty[nation.Address] = [];
+            }
+        }
+        return (direct, treaty);
+    }
+
+    /// <summary>Distinct agreement regions linked across <paramref name="nations"/> (and any cached owned catalogue), sorted by name.</summary>
+    public IReadOnlyList<AgreementRegion> RegionsOfNations(IEnumerable<NationRecord> nations)
+    {
+        using var reads = new BulkReadScope(memory);
+        var scoped = new NationAgreements(reads.Memory, profile, moduleBase);
+        var byAddress = new Dictionary<ulong, AgreementRegion>();
+        var seenIds = new HashSet<int>();
+        foreach (var nation in nations)
+            if (scoped.RegionOf(nation.Address) is { } r && byAddress.TryAdd(r.Address, r))
+                seenIds.Add(r.Id);
+
+        IEnumerable<AgreementRegion>? owned = _regions;
+        if (owned is null && regionLoadError is null)
+        {
+            try { owned = scoped.TryReadOwnedRegions(); }
+            catch (Exception) { }
+        }
+        if (owned is not null)
+        {
+            foreach (var r in owned)
+                if (seenIds.Add(r.Id)) byAddress.TryAdd(r.Address, r);
+        }
+        return byAddress.Values.OrderBy(r => r.Name, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
     /// <summary>
     /// FMRTE's region labels, in the order its metadata lists them. Only UK/Ireland = 14 was independently
     /// observed; keep the others tentative and show the numeric ID for anything not mapped.

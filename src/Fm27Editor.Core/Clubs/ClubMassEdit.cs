@@ -35,7 +35,7 @@ public static class ClubMassEdit
             var owners = ReadOwners(root, offset, memory);
             long before = access.Read(root, field) ?? throw new StaleObjectException($"{club.DisplayName}: {field} is not readable");
             if (!owners.SequenceEqual(ReadOwners(root, offset, memory))) throw new StaleObjectException($"{field}: pointer path changed");
-            long after = mode == MassEditMode.Set ? value : checked(before + value);
+            long after = MassEditValue.Resolve(mode, before, value, minimum, maximum);
             if (after < minimum || after > maximum) throw new ArgumentOutOfRangeException(nameof(value), after, $"{field} must be between {minimum} and {maximum}");
             _ = ClubFieldAccess.Encode(after, offset);
             if (after != before) changes.Add(new(club, field, before, after, owners));

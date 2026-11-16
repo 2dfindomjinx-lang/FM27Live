@@ -24,6 +24,17 @@ public sealed class NationLinks(IProcessMemory memory, OffsetProfile profile, ul
     public ulong ContinentPointer(ulong nation) =>
         profile.Nation?.Continent is { } at && IsNation(nation) ? memory.ReadUInt64(nation + (ulong)at) : 0;
 
+    /// <summary>Batch lookup of raw Continent pointers for <paramref name="nations"/> inside a single bulk read scope.</summary>
+    public IReadOnlyDictionary<ulong, ulong> ContinentPointers(IEnumerable<ulong> nations)
+    {
+        using var reads = new BulkReadScope(memory);
+        var scoped = new NationLinks(reads.Memory, profile, moduleBase);
+        var map = new Dictionary<ulong, ulong>();
+        foreach (ulong nation in nations.Distinct())
+            map[nation] = scoped.ContinentPointer(nation);
+        return map;
+    }
+
     public ContinentRecord? Continent(ulong nation) => ReadContinent(ContinentPointer(nation));
 
     /// <summary>The national team's Stadium (nation+0x118), null when unset or not a stadium.</summary>

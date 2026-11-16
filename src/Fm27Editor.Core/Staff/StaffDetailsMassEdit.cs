@@ -12,7 +12,7 @@ public sealed record StaffDetailChange(StaffRecord Staff, string Field, int Befo
 /// </summary>
 public static class StaffDetailsMassEdit
 {
-    static int Next(MassEditMode mode, int before, int value) => mode == MassEditMode.Set ? value : checked(before + value);
+    static int Next(MassEditMode mode, int before, int value, int min, int max) => (int)MassEditValue.Resolve(mode, before, value, min, max);
 
     static IReadOnlyList<StaffDetailChange> Plan(IEnumerable<StaffRecord> staff, string field, Func<StaffRecord, int?> read,
         Func<StaffRecord, int, int> target, int min, int max, Func<StaffRecord, int, Action<StaffRecord>> write)
@@ -31,23 +31,23 @@ public static class StaffDetailsMassEdit
     }
 
     public static IReadOnlyList<StaffDetailChange> Caps(IEnumerable<StaffRecord> staff, MassEditMode mode, int value, StaffWriter writer) =>
-        Plan(staff, "Caps", s => s.Caps, (_, b) => Next(mode, b, value), 0, 10000, (_, v) => r => writer.SetCaps(r, v));
+        Plan(staff, "Caps", s => s.Caps, (_, b) => Next(mode, b, value, 0, 10000), 0, 10000, (_, v) => r => writer.SetCaps(r, v));
 
     public static IReadOnlyList<StaffDetailChange> Goals(IEnumerable<StaffRecord> staff, MassEditMode mode, int value, StaffWriter writer) =>
-        Plan(staff, "Goals", s => s.Goals, (_, b) => Next(mode, b, value), 0, 10000, (_, v) => r => writer.SetGoals(r, v));
+        Plan(staff, "Goals", s => s.Goals, (_, b) => Next(mode, b, value, 0, 10000), 0, 10000, (_, v) => r => writer.SetGoals(r, v));
 
     public static IReadOnlyList<StaffDetailChange> License(IEnumerable<StaffRecord> staff, StaffLicense value, StaffWriter writer) =>
         Plan(staff, "License", s => s.License is { } l ? (int)l : null, (_, _) => (int)value, -7, 8, (_, v) => r => writer.SetLicense(r, (StaffLicense)(sbyte)v));
 
     public static IReadOnlyList<StaffDetailChange> Role(IEnumerable<StaffRecord> staff, StaffRole role, MassEditMode mode, int value, StaffWriter writer) =>
-        Plan(staff, RoleLabel(role), s => s.Roles?[(int)role], (_, b) => Next(mode, b, value), 1, 20, (_, v) => r => writer.SetRole(r, role, v));
+        Plan(staff, RoleLabel(role), s => s.Roles?[(int)role], (_, b) => Next(mode, b, value, 1, 20), 1, 20, (_, v) => r => writer.SetRole(r, role, v));
 
     public static IReadOnlyList<StaffDetailChange> Nationality(IEnumerable<StaffRecord> staff, int nationId, ulong nationAddress, StaffWriter writer) =>
         Plan(staff, "Nationality", s => s.Nationality?.Id ?? 0, (_, _) => nationId, int.MinValue, int.MaxValue, (_, _) => r => writer.SetNationality(r, nationAddress));
 
     /// <summary>Age on <paramref name="today"/>; the birthday keeps its day and month and moves by whole years.</summary>
     public static IReadOnlyList<StaffDetailChange> Age(IEnumerable<StaffRecord> staff, MassEditMode mode, int value, DateOnly today, StaffWriter writer) =>
-        Plan(staff, "Age", s => s.DateOfBirth is { } d ? AgeOn(d, today) : null, (_, b) => Next(mode, b, value), 14, 100,
+        Plan(staff, "Age", s => s.DateOfBirth is { } d ? AgeOn(d, today) : null, (_, b) => Next(mode, b, value, 14, 100), 14, 100,
             (person, age) => r => writer.SetDateOfBirth(r, Born(person.DateOfBirth!.Value, age, today)));
 
     public static int AgeOn(DateOnly born, DateOnly today) => today.Year - born.Year - (today < born.AddYears(today.Year - born.Year) ? 1 : 0);

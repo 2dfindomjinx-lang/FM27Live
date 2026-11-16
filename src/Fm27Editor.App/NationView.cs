@@ -178,12 +178,18 @@ internal sealed class NationScreen(IScreenHost host)
                     NationField.Importance => NationLabels.ImportanceName,
                     _ => NationLabels.GainNationalityTypeName,
                 };
-                long[] codes = f == NationField.Importance ? [1, 2, 3, 4] : [1, 2];
+                long[] codes = f switch
+                {
+                    NationField.Development => [0, 1, 2, 3],
+                    NationField.Importance => [1, 2, 3, 4],
+                    _ => [1, 2],
+                };
                 var combo = new ComboBox { ItemsSource = codes.Select(name).ToArray(), MinWidth = 148 };
                 combo.SelectedItem = name(draft.Fields.TryGetValue(f, out var d) ? long.Parse(d) : original);
                 combo.SelectionChanged += (_, _) =>
                 {
-                    long code = combo.SelectedIndex + 1;
+                    if (combo.SelectedIndex < 0 || combo.SelectedIndex >= codes.Length) return;
+                    long code = codes[combo.SelectedIndex];
                     if (code == original) draft.Fields.Remove(f); else draft.Fields[f] = code.ToString(Inv);
                     changed();
                 };
@@ -230,6 +236,8 @@ internal sealed class NationScreen(IScreenHost host)
             };
             locationItems.Add((Loc.S("Continent"), combo));
         }
+        if (session.NationAgreements.RegionOf(n.Address) is { } region)
+            locationItems.Add((Loc.S("Region"), new TextBlock { Text = Loc.S(region.Name), FontSize = 13, FontWeight = FontWeight.Medium, Foreground = UiKit.TextPrimary, VerticalAlignment = VerticalAlignment.Center }));
 
         for (int g = 0; g < NationLabels.Groups.Length; g++)
         {

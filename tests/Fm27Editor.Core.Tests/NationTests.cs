@@ -72,6 +72,9 @@ public class NationTests
 
         Assert.Throws<ArgumentOutOfRangeException>(() => NationMassEdit.Plan([vietnam], fields, NationField.YouthRating, MassEditMode.Set, 201));
         Assert.Empty(NationMassEdit.Plan([vietnam], fields, NationField.YouthRating, MassEditMode.Set, 70));
+        var lowered = Assert.Single(NationMassEdit.Plan([vietnam], fields, NationField.YouthRating, MassEditMode.Change, -100));
+        Assert.Equal((70, 0), (lowered.Before, lowered.After));
+        Assert.Throws<ArgumentOutOfRangeException>(() => NationMassEdit.Plan([vietnam], fields, NationField.YouthRating, MassEditMode.Set, -1));
     }
 
     [Fact]
@@ -229,5 +232,80 @@ public class NationTests
         Assert.True(_w.Memory.TryWrite(Vietnam, BitConverter.GetBytes(TestWorld.ModuleBase + 0x4CDF000)));
         Assert.Throws<StaleObjectException>(() => Fields().Set(Vietnam, NationField.EconomicFactor, 10, 11));
         Assert.Empty(Fields().ReadAll(Vietnam));
+    }
+
+    [Fact]
+    public void RegionOf_and_NationSearch_filter_by_region_continent_and_fields()
+    {
+        var profile = Fm27Editor.Core.Game.GameSession.BuiltInProfiles().First(p =>
+            p.AgreementRegionVtable is not null && p.Nation?.Continent is not null && p.Nation.Teams is not null && p.CareerPlans is not null && p.Nation!.Fields.Count > 0);
+        var memory = new FakeMemory();
+        var agreements = new NationAgreements(memory, profile, TestWorld.ModuleBase);
+        var links = new NationLinks(memory, profile, TestWorld.ModuleBase);
+        var fields = new NationFieldAccess(memory, profile, TestWorld.ModuleBase);
+
+        const ulong vnAddr = 0x7101_0000, vnTeam = 0x7102_0000, seAsia = 0x7105_0000, asia = 0x7106_0000;
+        const ulong ngAddr = 0x7107_0000, ngTeam = 0x7108_0000, europe = 0x7109_0000, westAfrica = 0x710A_0000, euArray = 0x710B_0000, euRow = 0x710C_0000;
+
+        var contAsia = memory.Map(asia, 0x40);
+        TestWorld.Set64(contAsia, 0, TestWorld.ModuleBase + profile.CareerPlans!.ContinentVtable);
+        TestWorld.Set64(contAsia, (int)profile.CareerPlans.ContinentName, asia + 0x200);
+        memory.MapString(asia + 0x200, "Asia");
+
+        var contEurope = memory.Map(europe, 0x40);
+        TestWorld.Set64(contEurope, 0, TestWorld.ModuleBase + profile.CareerPlans.ContinentVtable);
+        TestWorld.Set64(contEurope, (int)profile.CareerPlans.ContinentName, europe + 0x200);
+        memory.MapString(europe + 0x200, "Europe");
+
+        var seRegion = memory.Map(seAsia, 24);
+        TestWorld.Set64(seRegion, 0, TestWorld.ModuleBase + profile.AgreementRegionVtable!.Value);
+        BitConverter.GetBytes(18).CopyTo(seRegion, 0x10); // Southeast Asia
+
+        var waRegion = memory.Map(westAfrica, 24);
+        TestWorld.Set64(waRegion, 0, TestWorld.ModuleBase + profile.AgreementRegionVtable.Value);
+        BitConverter.GetBytes(19).CopyTo(waRegion, 0x10); // Western Africa
+
+        var n1 = memory.Map(vnAddr, 0x200);
+        TestWorld.Set64(n1, 0, TestWorld.ModuleBase + profile.Nation!.VtableRva);
+        TestWorld.Set64(n1, profile.Nation.Teams!.Pointer, vnTeam);
+        TestWorld.Set64(n1, profile.Nation.Continent!.Value, asia);
+        memory.Map(vnTeam, 0x900);
+        Assert.Null(agreements.RegionOf(vnAddr));
+
+        TestWorld.Set64(n1, profile.Nation.Continent.Value + 8, seAsia);
+        Assert.Equal(new AgreementRegion(seAsia, 18, "Southeast Asia"), agreements.RegionOf(vnAddr));
+
+        var n2 = memory.Map(ngAddr, 0x200);
+        TestWorld.Set64(n2, 0, TestWorld.ModuleBase + profile.Nation.VtableRva);
+        TestWorld.Set64(n2, profile.Nation.Teams.Pointer, ngTeam);
+        TestWorld.Set64(n2, profile.Nation.Continent.Value, europe);
+        TestWorld.Set64(n2, NationAgreements.EuVector, euArray);
+        TestWorld.Set64(n2, NationAgreements.EuVector + 8, euArray + 8);
+        TestWorld.Set64(n2, NationAgreements.EuVector + 16, euArray + 8);
+        TestWorld.Set64(memory.Map(euArray, 8), 0, euRow);
+        var rowBytes = memory.Map(euRow, 0x30);
+        TestWorld.Set64(rowBytes, 0x18, westAfrica);
+        Convert.FromHexString("0100E4076D01EE07").CopyTo(rowBytes, 0x28);
+        memory.Map(ngTeam, 0x900);
+
+        fields.Set(ngAddr, NationField.Development, 0, 3);
+        fields.Set(ngAddr, NationField.EconomicFactor, 0, 14);
+
+        var vietnamRec = new NationRecord(vnAddr, 145, "Vietnam", "VNM");
+        var nigeriaRec = new NationRecord(ngAddr, 38, "Nigeria", "NGA");
+        var all = new[] { vietnamRec, nigeriaRec };
+
+        Assert.Equal([vietnamRec], NationSearch.Filter(all, new NationSearchCriteria { RegionAddress = seAsia }, fields, links, agreements));
+        Assert.Equal([nigeriaRec], NationSearch.Filter(all, new NationSearchCriteria { ContinentAddress = europe }, fields, links, agreements));
+        Assert.Equal([nigeriaRec], NationSearch.Filter(all, new NationSearchCriteria { RegionAddress = westAfrica }, fields, links, agreements));
+        Assert.Equal([nigeriaRec], NationSearch.Filter(all, new NationSearchCriteria
+        {
+            Name = "nga",
+            Ranges = new Dictionary<NationField, (long? Min, long? Max)>
+            {
+                [NationField.Development] = (3, 3),
+                [NationField.EconomicFactor] = (12, 16),
+            },
+        }, fields, links, agreements));
     }
 }

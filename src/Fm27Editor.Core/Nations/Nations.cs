@@ -201,6 +201,18 @@ public sealed class NationFieldAccess(IProcessMemory memory, OffsetProfile profi
 {
     IReadOnlyDictionary<NationField, ClubFieldOffset> Map => profile.Nation?.Fields ?? new Dictionary<NationField, ClubFieldOffset>();
 
+    public bool IsMapped(NationField field) => Map.ContainsKey(field);
+
+    public IReadOnlyDictionary<ulong, IReadOnlyDictionary<NationField, long>> ReadAllBulk(IEnumerable<ulong> nations)
+    {
+        using var reads = new BulkReadScope(memory);
+        var scoped = new NationFieldAccess(reads.Memory, profile, moduleBase);
+        var values = new Dictionary<ulong, IReadOnlyDictionary<NationField, long>>();
+        foreach (ulong nation in nations.Distinct())
+            values[nation] = scoped.ReadAll(nation);
+        return values;
+    }
+
     public IReadOnlyDictionary<NationField, long> ReadAll(ulong nation)
     {
         var values = new Dictionary<NationField, long>();

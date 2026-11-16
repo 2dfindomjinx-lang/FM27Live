@@ -478,6 +478,9 @@ public sealed class EditorTests
 
             var club = new AttributeFilterDialog(new PlayerFilter(), [], null, [], initialScope: "Club");
             Assert.Equal("Club", club.SelectedScope);
+
+            var nation = new AttributeFilterDialog(new PlayerFilter(), [], null, [], initialScope: "Nation");
+            Assert.Equal("Nation", nation.SelectedScope);
         });
     }
 

@@ -14,7 +14,8 @@ public static class NationFieldInfo
         {
             NationField.EconomicFactor or NationField.FaFinancialPower or NationField.FaPatience or NationField.ForeignManagerLikelihood => (1, 20),
             NationField.YearsToGainNationality => (0, 30),
-            NationField.Development or NationField.GainNationalityType => (1, 2),
+            NationField.Development => (0, 3),
+            NationField.GainNationalityType => (1, 2),
             NationField.Importance => (1, 4),
             NationField.AllowMultipleAssistantManagers or NationField.DoesNotAllowDualNationality => (0, 1),
             NationField.FifaPosition => (1, 255),

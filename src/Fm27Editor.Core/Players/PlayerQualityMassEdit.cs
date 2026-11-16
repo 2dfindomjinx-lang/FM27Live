@@ -24,7 +24,7 @@ public static class PlayerQualityMassEdit
             int current = Read(player, field);
             // Undo must be able to restore the original through the same writer.
             if (current < min || current > max) throw new ArgumentException($"{player.DisplayName}: original {field} cannot be restored by the writer");
-            int target = mode == MassEditMode.Set ? value : checked(current + value);
+            int target = (int)MassEditValue.Resolve(mode, current, value, min, max);
             if (target < min || target > max) throw new ArgumentOutOfRangeException(nameof(value), target, $"{field} must be between {min} and {max}");
             if (current != target) changes.Add(new(player, field, current, target));
         }

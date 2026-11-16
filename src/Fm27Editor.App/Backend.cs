@@ -62,7 +62,7 @@ public sealed class EditorBackend : IEditorBackend, IDisposable
                 };
                 observer.OnAllocate = journal.NoteAllocation;
             }
-            Edits = new EditService(attached.Writer, attached.Players, AcceptFrozenEdit, journal, p => PlayerChangeLabels.For(attached.Profile, p.Address)) { Blocked = () => SaveChanged };
+            Edits = new EditService(attached.Writer, attached.Players, AcceptFrozenEdit, journal, p => PlayerChangeLabels.For(attached.Profile, p.Address)) { Blocked = () => SaveChanged || !ReferenceEquals(session, attached) };
             State = new(ConnectionStatus.Connected, attached.CanWrite ? attached.Profile.Build :
                 $"{attached.Profile.Build} (read-only)");
         }
@@ -180,15 +180,16 @@ public sealed class EditService(PlayerWriter writer, PlayerRepository players, A
     {
         CheckAllowed();
         var (kind, entity) = ContextProvider?.Invoke() ?? ("Other", "Edits");
-        using (Group(kind, entity, "Edit")) lock (gate) action();
+        lock (gate) { CheckAllowed(); using (Group(kind, entity, "Edit")) action(); }
     }
-    public void ExecuteUnrecorded(Action action) { CheckAllowed(); lock (gate) action(); }
+    public void ExecuteUnrecorded(Action action) { lock (gate) { CheckAllowed(); action(); } }
     public PlayerRecord Apply(PlayerRecord player, FieldDescriptor<PlayerRecord> field, int value)
     {
         CheckAllowed();
         using var scope = Group("Player", player.DisplayName, "Page save", playerLabels?.Invoke(player));
         lock (gate)
         {
+            CheckAllowed();
             int old = field.Read(player);
             try
             {

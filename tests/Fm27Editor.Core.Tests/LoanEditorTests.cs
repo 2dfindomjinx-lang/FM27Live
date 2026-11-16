@@ -1,3 +1,4 @@
+using Fm27Editor.Core.Memory;
 using Fm27Editor.Core.Offsets;
 using Fm27Editor.Core.Players;
 
@@ -12,6 +13,20 @@ namespace Fm27Editor.Core.Tests;
 /// </summary>
 public class LoanEditorTests
 {
+    [Fact]
+    public void Every_partial_recall_failure_restores_both_squads_and_holder()
+    {
+        var fault = new WriteFaultMemory(_w.Memory);
+        var editor = new LoanEditor(fault, _profile, TestWorld.ModuleBase);
+        var plan = editor.PlanRecall(Player());
+        for (int failure = 1; failure <= plan.Writes.Count; failure++)
+        {
+            fault.Reset(failure);
+            Assert.Throws<MemoryAccessException>(() => editor.ApplyRecall(plan));
+            foreach (var w in plan.Writes) Assert.Equal(w.Expected, _w.Memory.Read(w.Address, w.Expected.Length));
+        }
+    }
+
     const uint TeamVt = 0x4C90A78, ClubVt = 0x4CDA1F8, ContractVt = 0x4AC05F8, LoanVt = 0x4D78AF8;
     const ulong ParentClub = 0x6000_0000, ParentTeam = 0x6002_0000, ParentSquad = 0x6003_0000;
     const ulong BorrowClub = 0x6100_0000, BorrowTeam = 0x6102_0000, BorrowSquad = 0x6103_0000;

@@ -5,14 +5,44 @@ using Fm27Editor.Core.Players;
 namespace Fm27Editor.Core.Clubs;
 
 /// <summary>Changes observed culture fields after validating team, holder, vector membership and the full record.</summary>
+public sealed record ClubVisionEdit(ClubVisionEntry Entry, int? Importance = null, byte? Type = null,
+    int? Source = null, (DateOnly Start, DateOnly End)? Dates = null,
+    (ClubVisionItemKind Kind, ushort Index)? Item = null, int? Target = null);
+
 public sealed class ClubVisionWriter(IProcessMemory memory, OffsetProfile profile, ulong moduleBase)
 {
-    public void SetImportance(ulong team, ClubVisionEntry entry, int importance)
+    public void ApplyEdits(ulong team, IReadOnlyList<ClubVisionEdit> edits) => MemoryWriteBatch.Run(memory, staged =>
+    {
+        var writer = new ClubVisionWriter(staged, profile, moduleBase);
+        foreach (var edit in edits) writer.Require(team, edit.Entry);
+        foreach (var edit in edits)
+        {
+            ClubVisionEntry Current() => new ClubListReader(staged, profile, moduleBase).ReadClubVision(team)
+                .Single(e => e.Address == edit.Entry.Address);
+            if (edit.Type is { } type) writer.SetType(team, Current(), type);
+            if (edit.Importance is { } importance) writer.SetImportance(team, Current(), importance);
+            if (edit.Source is { } source) writer.SetSourceType(team, Current(), source);
+            if (edit.Dates is { } dates) writer.SetDates(team, Current(), dates.Start, dates.End);
+            if (edit.Item is { } item) writer.SetItemTarget(team, Current(), item.Kind, item.Index);
+            if (edit.Target is { } target) writer.SetTarget(team, Current(), target);
+        }
+    });
+
+    static void RequireVerifiedItem(ClubVisionItemKind kind)
+    {
+        if (kind is ClubVisionItemKind.Nation or ClubVisionItemKind.Continent or ClubVisionItemKind.Unknown)
+            throw new InvalidOperationException("This objective's entity index is not verified for editing");
+    }
+
+    public void SetImportance(ulong team, ClubVisionEntry entry, int importance) =>
+        MemoryWriteBatch.Run(memory, staged => new ClubVisionWriter(staged, profile, moduleBase).SetImportanceCore(team, entry, importance));
+
+    void SetImportanceCore(ulong team, ClubVisionEntry entry, int importance)
     {
         var layout = profile.Club?.Lists ?? throw new InvalidOperationException("Profile has no club vision offsets");
         if (!layout.VisionImportanceEditable || layout.Importance < 0 || layout.Importance >= layout.CultureSize)
             throw new InvalidOperationException("Club vision importance is unavailable for this build");
-        if (importance is < byte.MinValue or > byte.MaxValue) throw new ArgumentOutOfRangeException(nameof(importance));
+        if (importance is < 0 or > 10) throw new ArgumentOutOfRangeException(nameof(importance));
         if (entry.Snapshot is not { } snapshot || snapshot.Team != team)
             throw new StaleObjectException("Club vision snapshot is unavailable");
         var current = new ClubListReader(memory, profile, moduleBase).ReadClubVision(team).FirstOrDefault(r => r.Address == entry.Address);
@@ -24,12 +54,18 @@ public sealed class ClubVisionWriter(IProcessMemory memory, OffsetProfile profil
     }
 
     /// <summary>Changes the culture type code after validating the row still matches its snapshot.</summary>
-    public void SetType(ulong team, ClubVisionEntry entry, byte type)
+    public void SetType(ulong team, ClubVisionEntry entry, byte type) =>
+        MemoryWriteBatch.Run(memory, staged => new ClubVisionWriter(staged, profile, moduleBase).SetTypeCore(team, entry, type));
+
+    void SetTypeCore(ulong team, ClubVisionEntry entry, byte type)
     {
         var layout = profile.Club?.Lists ?? throw new InvalidOperationException("Profile has no club vision offsets");
         if (layout.VisionType < 0 || layout.VisionType >= layout.CultureSize)
             throw new InvalidOperationException("Club vision type is unavailable for this build");
         Require(team, entry);
+        ClubVisionTypes.ValidateTarget(type, entry.Target ?? 0);
+        if (ClubVisionTypes.TargetKind(type) != ClubVisionTypes.TargetKind(entry.TypeCode))
+            throw new InvalidOperationException("Create a new objective when changing its target type");
         byte[] value = [type];
         ulong address = entry.Address + (ulong)layout.VisionType;
         if (!memory.TryWrite(address, value) || !memory.Read(address, 1).AsSpan().SequenceEqual(value))
@@ -37,12 +73,16 @@ public sealed class ClubVisionWriter(IProcessMemory memory, OffsetProfile profil
     }
 
     /// <summary>Board-objective target (int32 at the profile's <c>visionTarget</c> offset).</summary>
-    public void SetTarget(ulong team, ClubVisionEntry entry, int target)
+    public void SetTarget(ulong team, ClubVisionEntry entry, int target) =>
+        MemoryWriteBatch.Run(memory, staged => new ClubVisionWriter(staged, profile, moduleBase).SetTargetCore(team, entry, target));
+
+    void SetTargetCore(ulong team, ClubVisionEntry entry, int target)
     {
         var layout = profile.Club?.Lists ?? throw new InvalidOperationException("Profile has no club vision offsets");
         if (layout.VisionTarget < 0 || layout.VisionTarget > layout.CultureSize - 4)
             throw new InvalidOperationException("Club vision target is unavailable for this build");
         Require(team, entry);
+        ClubVisionTypes.ValidateTarget(entry.TypeCode, target);
         Write(entry.Address + (ulong)layout.VisionTarget, BitConverter.GetBytes(target), 4, "target");
     }
 
@@ -50,7 +90,10 @@ public sealed class ClubVisionWriter(IProcessMemory memory, OffsetProfile profil
     /// Entity item index (u16 at the profile's <c>itemIndex</c> offset): a nation, club, competition or continent index.
     /// For the "non-Nation" and "Sign Players Of Nationality" objectives this is the nation index observed in FMRTE.
     /// </summary>
-    public void SetItemIndex(ulong team, ClubVisionEntry entry, ushort itemIndex)
+    public void SetItemIndex(ulong team, ClubVisionEntry entry, ushort itemIndex) =>
+        MemoryWriteBatch.Run(memory, staged => new ClubVisionWriter(staged, profile, moduleBase).SetItemIndexCore(team, entry, itemIndex));
+
+    void SetItemIndexCore(ulong team, ClubVisionEntry entry, ushort itemIndex)
     {
         var layout = profile.Club?.Lists ?? throw new InvalidOperationException("Profile has no club vision offsets");
         if (layout.ItemIndex < 0 || layout.ItemIndex > layout.CultureSize - 2)
@@ -60,7 +103,10 @@ public sealed class ClubVisionWriter(IProcessMemory memory, OffsetProfile profil
         Write(entry.Address + (ulong)layout.ItemIndex, value, 2, "item index");
     }
     /// <summary>Changes an existing row's entity target: item index plus the marker that selects its table.</summary>
-    public void SetItemTarget(ulong team, ClubVisionEntry entry, ClubVisionItemKind kind, ushort itemIndex)
+    public void SetItemTarget(ulong team, ClubVisionEntry entry, ClubVisionItemKind kind, ushort itemIndex) =>
+        MemoryWriteBatch.Run(memory, staged => new ClubVisionWriter(staged, profile, moduleBase).SetItemTargetCore(team, entry, kind, itemIndex));
+
+    void SetItemTargetCore(ulong team, ClubVisionEntry entry, ClubVisionItemKind kind, ushort itemIndex)
     {
         var layout = profile.Club?.Lists ?? throw new InvalidOperationException("Profile has no club vision offsets");
         if (layout.ItemIndex < 0 || layout.ItemIndex > layout.CultureSize - 2
@@ -71,7 +117,10 @@ public sealed class ClubVisionWriter(IProcessMemory memory, OffsetProfile profil
         Write(entry.Address + (ulong)layout.ItemMarker, BitConverter.GetBytes(ClubVisionTypes.ItemMarker(kind)), 2, "item marker");
     }
     /// <summary>Board-objective status byte (values 1 and 2 observed in RAM; the profile's <c>visionStatus</c> offset).</summary>
-    public void SetStatus(ulong team, ClubVisionEntry entry, byte status)
+    public void SetStatus(ulong team, ClubVisionEntry entry, byte status) =>
+        MemoryWriteBatch.Run(memory, staged => new ClubVisionWriter(staged, profile, moduleBase).SetStatusCore(team, entry, status));
+
+    void SetStatusCore(ulong team, ClubVisionEntry entry, byte status)
     {
         var layout = profile.Club?.Lists ?? throw new InvalidOperationException("Profile has no club vision offsets");
         if (layout.VisionStatus < 0 || layout.VisionStatus >= layout.CultureSize)
@@ -91,7 +140,10 @@ public sealed class ClubVisionWriter(IProcessMemory memory, OffsetProfile profil
     /// 8/11/2026 by writing 7 into a row FMRTE showed as "Unknown (194)": FMRTE then showed "Unknown (7)", and rows
     /// whose bits are 1 show "Board".
     /// </summary>
-    public void SetSourceType(ulong team, ClubVisionEntry entry, int sourceType)
+    public void SetSourceType(ulong team, ClubVisionEntry entry, int sourceType) =>
+        MemoryWriteBatch.Run(memory, staged => new ClubVisionWriter(staged, profile, moduleBase).SetSourceTypeCore(team, entry, sourceType));
+
+    void SetSourceTypeCore(ulong team, ClubVisionEntry entry, int sourceType)
     {
         var layout = profile.Club?.Lists ?? throw new InvalidOperationException("Profile has no club vision offsets");
         if (layout.VisionSource < 0 || layout.VisionSource > layout.CultureSize - 2)
@@ -108,13 +160,16 @@ public sealed class ClubVisionWriter(IProcessMemory memory, OffsetProfile profil
     }
 
     /// <summary>Writes the two dates of one vision row, keeping the flag bits above the 9-bit day.</summary>
-    public void SetDates(ulong team, ClubVisionEntry entry, DateOnly start, DateOnly end)
+    public void SetDates(ulong team, ClubVisionEntry entry, DateOnly start, DateOnly end) =>
+        MemoryWriteBatch.Run(memory, staged => new ClubVisionWriter(staged, profile, moduleBase).SetDatesCore(team, entry, start, end));
+
+    void SetDatesCore(ulong team, ClubVisionEntry entry, DateOnly start, DateOnly end)
     {
         var layout = profile.Club?.Lists ?? throw new InvalidOperationException("Profile has no club vision offsets");
         if (layout.VisionStart < 0 || layout.VisionEnd < 0
             || layout.VisionStart > layout.CultureSize - 4 || layout.VisionEnd > layout.CultureSize - 4)
             throw new InvalidOperationException("Club vision dates are unavailable for this build");
-        if (start.Year is <= 1900 or > 2300 || end.Year is <= 1900 or > 2300)
+        if (start.Year is <= 1900 or > 2300 || end.Year is <= 1900 or > 2300 || end < start)
             throw new ArgumentOutOfRangeException(nameof(start), "Club vision date cannot be read back by this profile");
         Require(team, entry);
         WriteDate(entry.Address + (ulong)layout.VisionStart, start);
@@ -134,7 +189,10 @@ public sealed class ClubVisionWriter(IProcessMemory memory, OffsetProfile profil
     }
 
     /// <summary>Removes one vision row: the pointer entries after it shift left and the vector's end shrinks by one.</summary>
-    public void Remove(ulong team, ClubVisionEntry entry)
+    public void Remove(ulong team, ClubVisionEntry entry) =>
+        MemoryWriteBatch.Run(memory, staged => new ClubVisionWriter(staged, profile, moduleBase).RemoveCore(team, entry));
+
+    void RemoveCore(ulong team, ClubVisionEntry entry)
     {
         var (layout, snapshot) = Require(team, entry);
         ulong header = snapshot.Vector, slot = snapshot.Slot;
@@ -156,6 +214,11 @@ public sealed class ClubVisionWriter(IProcessMemory memory, OffsetProfile profil
     /// </summary>
     public ClubVisionEntry Create(ulong team, ClubVisionEntry template, byte type, byte importance, int target,
         DateOnly startDate, DateOnly endDate, Func<int, ulong>? allocate,
+        ushort? itemIndex = null, ClubVisionItemKind itemKind = ClubVisionItemKind.Unknown) =>
+        MemoryWriteBatch.Run(memory, staged => new ClubVisionWriter(staged, profile, moduleBase).CreateCore(team, template, type, importance, target, startDate, endDate, allocate, itemIndex, itemKind));
+
+    ClubVisionEntry CreateCore(ulong team, ClubVisionEntry template, byte type, byte importance, int target,
+        DateOnly startDate, DateOnly endDate, Func<int, ulong>? allocate,
         ushort? itemIndex = null, ClubVisionItemKind itemKind = ClubVisionItemKind.Unknown)
     {
         var (layout, snapshot) = Require(team, template);
@@ -165,9 +228,17 @@ public sealed class ClubVisionWriter(IProcessMemory memory, OffsetProfile profil
         if (layout.ItemIndex < 0 || layout.ItemIndex + 2 > layout.CultureSize
             || layout.ItemMarker < 0 || layout.ItemMarker + 2 > layout.CultureSize)
             throw new InvalidOperationException("Club vision item target is unavailable for this build");
-        if (startDate.Year is <= 1900 or > 2300 || endDate.Year is <= 1900 or > 2300)
+        if (startDate.Year is <= 1900 or > 2300 || endDate.Year is <= 1900 or > 2300 || endDate < startDate)
             throw new ArgumentOutOfRangeException(nameof(startDate), "Club vision date cannot be read back by this profile");
 
+        ClubVisionTypes.ValidateTarget(type, target);
+        var requiredKind = ClubVisionTypes.TargetItemKind(type);
+        if (requiredKind != ClubVisionItemKind.Unknown)
+        {
+            RequireVerifiedItem(requiredKind);
+            if (itemIndex is null || itemKind != requiredKind) throw new ArgumentException("Choose a target for this objective");
+        }
+        if (importance > 10) throw new ArgumentOutOfRangeException(nameof(importance));
         var bytes = Convert.FromHexString(snapshot.Bytes);
         bytes[layout.VisionType] = type;
         bytes[layout.Importance] = importance;
@@ -234,7 +305,10 @@ public sealed class ClubVisionWriter(IProcessMemory memory, OffsetProfile profil
     /// Adds a row by copying an existing one into a new culture object (same type, importance, dates and club item) and
     /// appending its pointer; the pointer array grows outside the game's allocator when it is full.
     /// </summary>
-    public ClubVisionEntry? Duplicate(ulong team, ClubVisionEntry entry, Func<int, ulong>? allocate)
+    public ClubVisionEntry? Duplicate(ulong team, ClubVisionEntry entry, Func<int, ulong>? allocate) =>
+        MemoryWriteBatch.Run(memory, staged => new ClubVisionWriter(staged, profile, moduleBase).DuplicateCore(team, entry, allocate));
+
+    ClubVisionEntry? DuplicateCore(ulong team, ClubVisionEntry entry, Func<int, ulong>? allocate)
     {
         var (layout, snapshot) = Require(team, entry);
         if (allocate is null) throw new StaleObjectException("No allocator is available to add a vision row");

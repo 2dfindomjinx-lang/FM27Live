@@ -7,6 +7,14 @@ namespace Fm27Editor.Core.Clubs;
 /// </summary>
 public static class ClubVisionTypes
 {
+    public static void ValidateTarget(byte type, int target)
+    {
+        if (TargetKind(type) is ClubVisionTargetKind.Age or ClubVisionTargetKind.ContractYears && target < 0)
+            throw new ArgumentOutOfRangeException(nameof(target));
+        if (type is 88 or 89)
+            throw new InvalidOperationException("This objective's nation target is not verified for editing");
+    }
+
     static readonly Dictionary<byte, string> Names = new()
     {
         [1] = "Win the Competition",

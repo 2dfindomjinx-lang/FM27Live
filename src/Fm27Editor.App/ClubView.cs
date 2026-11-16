@@ -41,6 +41,8 @@ public sealed partial class MainWindow : IClubPanels
 
     sealed class ClubVisionRowDraft
     {
+        public Dictionary<string, string> Inputs { get; } = [];
+        public HashSet<string> Invalid { get; } = [];
         public int? Importance { get; set; }
         public byte? TypeCode { get; set; }
         public int? SourceType { get; set; }
@@ -1058,8 +1060,8 @@ public sealed partial class MainWindow : IClubPanels
                 if (nations is null || continents is null)
                 {
                     var nationList = (backend.Data?.Nations ?? session.Nations.LoadAll());
-                    nations ??= nationList.Select((n, i) => (i, n.DisplayName)).ToDictionary(x => x.i, x => x.DisplayName);
-                    continents ??= session.NationLinks.Continents(nationList).Select((c, i) => (i, c.Name)).ToDictionary(x => x.i, x => x.Name);
+                    nations ??= new Dictionary<int, string>(); // No verified nation index: preserve raw unknown target.
+                    continents ??= new Dictionary<int, string>(); // Sorted display order is not a game index.
                 }
                 return session.ReadClubVision(teamAddr, clubs, competitions, nations, continents);
             });
@@ -1101,7 +1103,7 @@ public sealed partial class MainWindow : IClubPanels
         void UpdateSaveState()
         {
             bool dirty = drafts.Values.Any(d => d.HasChanges);
-            if (saveBtn is not null) saveBtn.IsEnabled = dirty;
+            if (saveBtn is not null) saveBtn.IsEnabled = dirty && drafts.Values.All(d => d.Invalid.Count == 0);
             UpdateClubStatusFromDraft();
         }
 
@@ -1113,22 +1115,27 @@ public sealed partial class MainWindow : IClubPanels
             var targetHost = new ContentControl { HorizontalAlignment = HorizontalAlignment.Left };
 
             int curImportance = d?.Importance ?? entry.Importance;
-            var box = new TextBox { Text = curImportance.ToString(Inv), Width = 100, HorizontalContentAlignment = HorizontalAlignment.Right };
+            var box = new TextBox { Text = d?.Inputs.GetValueOrDefault("Importance", curImportance.ToString(Inv)) ?? curImportance.ToString(Inv), Width = 100, HorizontalContentAlignment = HorizontalAlignment.Right };
             box.TextChanged += (_, _) =>
             {
-                if (int.TryParse(box.Text, out int v))
+                if (!drafts.TryGetValue(entry.Address, out var rowDraft)) drafts[entry.Address] = rowDraft = new();
+                rowDraft.Inputs["Importance"] = box.Text ?? "";
+                if (int.TryParse(box.Text, out int v) && v is >= 0 and <= 10)
                 {
-                    if (!drafts.TryGetValue(entry.Address, out var rowDraft)) drafts[entry.Address] = rowDraft = new();
+                    rowDraft.Invalid.Remove("Importance");
                     rowDraft.Importance = (v == entry.Importance) ? null : v;
-                    UpdateSaveState();
                 }
+                else rowDraft.Invalid.Add("Importance");
+                UpdateSaveState();
             };
             panel.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children =
             {
                 new TextBlock { Text = Loc.S("Importance"), Width = 90, VerticalAlignment = VerticalAlignment.Center }, box
             } });
 
-            var types = ClubVisionTypes.All.Select(kv => (Code: kv.Key, Name: Loc.S(kv.Value))).ToList();
+            var types = ClubVisionTypes.All.Where(kv => kv.Key == entry.TypeCode ||
+                (kv.Key is not (88 or 89) && ClubVisionTypes.TargetKind(kv.Key) == ClubVisionTypes.TargetKind(entry.TypeCode)))
+                .Select(kv => (Code: kv.Key, Name: Loc.S(kv.Value))).ToList();
             byte curTypeCode = d?.TypeCode ?? entry.TypeCode;
             if (!ClubVisionTypes.All.ContainsKey(curTypeCode))
                 types.Insert(0, (curTypeCode, Loc.F("Unknown ({0})", curTypeCode)));
@@ -1148,6 +1155,7 @@ public sealed partial class MainWindow : IClubPanels
                     rowDraft.ItemTarget = null;
                     rowDraft.ItemTargetName = null;
                     rowDraft.Target = null;
+                    rowDraft.Inputs.Remove("Target"); rowDraft.Invalid.Remove("Target");
                     RefreshTargetRow();
                     UpdateSaveState();
                 }
@@ -1162,7 +1170,7 @@ public sealed partial class MainWindow : IClubPanels
                 (1, Loc.S("Board")),
                 (entry.SourceType is { } st && st != 1 ? st : 0, entry.SourceType is { } unknown && unknown != 1 ? Loc.F("Unknown ({0})", unknown) : Loc.S("Unknown"))
             };
-            int curSource = d?.SourceType ?? entry.SourceType ?? 1;
+            int curSource = d?.SourceType ?? entry.SourceType ?? 0;
             var sourceCombo = new ComboBox
             {
                 Width = 140,
@@ -1175,7 +1183,7 @@ public sealed partial class MainWindow : IClubPanels
                 {
                     int code = sourceOptions[sourceCombo.SelectedIndex].Code;
                     if (!drafts.TryGetValue(entry.Address, out var rowDraft)) drafts[entry.Address] = rowDraft = new();
-                    rowDraft.SourceType = (code == (entry.SourceType ?? 1)) ? null : code;
+                    rowDraft.SourceType = (code == (entry.SourceType ?? 0)) ? null : code;
                     UpdateSaveState();
                 }
             };
@@ -1203,7 +1211,7 @@ public sealed partial class MainWindow : IClubPanels
                     string targetValue = rowDraft?.ItemTargetName ?? (sameType ? entry.ItemName ?? entry.ClubItem?.DisplayName : null)
                         ?? index?.ToString(Inv) ?? "";
                     var valueText = new TextBlock { Text = targetValue, VerticalAlignment = VerticalAlignment.Center, Foreground = Brush("#CBD5E1") };
-                    var search = new Button { Content = Loc.S("Search"), FontSize = 11, Padding = new Thickness(8, 0), MinHeight = 24 };
+                    var search = new Button { Content = Loc.S("Search"), FontSize = 11, Padding = new Thickness(8, 0), MinHeight = 24, IsEnabled = targetKind is ClubVisionItemKind.Competition or ClubVisionItemKind.Club };
                     search.Click += async (_, _) =>
                     {
                         ClubVisionTargetChoice? picked = null;
@@ -1211,28 +1219,10 @@ public sealed partial class MainWindow : IClubPanels
                         {
                             var list = (backend.Data?.Competitions ?? session.Competitions.LoadAll());
                             picked = await PickerDialog.Show(this, Loc.S("Choose competition"), q => list
-                                .Where(c => !string.IsNullOrWhiteSpace(c.DisplayName))
+                                .Where(c => !string.IsNullOrWhiteSpace(c.DisplayName) && c.Index is >= 0 and <= short.MaxValue)
                                 .Where(c => PickerSearch.Hit(q, c.DisplayName, c.ShortName, c.Id))
                                 .Take(200).Select(c => (c.DisplayName, new ClubVisionTargetChoice(c.DisplayName, (ushort)c.Index))).ToArray(),
                                 Loc.S("Competition name"));
-                        }
-                        else if (targetKind == ClubVisionItemKind.Nation)
-                        {
-                            var list = (backend.Data?.Nations ?? session.Nations.LoadAll());
-                            picked = await PickerDialog.Show(this, Loc.S("Choose nation"), q => list.Select((n, i) => (n, i))
-                                .Where(x => !string.IsNullOrWhiteSpace(x.n.DisplayName))
-                                .Where(x => PickerSearch.Hit(q, x.n.DisplayName, x.n.ShortName))
-                                .Take(200).Select(x => (x.n.DisplayName, new ClubVisionTargetChoice(x.n.DisplayName, (ushort)x.i))).ToArray(),
-                                Loc.S("Nation name"));
-                        }
-                        else if (targetKind == ClubVisionItemKind.Continent)
-                        {
-                            var list = session.NationLinks.Continents((backend.Data?.Nations ?? session.Nations.LoadAll()));
-                            picked = await PickerDialog.Show(this, Loc.S("Choose continent"), q => list.Select((c, i) => (c, i))
-                                .Where(x => !string.IsNullOrWhiteSpace(x.c.Name))
-                                .Where(x => PickerSearch.Hit(q, x.c.Name))
-                                .Take(200).Select(x => (x.c.Name, new ClubVisionTargetChoice(x.c.Name, (ushort)x.i))).ToArray(),
-                                Loc.S("Continent name"));
                         }
                         else if (targetKind == ClubVisionItemKind.Club)
                         {
@@ -1259,12 +1249,14 @@ public sealed partial class MainWindow : IClubPanels
                 else
                 {
                     int current = rowDraft?.Target ?? (sameType ? entry.Target ?? 0 : 0);
-                    var targetBox = new TextBox { Text = current.ToString(Inv), Width = 90, HorizontalContentAlignment = HorizontalAlignment.Right };
+                    var targetBox = new TextBox { Text = rowDraft?.Inputs.GetValueOrDefault("Target", current.ToString(Inv)) ?? current.ToString(Inv), Width = 90, HorizontalContentAlignment = HorizontalAlignment.Right };
                     targetBox.TextChanged += (_, _) =>
                     {
-                        if (!int.TryParse(targetBox.Text, out int value)) return;
                         if (!drafts.TryGetValue(entry.Address, out var draft)) drafts[entry.Address] = draft = new();
-                        draft.Target = value;
+                        draft.Inputs["Target"] = targetBox.Text ?? "";
+                        if (int.TryParse(targetBox.Text, out int value) && value >= 0)
+                        { draft.Invalid.Remove("Target"); draft.Target = value; }
+                        else draft.Invalid.Add("Target");
                         UpdateSaveState();
                     };
                     targetHost.Content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children =
@@ -1273,19 +1265,22 @@ public sealed partial class MainWindow : IClubPanels
                     } };
                 }
             }
-            DateOnly curStart = d?.Dates is { } dtStart ? dtStart.Start : (entry.StartDate ?? new DateOnly(2026, 7, 1));
-            DateOnly curEnd = d?.Dates is { } dtEnd ? dtEnd.End : (entry.EndDate ?? new DateOnly(2027, 6, 30));
-            var startBox = new DateBox { Text = DateSetting.Format(curStart), Width = 130 };
-            var endBox = new DateBox { Text = DateSetting.Format(curEnd), Width = 130 };
+            DateOnly? curStart = d?.Dates is { } dtStart ? dtStart.Start : entry.StartDate;
+            DateOnly? curEnd = d?.Dates is { } dtEnd ? dtEnd.End : entry.EndDate;
+            var startBox = new DateBox { Text = d?.Inputs.GetValueOrDefault("Start", DateSetting.Format(curStart)) ?? DateSetting.Format(curStart), Width = 130 };
+            var endBox = new DateBox { Text = d?.Inputs.GetValueOrDefault("End", DateSetting.Format(curEnd)) ?? DateSetting.Format(curEnd), Width = 130 };
             void OnDatesChanged()
             {
-                if (DateSetting.TryParse(startBox.Text, out var s)
-                    && DateSetting.TryParse(endBox.Text, out var e))
+                if (!drafts.TryGetValue(entry.Address, out var rowDraft)) drafts[entry.Address] = rowDraft = new();
+                rowDraft.Inputs["Start"] = startBox.Text ?? ""; rowDraft.Inputs["End"] = endBox.Text ?? "";
+                if (DateSetting.TryParse(startBox.Text, out var s) && DateSetting.TryParse(endBox.Text, out var e)
+                    && s.Year is >= 1901 and <= 2300 && e.Year is >= 1901 and <= 2300 && e >= s)
                 {
-                    if (!drafts.TryGetValue(entry.Address, out var rowDraft)) drafts[entry.Address] = rowDraft = new();
+                    rowDraft.Invalid.Remove("Dates");
                     rowDraft.Dates = (s == entry.StartDate && e == entry.EndDate) ? null : (s, e);
-                    UpdateSaveState();
                 }
+                else rowDraft.Invalid.Add("Dates");
+                UpdateSaveState();
             }
             startBox.TextChanged += (_, _) => OnDatesChanged();
             endBox.TextChanged += (_, _) => OnDatesChanged();
@@ -1295,24 +1290,21 @@ public sealed partial class MainWindow : IClubPanels
                 new TextBlock { Text = Loc.S("End"), VerticalAlignment = VerticalAlignment.Center }, endBox
             } });
 
-            saveBtn = new Button { IsVisible = false, Content = Loc.S("Save changes"), Classes = { "accent" }, IsEnabled = drafts.Values.Any(r => r.HasChanges) };
+            saveBtn = new Button { IsVisible = false, Content = Loc.S("Save changes"), Classes = { "accent" }, IsEnabled = drafts.Values.Any(r => r.HasChanges) && drafts.Values.All(r => r.Invalid.Count == 0) };
             saveBtn.Click += (_, _) =>
             {
-                var actions = new List<Action>();
+                if (drafts.Values.Any(r => r.Invalid.Count != 0)) { status.Text = Loc.S("Value is outside the allowed range"); return; }
+                var edits = new List<ClubVisionEdit>();
                 foreach (var (addr, rowDraft) in drafts)
                 {
                     var ent = entries.FirstOrDefault(e => e.Address == addr);
                     if (ent is null || !rowDraft.HasChanges) continue;
-                    if (rowDraft.Importance is { } imp) actions.Add(() => session.ClubVisionWriter.SetImportance(teamAddr, ent, imp));
-                    if (rowDraft.TypeCode is { } tc) actions.Add(() => session.ClubVisionWriter.SetType(teamAddr, ent, tc));
-                    if (rowDraft.SourceType is { } st) actions.Add(() => session.ClubVisionWriter.SetSourceType(teamAddr, ent, st));
-                    if (rowDraft.Dates is { } dt) actions.Add(() => session.ClubVisionWriter.SetDates(teamAddr, ent, dt.Start, dt.End));
-                    if (rowDraft.ItemTarget is { } itemTarget) actions.Add(() => session.ClubVisionWriter.SetItemTarget(teamAddr, ent, itemTarget.Kind, itemTarget.Index));
-                    if (rowDraft.Target is { } targetValue) actions.Add(() => session.ClubVisionWriter.SetTarget(teamAddr, ent, targetValue));
+                    edits.Add(new(ent, rowDraft.Importance, rowDraft.TypeCode, rowDraft.SourceType,
+                        rowDraft.Dates, rowDraft.ItemTarget, rowDraft.Target));
                 }
                 try
                 {
-                    backend.Edits.Execute("Club", club.DisplayName, "Vision", () => { foreach (var act in actions) act(); });
+                    backend.Edits.Execute("Club", club.DisplayName, "Vision", () => session.ClubVisionWriter.ApplyEdits(teamAddr, edits));
                     drafts.Clear();
                     RenderClubEditor();
                     status.Text = Loc.S("Saved club vision. Continue in FM to see updates.");
@@ -1361,7 +1353,9 @@ public sealed partial class MainWindow : IClubPanels
 
     async Task ShowAddClubVisionObjectiveDialogAsync(GameSession session, ulong teamAddr, ClubVisionEntry template)
     {
-        var types = ClubVisionTypes.All.Select(kv => (Code: kv.Key, Name: Loc.S(kv.Value))).ToList();
+        var types = ClubVisionTypes.All.Where(kv => kv.Key is not (88 or 89) &&
+            ClubVisionTypes.TargetItemKind(kv.Key) is not (ClubVisionItemKind.Nation or ClubVisionItemKind.Continent))
+            .Select(kv => (Code: kv.Key, Name: Loc.S(kv.Value))).ToList();
         var typeCombo = new ComboBox { ItemsSource = types.Select(t => t.Name).ToArray(), SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
         var importanceBox = new TextBox { Text = "5", Width = 90, HorizontalContentAlignment = HorizontalAlignment.Right, HorizontalAlignment = HorizontalAlignment.Left };
         var targetBox = new TextBox { Text = "0", Width = 90, HorizontalContentAlignment = HorizontalAlignment.Right, HorizontalAlignment = HorizontalAlignment.Left };
@@ -1371,15 +1365,17 @@ public sealed partial class MainWindow : IClubPanels
         ushort? targetIndex = null;
         string? targetName = null;
         ClubVisionItemKind targetKind = ClubVisionItemKind.Unknown;
-        var startBox = new DateBox { Text = DateSetting.Format(new DateOnly(DateTime.UtcNow.Year, 7, 1)), Width = 130, HorizontalAlignment = HorizontalAlignment.Left };
-        var endBox = new DateBox { Text = DateSetting.Format(new DateOnly(DateTime.UtcNow.Year + 1, 6, 30)), Width = 130, HorizontalAlignment = HorizontalAlignment.Left };
+        var today = session.ReadGameDate();
+        var startBox = new DateBox { Text = today is { } day ? DateSetting.Format(day) : "", Width = 130, HorizontalAlignment = HorizontalAlignment.Left };
+        var endBox = new DateBox { Text = today is { } endDay && endDay.Year < 2300 ? DateSetting.Format(endDay.AddYears(1)) : "", Width = 130, HorizontalAlignment = HorizontalAlignment.Left };
 
         var dialog = new Window
         {
             Title = Loc.S("Add Club Vision Objective"),
-            Width = 560,
-            Height = 320,
-            CanResize = false,
+            Width = 680,
+            Height = 400,
+            MinWidth = 520, MinHeight = 320,
+            CanResize = true,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             Background = Brush("#0D0F17"),
         };
@@ -1388,7 +1384,7 @@ public sealed partial class MainWindow : IClubPanels
         TextBlock AddRow(string label, Control field, int row)
         {
             form.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-            var l = new TextBlock { Text = Loc.S(label), Foreground = Brush("#94A3B8"), VerticalAlignment = VerticalAlignment.Center };
+            var l = new TextBlock { Text = Loc.S(label), TextWrapping = TextWrapping.Wrap, Foreground = Brush("#94A3B8"), VerticalAlignment = VerticalAlignment.Center };
             Grid.SetRow(l, row); Grid.SetColumn(l, 0);
             Grid.SetRow(field, row); Grid.SetColumn(field, 1);
             form.Children.Add(l); form.Children.Add(field);
@@ -1406,7 +1402,9 @@ public sealed partial class MainWindow : IClubPanels
             if (typeCombo.SelectedIndex < 0 || typeCombo.SelectedIndex >= types.Count) return;
             byte code = types[typeCombo.SelectedIndex].Code;
             string? label = ClubVisionTypes.TargetLabel(code);
-            targetKind = ClubVisionTypes.TargetItemKind(code);
+            var nextKind = ClubVisionTypes.TargetItemKind(code);
+            if (nextKind != targetKind) { targetIndex = null; targetName = null; }
+            targetKind = nextKind;
             bool hasTarget = label is not null;
             targetRowLabel.IsVisible = targetContent.IsVisible = hasTarget;
             if (!hasTarget)
@@ -1421,6 +1419,7 @@ public sealed partial class MainWindow : IClubPanels
             targetBox.IsVisible = !entity;
             targetNameText.IsVisible = entity;
             targetButton.IsVisible = entity;
+            targetButton.IsEnabled = targetKind is ClubVisionItemKind.Competition or ClubVisionItemKind.Club;
             if (entity) targetNameText.Text = targetName ?? "";
         }
         typeCombo.SelectionChanged += (_, _) => UpdateTarget();
@@ -1439,24 +1438,6 @@ public sealed partial class MainWindow : IClubPanels
                         .Where(c => PickerSearch.Hit(q, c.DisplayName, c.ShortName, c.Id))
                         .Take(200).Select(c => (c.DisplayName, new ClubVisionTargetChoice(c.DisplayName, (ushort)c.Index))).ToArray(),
                     Loc.S("Competition name"));
-            }
-            else if (kind == ClubVisionItemKind.Nation)
-            {
-                var list = (backend.Data?.Nations ?? session.Nations.LoadAll());
-                picked = await PickerDialog.Show(this, Loc.S("Choose nation"), q =>
-                    list.Select((n, i) => (n, i)).Where(x => !string.IsNullOrWhiteSpace(x.n.DisplayName))
-                        .Where(x => PickerSearch.Hit(q, x.n.DisplayName, x.n.ShortName))
-                        .Take(200).Select(x => (x.n.DisplayName, new ClubVisionTargetChoice(x.n.DisplayName, (ushort)x.i))).ToArray(),
-                    Loc.S("Nation name"));
-            }
-            else if (kind == ClubVisionItemKind.Continent)
-            {
-                var list = session.NationLinks.Continents((backend.Data?.Nations ?? session.Nations.LoadAll()));
-                picked = await PickerDialog.Show(this, Loc.S("Choose continent"), q =>
-                    list.Select((c, i) => (c, i)).Where(x => !string.IsNullOrWhiteSpace(x.c.Name))
-                        .Where(x => PickerSearch.Hit(q, x.c.Name))
-                        .Take(200).Select(x => (x.c.Name, new ClubVisionTargetChoice(x.c.Name, (ushort)x.i))).ToArray(),
-                    Loc.S("Continent name"));
             }
             else if (kind == ClubVisionItemKind.Club)
             {
@@ -1482,7 +1463,7 @@ public sealed partial class MainWindow : IClubPanels
             if (typeCombo.SelectedIndex < 0 || typeCombo.SelectedIndex >= types.Count) return;
             byte typeCode = types[typeCombo.SelectedIndex].Code;
             if (!byte.TryParse(importanceBox.Text, out byte imp)) { status.Text = Loc.S("Importance must be a whole number."); return; }
-            imp = Math.Min((byte)10, imp);   // FMRTE docs: importance 0 to 10
+            if (imp > 10) { status.Text = Loc.S("Importance must be 0-10"); return; }   // FMRTE docs: importance 0 to 10
             var kind = ClubVisionTypes.TargetItemKind(typeCode);
             int tgt = 0;
             if (kind != ClubVisionItemKind.Unknown)
@@ -1514,14 +1495,16 @@ public sealed partial class MainWindow : IClubPanels
         Grid.SetRow(actions, 5); Grid.SetColumnSpan(actions, 2);
         form.Children.Add(actions);
 
-        dialog.Content = form;
+        dialog.Content = new ScrollViewer { Content = form };
         await dialog.ShowDialog(this);
     }
 
     static ushort ClubIndex(GameSession session, ClubEntry club)
     {
         var bytes = new byte[4];
-        return session.Memory.TryRead(club.Address + 8, bytes) ? (ushort)BitConverter.ToInt32(bytes, 0) : (ushort)0;
+        if (!session.Memory.TryRead(club.Address + 8, bytes)) throw new InvalidOperationException("Club index is unavailable");
+        int index = BitConverter.ToInt32(bytes, 0);
+        return index is >= 0 and <= short.MaxValue ? (ushort)index : throw new InvalidOperationException("Club index is unavailable");
     }
 
 

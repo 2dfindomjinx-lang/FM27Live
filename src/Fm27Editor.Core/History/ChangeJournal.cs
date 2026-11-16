@@ -208,6 +208,8 @@ public sealed class ChangeJournal
         error = null;
         lock (_gate)
         {
+            var owner = _groups.FirstOrDefault(g => g.Entries.Contains(entry));
+            if (owner is { Entries.Count: > 1 }) { error = "Undo the complete edit to preserve related values"; return false; }
             if (entry.Undone) { error = "Already undone"; return false; }
             var current = new byte[entry.After.Length];
             if (!memory.TryRead(entry.Address, current)) { error = $"Cannot read 0x{entry.Address:X}"; return false; }
@@ -215,9 +217,14 @@ public sealed class ChangeJournal
             _suppress++;
             try
             {
-                if (!memory.TryWrite(entry.Address, entry.Before) || !memory.Read(entry.Address, entry.Before.Length).AsSpan().SequenceEqual(entry.Before))
-                { error = $"Could not write 0x{entry.Address:X}"; return false; }
+                MemoryWriteBatch.Run(memory, staged =>
+                {
+                    if (!staged.Read(entry.Address, entry.After.Length).AsSpan().SequenceEqual(entry.After))
+                        throw new Players.StaleObjectException("The value changed since this edit");
+                    if (!staged.TryWrite(entry.Address, entry.Before)) throw new MemoryAccessException("Could not undo the edit");
+                });
             }
+            catch (Exception ex) { error = ex.Message; return false; }
             finally { _suppress--; }
             // A code patch undone must also leave the instruction cache behind, or a thread may run the patched bytes.
             if (memory is ICodePatchHost host) host.FlushCode(entry.Address, entry.Before.Length);
@@ -230,14 +237,33 @@ public sealed class ChangeJournal
     /// <summary>Puts a whole group back, newest write first; returns how many entries were restored and why others were not.</summary>
     public (int Restored, List<string> Errors) Undo(ChangeGroup group, IProcessMemory memory)
     {
-        int restored = 0;
-        var errors = new List<string>();
-        foreach (var entry in group.Entries.AsEnumerable().Reverse().Where(e => !e.Undone).ToList())
+        lock (_gate)
         {
-            if (Undo(entry, memory, out var error)) restored++;
-            else errors.Add($"{entry.Name}: {error}");
+            var entries = group.Entries.AsEnumerable().Reverse().Where(e => !e.Undone).ToArray();
+            if (entries.Length == 0) return (0, []);
+            _suppress++;
+            try
+            {
+                MemoryWriteBatch.Run(memory, staged =>
+                {
+                    foreach (var entry in entries)
+                    {
+                        if (!staged.Read(entry.Address, entry.After.Length).AsSpan().SequenceEqual(entry.After))
+                            throw new Players.StaleObjectException("The value changed since this edit");
+                        if (!staged.TryWrite(entry.Address, entry.Before)) throw new MemoryAccessException("Could not undo the edit");
+                    }
+                });
+                foreach (var entry in entries)
+                {
+                    if (memory is ICodePatchHost host) host.FlushCode(entry.Address, entry.Before.Length);
+                    entry.Undone = true;
+                }
+            }
+            catch (Exception ex) { return (0, [ex.Message]); }
+            finally { _suppress--; }
+            Changed?.Invoke();
+            return (entries.Length, []);
         }
-        return (restored, errors);
     }
 
     public void Clear()

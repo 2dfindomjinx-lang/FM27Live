@@ -306,8 +306,8 @@ public sealed class StadiumWriter(IProcessMemory memory, OffsetProfile profile, 
     public void SetCoordinates(StadiumRecord stadium, float? latitude, float? longitude)
     {
         var s = S;
-        if (latitude is < -90 or > 90) throw new ArgumentOutOfRangeException(nameof(latitude), "Latitude is -90 to 90");
-        if (longitude is < -180 or > 180) throw new ArgumentOutOfRangeException(nameof(longitude), "Longitude is -180 to 180");
+        if (latitude is { } la && (!float.IsFinite(la) || la is < -90 or > 90)) throw new ArgumentOutOfRangeException(nameof(latitude), "Latitude is -90 to 90");
+        if (longitude is { } lo && (!float.IsFinite(lo) || lo is < -180 or > 180)) throw new ArgumentOutOfRangeException(nameof(longitude), "Longitude is -180 to 180");
         Require(stadium.Address);
         if (latitude is { } lat)
         {

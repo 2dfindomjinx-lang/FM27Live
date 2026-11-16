@@ -55,12 +55,11 @@ public static class ContractLabels
         41 => Loc.S("Goals + Assists"),
         19 => Loc.S("Caps"),
         22 => Loc.S("Years"),
-        3 or 4 or 5 or 14 or 15 => "%",
         _ => null,
     };
 
     /// <summary>Terms whose value is not money (the game stores -1).</summary>
-    public static bool TermHasValue(short type) => type is not (11 or 22 or 12 or 29 or 7 or 3 or 4 or 5 or 14 or 15);
+    public static bool TermHasValue(short type) => ContractTermRules.HasValue(type);
 
     public static string Spaced(string name) => Regex.Replace(name, "(?<!^)([A-Z])", " $1");
 

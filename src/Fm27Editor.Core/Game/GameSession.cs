@@ -54,10 +54,20 @@ public sealed class GameSession : IDisposable
         (futureContract == 0 ? Contracts : FutureContract(futureContract)).AddTerm(player, snapshot, type, value, parameter, AllocateGameBlock);
 
     /// <summary>Applies a transfer, allocating a new squad buffer in the game process when the destination squad is full.</summary>
-    public void ApplyTransfer(Transfer.TransferPlan plan)
+    public void ApplyTransfer(Transfer.TransferPlan plan, int sellOnPercent = 0)
     {
+        if (sellOnPercent is < 0 or > 100) throw new ArgumentOutOfRangeException(nameof(sellOnPercent));
         var today = ReadGameDate() ?? throw new InvalidOperationException("The in-game date could not be read");
-        Transfers.ApplyWithRecord(plan, today, AllocateGameBlock);
+        MemoryWriteBatch.Run(_memory, staged =>
+        {
+            new Transfer.TransferService(staged, Profile, Game.ModuleBase).ApplyWithRecord(plan, today, AllocateGameBlock);
+            if (sellOnPercent > 0)
+            {
+                int id = plan.Player.Id ?? throw new InvalidOperationException("Player ID is unavailable");
+                new Clubs.TransferClauseWriter(staged, Profile, Game.ModuleBase).AddSellOn(plan.Buyer.Address, id,
+                    plan.Seller.Address, sellOnPercent, AllocateGameBlock, plan.Fee > 0 ? plan.Fee : null);
+            }
+        });
     }
 
     Presets.AcceleratedDevelopment? _accelerated;

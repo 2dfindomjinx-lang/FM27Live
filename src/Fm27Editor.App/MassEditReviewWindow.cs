@@ -57,11 +57,12 @@ internal sealed class MassEditReviewWindow : Window
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { progressBar, cancelApply, close, applyAll } };
         DockPanel.SetDock(buttons, Dock.Right);
         var bottom = new DockPanel { Margin = new Thickness(12, 6, 12, 10), Children = { buttons, status } };
-        var root = new DockPanel();
+        var root = new DockPanel { Background = UiKit.WindowBg };
         DockPanel.SetDock(bottom, Dock.Bottom);
         DockPanel.SetDock(tabBar, Dock.Top);
         root.Children.Add(bottom); root.Children.Add(tabBar); root.Children.Add(tabBody);
         Content = root;
+        Closing += (_, e) => { if (applyCts is not null) { applyCts.Cancel(); e.Cancel = true; } };
         Opened += (_, _) => { Visit(); Refresh(); };
     }
 
@@ -74,13 +75,14 @@ internal sealed class MassEditReviewWindow : Window
         var confirm = new CheckBox { Content = Loc.F("I have checked this table ({0:N0} changes)", plan.Selected), IsVisible = plan.Selected > LargeChange };
         var apply = new Button { Content = Loc.F("Apply {0}", Loc.S(plan.Scope)), Classes = { "accent" } };
         var discard = new Button { Content = Loc.F("Discard {0}", Loc.S(plan.Scope)) };
-        var grid = new DataGrid { ItemsSource = plan.Rows, AutoGenerateColumns = false, CanUserSortColumns = false, RowHeight = 26 };
+        var grid = ToolGrid.Create();
+        grid.ItemsSource = plan.Rows; grid.IsReadOnly = false; grid.CanUserSortColumns = false;
         grid.Columns.Add(new DataGridCheckBoxColumn { Header = "", Binding = new Binding(nameof(MassRow.Include)), Width = new DataGridLength(48) });
-        grid.Columns.Add(new DataGridTextColumn { Header = Loc.S("Name"), Binding = new Binding(nameof(MassRow.Name)), IsReadOnly = true, Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
-        grid.Columns.Add(new DataGridTextColumn { Header = Loc.S("Field"), Binding = new Binding(nameof(MassRow.FieldDisplay)), IsReadOnly = true, Width = new DataGridLength(150) });
-        grid.Columns.Add(new DataGridTextColumn { Header = Loc.S("Before"), Binding = new Binding(nameof(MassRow.Before)), IsReadOnly = true, Width = new DataGridLength(110) });
-        grid.Columns.Add(new DataGridTextColumn { Header = Loc.S("After"), Binding = new Binding(nameof(MassRow.After)), IsReadOnly = true, Width = new DataGridLength(160) });
-        grid.Columns.Add(new DataGridTextColumn { Header = "", Binding = new Binding(nameof(MassRow.Note)), IsReadOnly = true, Width = new DataGridLength(220) });
+        grid.Columns.Add(ToolGrid.Text<MassRow>("Name", r => r.Name, 0, "Name", minWidth: 160));
+        grid.Columns.Add(ToolGrid.Text<MassRow>("Field", r => r.FieldDisplay, 180, "Field"));
+        grid.Columns.Add(ToolGrid.Text<MassRow>("Before", r => r.Before, 110, "Before"));
+        grid.Columns.Add(ToolGrid.Text<MassRow>("After", r => r.After, 160, "After"));
+        grid.Columns.Add(ToolGrid.Text<MassRow>("", r => r.Note, 220, ""));
         var top = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12, Margin = new Thickness(12, 8), Children = { summary, confirm } };
         var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(12, 6), Children = { discard, apply } };
         DockPanel.SetDock(top, Dock.Top); DockPanel.SetDock(actions, Dock.Bottom);
@@ -91,6 +93,7 @@ internal sealed class MassEditReviewWindow : Window
             CornerRadius = new CornerRadius(3), Background = Brushes.Transparent, BorderThickness = new Thickness(0, 0, 0, 2),
             BorderBrush = Brushes.Transparent, Foreground = UiKit.TextMuted,
         } };
+        page.Body.IsEnabled = applyCts is null;
         page.Tab.Click += (_, _) => Select(page);
         grid.CellEditEnded += (_, _) => Refresh();
         confirm.IsCheckedChanged += (_, _) => Refresh();
@@ -119,12 +122,14 @@ internal sealed class MassEditReviewWindow : Window
 
     void Visit() { if (Current is { } page) page.Visited = true; }
 
-    bool Ready(Page page) => page.Visited && (!page.Confirm.IsVisible || page.Confirm.IsChecked == true) && page.Plan.Selected > 0;
+    bool Ready(Page page) => applyCts is null && page.Visited && (!page.Confirm.IsVisible || page.Confirm.IsChecked == true) && page.Plan.Selected > 0;
 
     void Refresh()
     {
         foreach (var page in pages)
         {
+            page.Body.IsEnabled = applyCts is null;
+            page.Tab.IsEnabled = applyCts is null;
             page.Summary.Text = page.Plan.Summary(ScopeNoun(page.Plan.Scope));
             page.Apply.IsEnabled = Ready(page);
         }
@@ -136,6 +141,7 @@ internal sealed class MassEditReviewWindow : Window
 
     void Remove(Page page)
     {
+        if (applyCts is not null) return;
         pages.Remove(page);
         tabBar.Children.Remove(page.Tab);
         if (ReferenceEquals(selected, page)) Select(pages.FirstOrDefault());
@@ -144,9 +150,10 @@ internal sealed class MassEditReviewWindow : Window
 
     async Task ApplyAsync(IReadOnlyList<Page> chosen)
     {
-        applyAll.IsEnabled = false;
-        foreach (var page in chosen) page.Apply.IsEnabled = false;
-        applyCts = new CancellationTokenSource();
+        if (applyCts is not null || chosen.Count == 0 || chosen.Any(p => !Ready(p))) return;
+        using var cts = new CancellationTokenSource();
+        applyCts = cts;
+        Refresh();
         progressBar.Value = 0;
         progressBar.IsVisible = true;
         cancelApply.IsVisible = true;
@@ -158,14 +165,14 @@ internal sealed class MassEditReviewWindow : Window
         });
         try
         {
-            int written = await write(chosen.Select(p => p.Plan).ToList(), progress, applyCts.Token);
-            status.Text = applyCts.IsCancellationRequested
+            int written = await write(chosen.Select(p => p.Plan).ToList(), progress, cts.Token);
+            status.Text = cts.IsCancellationRequested
                 ? Loc.F("Cancelled: {0:N0} value(s) written. Continue in FM to see updates.", written)
                 : Loc.F("{0:N0} value(s) written. Continue in FM to see updates.", written);
             foreach (var page in chosen) { pages.Remove(page); tabBar.Children.Remove(page.Tab); }
             if (selected is null || !pages.Contains(selected)) Select(pages.FirstOrDefault());
             // Done when nothing applicable is left (tables holding only refused lines do not keep the window open).
-            if (!applyCts.IsCancellationRequested && pages.All(p => p.Plan.Selected == 0)) { await Task.Delay(800); Close(); return; }
+            if (!cts.IsCancellationRequested && pages.All(p => p.Plan.Selected == 0)) { applyCts = null; Close(); return; }
             Visit();
             Refresh();
         }
@@ -178,8 +185,8 @@ internal sealed class MassEditReviewWindow : Window
         {
             progressBar.IsVisible = false;
             cancelApply.IsVisible = false;
-            applyCts.Dispose();
             applyCts = null;
+            Refresh();
         }
     }
 }

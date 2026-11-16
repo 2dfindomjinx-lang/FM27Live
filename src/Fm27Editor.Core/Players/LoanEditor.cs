@@ -194,13 +194,7 @@ public sealed class LoanEditor(IProcessMemory memory, OffsetProfile profile, ulo
                 [.. BitConverter.GetBytes(buffer), .. BitConverter.GetBytes(buffer + (ulong)bytes.Length),
                     .. BitConverter.GetBytes(buffer + (ulong)capacity * 8)], "new parent squad begin/end/capacity"));
         }
-        foreach (var w in writes)
-        {
-            if (!memory.Read(w.Address, w.Expected.Length).AsSpan().SequenceEqual(w.Expected))
-                throw new StaleObjectException($"{w.What} changed while writing");
-            if (!memory.TryWrite(w.Address, w.Value) || !memory.Read(w.Address, w.Value.Length).AsSpan().SequenceEqual(w.Value))
-                throw new MemoryAccessException($"Write failed: {w.What}");
-        }
+        FutureTransferTransaction.Apply(memory, [], writes);
     }
 
     void VerifyPointers(ActiveLoan loan)

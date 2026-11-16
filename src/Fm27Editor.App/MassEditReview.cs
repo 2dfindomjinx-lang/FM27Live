@@ -46,6 +46,7 @@ internal sealed partial class MassEditWindow
                         {
                             ct.ThrowIfCancellationRequested();
                             written += row.Apply!();
+                            row.Include = false;
                             done++;
                             if (done % 200 == 0) progress?.Report((done, total));
                         }
@@ -53,10 +54,12 @@ internal sealed partial class MassEditWindow
             }, ct);
         }
         catch (OperationCanceledException) { /* what was written stays in the history group; the caller reports it */ }
-        progress?.Report((done, total));
-        foreach (var plan in plans) await host.MassEditReloadAsync(plan.Scope);
-        // The search catalogue now holds old values; read it again in the background for the next "Choose who to edit".
-        if (written > 0 && backend.State.Status == ConnectionStatus.Connected) searchData = Task.Run(LoadSearchData);
+        finally
+        {
+            progress?.Report((done, total));
+            foreach (var plan in plans) await host.MassEditReloadAsync(plan.Scope);
+            if (written > 0 && backend.State.Status == ConnectionStatus.Connected) searchData = Task.Run(LoadSearchData);
+        }
         return written;
     }
 }

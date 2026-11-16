@@ -201,21 +201,21 @@ public sealed class StaffMoveService(IProcessMemory memory, OffsetProfile profil
             if (!memory.Read(write.Address, expected.Length).AsSpan().SequenceEqual(expected))
                 throw new StaleObjectException($"{write.What} changed; nothing written");
         }
-        var writes = undo ? plan.Writes.Reverse() : plan.Writes;
-        foreach (var write in writes)
+        ValidateStaff(plan.Staff);
+        if (memory.ReadUInt64(plan.Contract) != moduleBase + C.ContractVtableRva ||
+            memory.ReadUInt64(plan.From.Address) != moduleBase + K.ClubVtableRva ||
+            memory.ReadUInt64(plan.To.Address) != moduleBase + K.ClubVtableRva ||
+            memory.ReadUInt64(plan.DestinationTeam) != moduleBase + T.VtableRva)
+            throw new StaleObjectException("Staff, contract, club or team changed while writing");
+        var guards = plan.Guards.Select(g =>
         {
-            ValidateStaff(plan.Staff);
-            if (memory.ReadUInt64(plan.Contract) != moduleBase + C.ContractVtableRva ||
-                memory.ReadUInt64(plan.From.Address) != moduleBase + K.ClubVtableRva ||
-                memory.ReadUInt64(plan.To.Address) != moduleBase + K.ClubVtableRva ||
-                memory.ReadUInt64(plan.DestinationTeam) != moduleBase + T.VtableRva)
-                throw new StaleObjectException("Staff, contract, club or team changed while writing");
-            byte[] expected = undo ? write.Value : write.Expected, value = undo ? write.Expected : write.Value;
-            if (!memory.Read(write.Address, expected.Length).AsSpan().SequenceEqual(expected))
-                throw new StaleObjectException($"{write.What} changed while writing");
-            if (!memory.TryWrite(write.Address, value) || !memory.Read(write.Address, value.Length).AsSpan().SequenceEqual(value))
-                throw new MemoryAccessException($"Write failed: {write.What}");
-        }
+            var expected = (byte[])g.Bytes.Clone();
+            if (undo) foreach (var w in plan.Writes) Overlay(expected, g.Address, w.Address, w.Value);
+            return new PlannedWrite(g.Address, expected, [], g.What);
+        }).Where(g => g.Expected.Length > 0).ToArray();
+        var writes = (undo ? plan.Writes.Reverse() : plan.Writes)
+            .Select(w => undo ? w with { Expected = w.Value, Value = w.Expected } : w).ToArray();
+        FutureTransferTransaction.Apply(memory, guards, writes);
     }
 
     void ValidateStaff(StaffRecord staff)

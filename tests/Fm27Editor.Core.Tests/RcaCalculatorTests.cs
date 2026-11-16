@@ -79,7 +79,7 @@ public class RcaCalculatorTests
     [Fact]
     public void StaffRcaHandlesUniformAttributesMissingRolesAndDataAnalyst()
     {
-        var kind = new StaffKind(1, 2, 0x100, true);
+        var kind = new StaffKind(1, 2, 0x100, null, true);
         var noRoles = new StaffRecord
         {
             Address = 0x3000, StaffAddress = 0x2F00,

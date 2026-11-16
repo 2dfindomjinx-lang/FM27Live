@@ -14,10 +14,20 @@ public sealed partial class MainWindow
     {
         var hook = session.ForceTransferOffersHook;
         var panel = new StackPanel { Spacing = 6 };
+        if (!hook.IsArchitectureSupported)
+        {
+            panel.Children.Add(UiKit.Card(Loc.S("Force Accept Transfer"), new TextBlock
+            {
+                Text = Loc.S("This hook is verified only for x64 Windows game builds; it is disabled on this architecture."),
+                TextWrapping = TextWrapping.Wrap,
+                Foreground = UiKit.TextMuted,
+            }));
+            return panel;
+        }
 
         var heading = new TextBlock
         {
-            Text = "Force Accept Transfer (Experimental)",
+            Text = Loc.S("Force Accept Transfer (Experimental)"),
             FontSize = 14,
             FontWeight = FontWeight.SemiBold,
             VerticalAlignment = VerticalAlignment.Center,
@@ -26,10 +36,10 @@ public sealed partial class MainWindow
             heading,
             "Clubs accept transfer offers made by the club you manage. Works while active without affecting offers made by AI clubs."));
 
-        var on = new CheckBox { Content = "On", VerticalAlignment = VerticalAlignment.Center };
+        var on = new CheckBox { Content = Loc.S("On"), VerticalAlignment = VerticalAlignment.Center };
         var refreshBtn = new Button
         {
-            Content = "Refresh",
+            Content = Loc.S("Refresh"),
             Height = 26,
             MinHeight = 26,
             Padding = new Thickness(10, 0),
@@ -38,7 +48,7 @@ public sealed partial class MainWindow
         };
         var removeBtn = new Button
         {
-            Content = "Remove",
+            Content = Loc.S("Remove"),
             Height = 26,
             MinHeight = 26,
             Padding = new Thickness(10, 0),
@@ -55,7 +65,7 @@ public sealed partial class MainWindow
 
         var stateText = new TextBlock
         {
-            Text = "Checking…",
+            Text = Loc.S("Checking…"),
             FontSize = 12.5,
             Foreground = UiKit.Brush("#8FA3B8"),
             TextWrapping = TextWrapping.Wrap,
@@ -188,7 +198,7 @@ public sealed partial class MainWindow
                     return ReadManagedClubs();
                 });
                 RenderState(null, clubs);
-                status.Text = "Force Accept Transfer removed.";
+                status.Text = Loc.S("Force Accept Transfer removed.");
                 status.IsVisible = true;
             }
             catch (Exception ex)

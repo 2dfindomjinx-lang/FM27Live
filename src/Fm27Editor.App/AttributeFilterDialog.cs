@@ -229,8 +229,7 @@ public sealed class AttributeFilterDialog : Window
     public int? ResultMaxPa => ParseOptInt(maxPaBox.Text);
     public string? ResultRoleCode => (roleFilterCombo.SelectedItem as RoleChoice)?.Code;
     public double? ResultMinRoleScore => double.TryParse(minRoleScoreBox.Text?.Trim(), NumberStyles.Float, Inv, out double score)
-        ? Math.Clamp(score, 0, 100)
-        : null;
+        && double.IsFinite(score) && score is >= 0 and <= 100 ? score : null;
     public string? ResultNameQuery => string.IsNullOrWhiteSpace(nameQueryBox.Text) ? null : nameQueryBox.Text.Trim();
     public Fm27Editor.Core.Offsets.Gender? ResultGender => genderCombo.SelectedIndex switch { 0 => Fm27Editor.Core.Offsets.Gender.Men, 1 => Fm27Editor.Core.Offsets.Gender.Women, _ => null };
     public bool ResultExcludeWomenClubs => ResultGender == Fm27Editor.Core.Offsets.Gender.Men;
@@ -502,10 +501,10 @@ public sealed class AttributeFilterDialog : Window
         maxCaBox.Text = initialFilter.MaxCa?.ToString() ?? "";
         minPaBox.Text = initialFilter.MinPa?.ToString() ?? "";
         maxPaBox.Text = initialFilter.MaxPa?.ToString() ?? "";
-        var roleChoices = new List<RoleChoice> { new(null, "Best Role (Any)") };
+        var roleChoices = new List<RoleChoice> { new(null, Loc.S("Best Role (Any)")) };
         roleChoices.AddRange(RoleScores.All
             .OrderBy(r => r.Name, StringComparer.InvariantCultureIgnoreCase)
-            .Select(r => new RoleChoice(r.Code, $"{r.Name} ({r.Code})")));
+            .Select(r => new RoleChoice(r.Code, $"{ScoutingLabels.Role(r.Name)} ({r.Code})")));
         roleFilterCombo.ItemsSource = roleChoices;
         roleFilterCombo.SelectedItem = initialFilter.RoleCode is { } rc
             ? roleChoices.FirstOrDefault(r => string.Equals(r.Code, rc, StringComparison.OrdinalIgnoreCase)) ?? roleChoices[0]
@@ -746,6 +745,8 @@ public sealed class AttributeFilterDialog : Window
                 }
                 else nationCombo.SelectedIndex = 0;
 
+                roleFilterCombo.SelectedItem = roleFilterCombo.Items.OfType<RoleChoice>().FirstOrDefault(r => r.Code == chosen.RoleCode) ?? roleFilterCombo.Items[0];
+                minRoleScoreBox.Text = chosen.MinRoleScore?.ToString("0.#", Inv) ?? "";
                 minAgeBox.Text = chosen.MinAge?.ToString() ?? "";
                 maxAgeBox.Text = chosen.MaxAge?.ToString() ?? "";
                 minCaBox.Text = chosen.MinCa?.ToString() ?? "";
@@ -826,6 +827,8 @@ public sealed class AttributeFilterDialog : Window
                 summaryText.Foreground = Brush("#F59E0B");
                 return;
             }
+            if (!string.IsNullOrWhiteSpace(minRoleScoreBox.Text) && ResultMinRoleScore is null)
+            { summaryText.Text = Loc.S("Role score must be 0-100"); return; }
             var preset = new FilterPreset(
                 name,
                 ResultThresholds,
@@ -850,7 +853,9 @@ public sealed class AttributeFilterDialog : Window
                 ContractStatus = ResultContractStatus,
                 ContractType = ResultContractType,
                 AgreedPlayingTime = ResultPlayingTime,
-                Clauses = ResultClauses
+                Clauses = ResultClauses,
+                RoleCode = ResultRoleCode,
+                MinRoleScore = ResultMinRoleScore
             };
             presets = FilterPresetStore.Upsert(presets, preset);
             try { FilterPresetStore.Save(presets); } catch { }
@@ -1591,7 +1596,7 @@ public sealed class AttributeFilterDialog : Window
         personalityChoices.AddRange(Enumerable.Range(0, 39)
             .Select(PersonalityClassifier.Describe)
             .OrderBy(p => p.Name, StringComparer.InvariantCultureIgnoreCase)
-            .Select(p => new FilterChoice(p.Id, p.IsNegative ? $"{p.Name} [Negative]" : p.Name)));
+            .Select(p => new FilterChoice(p.Id, p.IsNegative ? Loc.F("{0} [Negative]", Loc.S(p.Name)) : Loc.S(p.Name))));
         AddChoice("Personality", personalityChoices);
         return panel;
     }
@@ -1845,6 +1850,8 @@ public sealed class AttributeFilterDialog : Window
                 Close();
                 return;
             }
+            if (!string.IsNullOrWhiteSpace(minRoleScoreBox.Text) && ResultMinRoleScore is null)
+            { summaryText.Text = Loc.S("Role score must be 0-100"); return; }
             foreach (var (_, controls) in rangeInputs)
             {
                 if ((!string.IsNullOrWhiteSpace(controls.Min.Text) && ParseOptLong(controls.Min.Text) is null) ||
@@ -2111,15 +2118,8 @@ public sealed class AttributeFilterDialog : Window
         if (ResultMinPa is not null || ResultMaxPa is not null) parts.Add(Loc.S("PA"));
         if (stagedPositions.Count > 0) parts.Add(Loc.F("{0} position(s)", stagedPositions.Count));
         if (staged.Count > 0) parts.Add(Loc.F("{0} attribute(s)", staged.Count));
-        if (ResultContractStatus is { } contractStatus) parts.Add(ContractStatusOptions.First(o => o.Value == contractStatus).Name);
-        if (ResultClauses.Count > 0) parts.Add($"{ResultClauses.Count} clause(s)");
-        if (ResultMinAge is not null || ResultMaxAge is not null) parts.Add("Age");
-        if (ResultMinCa is not null || ResultMaxCa is not null) parts.Add("CA");
-        if (ResultMinPa is not null || ResultMaxPa is not null) parts.Add("PA");
         if (ResultRoleCode is { } roleCode) parts.Add(ResultMinRoleScore is { } minScore ? $"{roleCode} >= {minScore:0.#}%" : roleCode);
         else if (ResultMinRoleScore is { } bestScore) parts.Add($"Best Role >= {bestScore:0.#}%");
-        if (stagedPositions.Count > 0) parts.Add($"{stagedPositions.Count} position(s)");
-        if (staged.Count > 0) parts.Add($"{staged.Count} attribute(s)");
 
         int visibleByGender = allPlayers.Count == 0 ? 0 : PlayersMatchingDialogGender().Count();
         string hiddenSuffix = allPlayers.Count > 0 && visibleByGender < allPlayers.Count

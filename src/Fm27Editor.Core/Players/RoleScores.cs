@@ -110,6 +110,7 @@ public static class RoleScores
     {
         ArgumentNullException.ThrowIfNull(role);
         ArgumentNullException.ThrowIfNull(player);
+        if (role.Primary.Length == 0 || role.Secondary.Length == 0) throw new ArgumentException("Role weights cannot be empty", nameof(role));
         double primarySum = 0;
         foreach (var attr in role.Primary) primarySum += player.Attribute(attr);
         double secondarySum = 0;

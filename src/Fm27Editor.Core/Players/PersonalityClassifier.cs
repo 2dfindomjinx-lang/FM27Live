@@ -14,8 +14,11 @@ public static class PersonalityClassifier
     public static PersonalityClassification Classify(PlayerRecord player, bool? isRegenOverride = null)
     {
         ArgumentNullException.ThrowIfNull(player);
-        bool isRegen = isRegenOverride ?? (RegenIds.IsRegen(player) == true);
-        int age = player.Age ?? 0;
+        bool? regen = isRegenOverride ?? RegenIds.IsRegen(player);
+        if (regen is null || player.Age is not { } age || age < 0 ||
+            player.Personality.Length < Enum.GetValues<PersonalityAttribute>().Length ||
+            player.RawAttributes.Length <= (int)PlayerAttribute.Leadership) return Describe(255);
+        bool isRegen = regen.Value;
         return Classify(
             isRegen,
             age,
@@ -41,6 +44,8 @@ public static class PersonalityClassifier
         int determination,
         int leadership)
     {
+        if (age < 0 || new[] { ambition, loyalty, pressure, professionalism, sportsmanship, temperament, determination, leadership }.Any(v => v is < 1 or > 20))
+            return Describe(255);
         int id = 255;
         if (professionalism < 15 && determination < 15 && ambition < 15 && loyalty < 15 && sportsmanship < 15) id = 1; // Balanced
         if (17 < professionalism && determination < 15 && temperament < 10) id = 12; // Fairly Professional

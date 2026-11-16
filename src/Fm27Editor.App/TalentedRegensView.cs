@@ -32,13 +32,14 @@ public sealed class TalentedRegensTab
     readonly Action<PlayerRecord> openPlayer;
     readonly TextBox minPaBox = new() { Text = "150", Width = 54, HorizontalContentAlignment = HorizontalAlignment.Right };
     readonly TextBox maxAgeBox = new() { Text = "23", Width = 48, HorizontalContentAlignment = HorizontalAlignment.Right };
-    readonly CheckBox freeAgentBox = new() { Content = "Free agents only", VerticalAlignment = VerticalAlignment.Center };
-    readonly ComboBox genderCombo = new() { ItemsSource = new[] { "All", "Men", "Women" }, SelectedIndex = 0, Width = 96 };
-    readonly TextBox searchBox = new() { Watermark = "Filter name, club, nation, pos...", Width = 220 };
+    readonly CheckBox freeAgentBox = new() { Content = Loc.S("Free agents only"), VerticalAlignment = VerticalAlignment.Center };
+    readonly ComboBox genderCombo = new() { ItemsSource = new[] { Loc.S("All"), Loc.S("Men"), Loc.S("Women") }, SelectedIndex = 0, Width = 96 };
+    readonly TextBox searchBox = new() { Watermark = Loc.S("Filter name, club, nation, pos..."), Width = 220 };
     readonly TextBlock summaryText = new() { FontSize = 12, Foreground = UiKit.Brush("#94A3B8"), VerticalAlignment = VerticalAlignment.Center };
     readonly DataGrid grid = ToolGrid.Create();
 
     IReadOnlyList<PlayerRecord> loadedPlayers = [];
+    int? floorOverride;
 
     public Control Root { get; }
 
@@ -46,7 +47,7 @@ public sealed class TalentedRegensTab
     {
         this.openPlayer = openPlayer;
 
-        var refreshBtn = new Button { Content = "Refresh" };
+        var refreshBtn = new Button { Content = Loc.S("Refresh") };
         refreshBtn.Click += (_, _) => ApplyFilter();
 
         var toolbar = new WrapPanel
@@ -64,7 +65,7 @@ public sealed class TalentedRegensTab
                 VerticalAlignment = VerticalAlignment.Center,
                 Children =
                 {
-                    new TextBlock { Text = label, FontSize = 12, Foreground = UiKit.Brush("#94A3B8"), VerticalAlignment = VerticalAlignment.Center },
+                    new TextBlock { Text = Loc.S(label), FontSize = 12, Foreground = UiKit.Brush("#94A3B8"), VerticalAlignment = VerticalAlignment.Center },
                     c,
                 },
             });
@@ -144,11 +145,12 @@ public sealed class TalentedRegensTab
         dock.Children.Add(grid);
         Root = dock;
 
-        summaryText.Text = "Load players to scan regens.";
+        summaryText.Text = Loc.S("Load players to scan regens.");
     }
 
     public void SetPlayers(IEnumerable<PlayerRecord> players, int? regenIdFloorOverride = null)
     {
+        floorOverride = regenIdFloorOverride;
         loadedPlayers = players as IReadOnlyList<PlayerRecord> ?? players.ToArray();
         ApplyFilter(regenIdFloorOverride);
     }
@@ -176,16 +178,23 @@ public sealed class TalentedRegensTab
         if (loadedPlayers.Count == 0)
         {
             ToolGrid.SetItems(grid, Array.Empty<RegenRow>());
-            summaryText.Text = "Load players to scan regens.";
+            summaryText.Text = Loc.S("Load players to scan regens.");
             return;
         }
 
-        var result = TalentedRegensQuery.Find(loadedPlayers, CurrentCriteria(), regenIdFloorOverride);
+        if (!int.TryParse(minPaBox.Text?.Trim(), Inv, out int pa) || pa is < 1 or > 200 ||
+            !int.TryParse(maxAgeBox.Text?.Trim(), Inv, out int age) || age is < 14 or > 50)
+        {
+            ToolGrid.SetItems(grid, Array.Empty<RegenRow>());
+            summaryText.Text = Loc.S("Enter PA 1-200 and age 14-50");
+            return;
+        }
+        var result = TalentedRegensQuery.Find(loadedPlayers, CurrentCriteria(), regenIdFloorOverride ?? floorOverride);
         if (result.RegenIdentificationUnavailable)
         {
             ToolGrid.SetItems(grid, Array.Empty<RegenRow>());
             summaryText.Foreground = UiKit.Brush("#FBBF24");
-            summaryText.Text = "Regen ID floor unavailable for the current player list.";
+            summaryText.Text = Loc.S("Regen ID floor unavailable for the current player list.");
             return;
         }
 
@@ -198,7 +207,7 @@ public sealed class TalentedRegensTab
             m.Rca,
             m.BestRole.Role.Code,
             m.BestRole.Score,
-            m.Personality.Name,
+            Loc.S(m.Personality.Name),
             m.Personality.IsNegative,
             m.Player.PositionSummary,
             m.Player.ClubName,
@@ -206,6 +215,6 @@ public sealed class TalentedRegensTab
 
         ToolGrid.SetItems(grid, rows);
         summaryText.Foreground = UiKit.Brush("#94A3B8");
-        summaryText.Text = $"{rows.Count} regen(s) matched (ID >= {result.RegenIdFloor})";
+        summaryText.Text = Loc.F("{0} regen(s) matched", rows.Count);
     }
 }

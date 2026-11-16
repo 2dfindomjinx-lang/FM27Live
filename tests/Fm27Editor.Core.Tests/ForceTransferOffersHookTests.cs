@@ -32,13 +32,21 @@ public class ForceTransferOffersHookTests
         const int HarnessOffset = ForceTransferOffersHook.BlockSize;
         public readonly nint Block;
         readonly nint ctx, proposal, clubTeam, intlTeam, matchClub, otherClub;
-        readonly Harness run;
+        readonly Harness? run;
+        readonly nint owned;
+        int next = 0x2000;
         readonly OffsetProfile profile = SteamProfile();
 
         public NativeRoutine()
         {
-            Block = VirtualAlloc(0, HarnessOffset + 0x1000, 0x3000, 0x40);
-            if (Block == 0) throw new InvalidOperationException("VirtualAlloc failed");
+            if (OperatingSystem.IsWindows()) Block = VirtualAlloc(0, 0x10000, 0x3000, 0x40);
+            else
+            {
+                owned = Marshal.AllocHGlobal(0x14000);
+                Block = (nint)(((ulong)owned + 0x3FFF) & ~0x3FFFUL);
+            }
+            if (Block == 0) throw new InvalidOperationException("Test allocation failed");
+            for (int i = 0; i < 0x10000; i++) Marshal.WriteByte(Block, i, 0);
 
             ctx = Alloc(0x900);
             proposal = Alloc(0x100);
@@ -84,12 +92,14 @@ public class ForceTransferOffersHookTests
             var block = ForceTransferOffersHook.BuildBlock(cave, resume - 8, GameSiteBytes[..8], profile);
             Marshal.Copy(block, 0, Block, block.Length);
             Marshal.Copy(h.ToArray(), 0, (nint)harness, h.Count);
-            run = Marshal.GetDelegateForFunctionPointer<Harness>((nint)harness);
+            if (OperatingSystem.IsWindows()) run = Marshal.GetDelegateForFunctionPointer<Harness>((nint)harness);
         }
 
-        static nint Alloc(int size)
+        nint Alloc(int size)
         {
-            nint at = Marshal.AllocHGlobal(size);
+            nint at = Block + next;
+            next += (size + 15) & ~15;
+            if (next > 0x10000) throw new InvalidOperationException("Test image full");
             for (int i = 0; i < size; i++) Marshal.WriteByte(at, i, 0);
             return at;
         }
@@ -115,7 +125,7 @@ public class ForceTransferOffersHookTests
         public int Invoke(byte initialStatus, nint proposalPtr)
         {
             Marshal.WriteByte(ctx, 0x800, initialStatus);
-            return run(ctx, proposalPtr);
+            return run is not null ? run(ctx, proposalPtr) : X64HookRunner.Invoke(Block, ctx, proposalPtr);
         }
 
         public long Calls => Marshal.ReadInt64(Block + 0x08);
@@ -137,13 +147,8 @@ public class ForceTransferOffersHookTests
 
         public void Dispose()
         {
-            Marshal.FreeHGlobal(ctx);
-            Marshal.FreeHGlobal(proposal);
-            Marshal.FreeHGlobal(clubTeam);
-            Marshal.FreeHGlobal(intlTeam);
-            Marshal.FreeHGlobal(matchClub);
-            Marshal.FreeHGlobal(otherClub);
-            VirtualFree(Block, 0, 0x8000);
+            if (OperatingSystem.IsWindows()) VirtualFree(Block, 0, 0x8000);
+            else Marshal.FreeHGlobal(owned);
         }
 
         [DllImport("kernel32.dll")]
@@ -272,6 +277,9 @@ public class ForceTransferOffersHookTests
     {
         var memory = new FakeMemory();
         var header = memory.Map(Module, 0x400);
+        header[0] = (byte)'M'; header[1] = (byte)'Z';
+        BitConverter.GetBytes(0x4550u).CopyTo(header, 0x80);
+        BitConverter.GetBytes((ushort)0x8664).CopyTo(header, 0x84);
         BitConverter.GetBytes(0x80).CopyTo(header, 0x3C);
         BitConverter.GetBytes((ushort)1).CopyTo(header, 0x80 + 6);
         BitConverter.GetBytes((ushort)0).CopyTo(header, 0x80 + 20);

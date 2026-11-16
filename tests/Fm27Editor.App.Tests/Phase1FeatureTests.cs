@@ -6,8 +6,11 @@ using Fm27Editor.Core.Staff;
 
 namespace Fm27Editor.App.Tests;
 
-public sealed class Phase1FeatureTests
+public sealed class Phase1FeatureTests : IDisposable
 {
+    readonly int? savedFloor = RegenIds.Current;
+    public Phase1FeatureTests() => RegenIds.Current = 1_000_000;
+    public void Dispose() => RegenIds.Current = savedFloor;
     static PlayerRecord MakePlayer(
         ulong addr,
         int id,
@@ -213,7 +216,7 @@ public sealed class Phase1FeatureTests
             Attributes = attrs,
             Personality = new byte[8],
             Roles = analystRoles,
-            Kind = new StaffKind(0, 0, 0, false),
+            Kind = new StaffKind(0, 0, 0, null, false),
         };
         var analystRca = StaffRcaCalculator.Calculate(analyst);
         Assert.Null(analystRca.Score);
@@ -228,7 +231,7 @@ public sealed class Phase1FeatureTests
             Attributes = attrs,
             Personality = new byte[8],
             Roles = coachRoles,
-            Kind = new StaffKind(0, 0, 0, false),
+            Kind = new StaffKind(0, 0, 0, null, false),
         };
         var coachRca = StaffRcaCalculator.Calculate(coach);
         Assert.NotNull(coachRca.Score);

@@ -412,6 +412,8 @@ public sealed partial class MainWindow : Window
                 activeMaxAge = preset.MaxAge;
                 activeMinCa = preset.MinCa;
                 activeMaxCa = preset.MaxCa;
+                activeRoleCode = preset.RoleCode;
+                activeMinRoleScore = preset.MinRoleScore;
                 activeMinPa = preset.MinPa;
                 activeMaxPa = preset.MaxPa;
                 activePositions.Clear();
@@ -767,9 +769,9 @@ public sealed partial class MainWindow : Window
         {
             string roleLabel = (activeRoleCode, activeMinRoleScore) switch
             {
-                ({ } code, { } min) => $"Role: {code} >= {min:0.#}%",
-                ({ } code, null) => $"Role: {code}",
-                (null, { } min) => $"Best Role >= {min:0.#}%",
+                ({ } code, { } min) => Loc.F("Role: {0} >= {1:0.#}%", code, min),
+                ({ } code, null) => Loc.F("Role: {0}", code),
+                (null, { } min) => Loc.F("Best Role >= {0:0.#}%", min),
                 _ => "Role"
             };
             AddChip(roleLabel, () => { activeRoleCode = null; activeMinRoleScore = null; });
@@ -1025,7 +1027,7 @@ public sealed partial class MainWindow : Window
                 MinWidth = 54,
                 CellTemplate = new FuncDataTemplate<PlayerRecord>((p, _) => new TextBlock
                 {
-                    Text = p is null ? "" : RcaCalculator.Calculate(p).ToString(Inv),
+                    Text = p is null ? "" : ScoutingMetrics.Rca(p).ToString(Inv),
                     HorizontalAlignment = HorizontalAlignment.Right,
                     VerticalAlignment = VerticalAlignment.Center,
                     Margin = new Thickness(8, 0),
@@ -1034,7 +1036,7 @@ public sealed partial class MainWindow : Window
             });
             grid.Columns.Add(new DataGridTemplateColumn
             {
-                Header = "Best Role",
+                Header = Loc.S("Best Role"),
                 Width = new DataGridLength(130),
                 MinWidth = 100,
                 CellTemplate = new FuncDataTemplate<PlayerRecord>((p, _) =>
@@ -1042,7 +1044,7 @@ public sealed partial class MainWindow : Window
                     var text = "";
                     if (p is not null)
                     {
-                        var best = RoleScores.BestFitRole(p);
+                        var best = ScoutingMetrics.BestRole(p);
                         text = $"{best.Role.Code} {best.Score:0.0}%";
                     }
                     return new TextBlock
@@ -1055,15 +1057,15 @@ public sealed partial class MainWindow : Window
             });
             grid.Columns.Add(new DataGridTemplateColumn
             {
-                Header = "Personality",
+                Header = Loc.S("Personality"),
                 Width = new DataGridLength(145),
                 MinWidth = 110,
                 CellTemplate = new FuncDataTemplate<PlayerRecord>((p, _) =>
                 {
-                    var classified = p is null ? null : PersonalityClassifier.Classify(p);
+                    var classified = p is null ? null : ScoutingMetrics.Personality(p);
                     return new TextBlock
                     {
-                        Text = classified?.Name ?? "",
+                        Text = classified is null ? "" : Loc.S(classified.Name),
                         VerticalAlignment = VerticalAlignment.Center,
                         Margin = new Thickness(8, 0),
                         Foreground = classified?.IsNegative == true ? Brush("#F87171") : UiKit.TextPrimary,
@@ -1292,7 +1294,7 @@ public sealed partial class MainWindow : Window
         }
         var rcaValue = new TextBlock
         {
-            Text = RcaCalculator.Calculate(player).ToString(Inv),
+            Text = ScoutingMetrics.Rca(player).ToString(Inv),
             FontSize = 16,
             FontWeight = FontWeight.Black,
             Foreground = Brush("#4ADE80"),
@@ -1302,7 +1304,7 @@ public sealed partial class MainWindow : Window
         };
         commands.Children.Add(UiKit.StatBox("RCA", rcaValue));
 
-        var bestRole = RoleScores.BestFitRole(player);
+        var bestRole = ScoutingMetrics.BestRole(player);
         var roleValue = new TextBlock
         {
             Text = $"{bestRole.Role.Code} {bestRole.Score:0.0}%",

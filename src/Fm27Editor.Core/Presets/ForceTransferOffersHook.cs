@@ -106,6 +106,11 @@ public sealed class ForceTransferOffersHook(
     ];
 
     ulong? site;
+    public bool IsArchitectureSupported => !profile.IsArm64 && !profile.Module.EndsWith(".dylib", StringComparison.OrdinalIgnoreCase);
+    void RequireArchitecture()
+    {
+        if (!IsArchitectureSupported) throw new NotSupportedException("Force Accept Transfer is not verified for this game architecture");
+    }
 
     /// <summary>The 16-byte instruction pattern at the hook site across supported builds.</summary>
     public static ReadOnlySpan<byte> OriginalPattern() => OriginalBytes;
@@ -120,6 +125,7 @@ public sealed class ForceTransferOffersHook(
     /// <summary>Locates the unique site in executable PE sections, or throws if missing/ambiguous.</summary>
     public ulong FindSite()
     {
+        RequireArchitecture();
         if (site is { } known) return known;
         var hits = new List<ulong>();
         foreach (var (start, size) in CodeSections())
@@ -208,8 +214,10 @@ public sealed class ForceTransferOffersHook(
     /// <summary>Installs the trampoline with <c>Enabled = false</c> (once per game session) or migrates an older routine.</summary>
     public ForceTransferOffersState Install()
     {
+        RequireArchitecture();
+        if (host is null) throw new InvalidOperationException("Force Accept Transfer needs a writable game process");
         if (Read() is { } installed)
-            return RoutineIsCurrent(installed) || host is null ? installed : Migrate(installed);
+            return RoutineIsCurrent(installed) ? installed : throw new InvalidOperationException("The installed transfer hook does not match this version");
         if (host is null) throw new InvalidOperationException("Force Accept Transfer needs a writable game process");
         RequireOffsets(profile);
 
@@ -222,6 +230,7 @@ public sealed class ForceTransferOffersHook(
         var block = BuildBlock(cave, at, original, profile);
         Put(cave, block);
         host.FlushCode(cave, block.Length);
+        host.CommitExecutable(cave, block.Length);
 
         var patch = BuildPatch(at, cave + CodeOffset);
         using (host.Pause())
@@ -229,7 +238,7 @@ public sealed class ForceTransferOffersHook(
             if (!memory.Read(at, StolenLength).AsSpan().SequenceEqual(original))
                 throw new StaleObjectException("The transfer-offer code changed before the patch");
             uint previous = host.Protect(at, StolenLength, PageExecuteReadWrite);
-            try { Put(at, patch); }
+            try { FutureTransferTransaction.Apply(memory, [], [new(at, original, patch, "transfer hook")]); }
             finally { host.Protect(at, StolenLength, previous); }
             host.FlushCode(at, StolenLength);
         }
@@ -240,33 +249,45 @@ public sealed class ForceTransferOffersHook(
     public ForceTransferOffersState Configure(bool enabled, IEnumerable<int> clubIds)
     {
         ArgumentNullException.ThrowIfNull(clubIds);
-        int[] unique = [.. clubIds.Where(id => id != 0 && id != -1).Distinct()];
+        int[] unique = [.. clubIds.Where(id => id > 0).Distinct()];
         if (unique.Length > MaxIds)
             throw new ArgumentOutOfRangeException(nameof(clubIds), unique.Length, $"At most {MaxIds} club ids can be watched");
-        if (host is null && Read() is null)
-            throw new InvalidOperationException("Force Accept Transfer needs a writable game process");
-
+        RequireArchitecture();
+        if (host is null) throw new InvalidOperationException("Force Accept Transfer needs a writable game process");
+        if (enabled && unique.Length == 0) throw new InvalidOperationException("No managed club found in the loaded save.");
         var state = Install();
-        // Disable cleanly while updating the table so no game thread observes a torn count/array.
-        Put(state.Cave + EnabledOffset, [0]);
-        var table = new byte[MaxIds * 4];
-        for (int i = 0; i < unique.Length; i++)
-            BitConverter.GetBytes(unique[i]).CopyTo(table, i * 4);
-        Put(state.Cave + IdsOffset, table);
-        Put(state.Cave + IdCountOffset, BitConverter.GetBytes(unique.Length));
-        Put(state.Cave + EnabledOffset, [enabled ? (byte)1 : (byte)0]);
+        using (host.Pause())
+        {
+            if (!RoutineIsCurrent(state)) throw new StaleObjectException("The transfer hook changed");
+            // Off first, then update under a process pause. A failed update stays disabled.
+            Put(state.Cave + EnabledOffset, [0]);
+            var table = new byte[MaxIds * 4];
+            for (int i = 0; i < unique.Length; i++) BitConverter.GetBytes(unique[i]).CopyTo(table, i * 4);
+            try
+            {
+                Put(state.Cave + IdsOffset, table);
+                Put(state.Cave + IdCountOffset, BitConverter.GetBytes(unique.Length));
+                Put(state.Cave + EnabledOffset, [enabled ? (byte)1 : (byte)0]);
+            }
+            catch { Put(state.Cave + EnabledOffset, [0]); throw; }
+        }
         return Read() ?? state;
     }
 
     /// <summary>Restores the game's original 8 bytes at the site; leaves the cave allocated for safety.</summary>
     public void Uninstall()
     {
-        if (Read() is not { } state || host is null) return;
-        var original = memory.Read(state.Cave + OriginalOffset, StolenLength);
+        RequireArchitecture();
+        if (host is null) throw new InvalidOperationException("Force Accept Transfer needs a writable game process");
+        if (Read() is not { } state) return;
+        var original = OriginalBytes[..StolenLength];
         using (host.Pause())
         {
+            var expected = BuildPatch(state.Site, state.Cave + CodeOffset);
+            if (!memory.Read(state.Site, StolenLength).AsSpan().SequenceEqual(expected) || !RoutineIsCurrent(state))
+                throw new StaleObjectException("The transfer hook changed before removal");
             uint previous = host.Protect(state.Site, StolenLength, PageExecuteReadWrite);
-            try { Put(state.Site, original); }
+            try { FutureTransferTransaction.Apply(memory, [], [new(state.Site, expected, original, "transfer hook removal")]); }
             finally { host.Protect(state.Site, StolenLength, previous); }
             host.FlushCode(state.Site, StolenLength);
         }
@@ -275,40 +296,9 @@ public sealed class ForceTransferOffersHook(
     bool RoutineIsCurrent(ForceTransferOffersState state)
     {
         var stolen = memory.Read(state.Cave + OriginalOffset, StolenLength);
-        if (stolen.Length != StolenLength) return false;
+        if (!stolen.AsSpan().SequenceEqual(OriginalBytes.AsSpan(0, StolenLength))) return false;
         var expected = BuildRoutine(state.Cave + CodeOffset, state.Site + StolenLength, stolen, profile);
         return memory.Read(state.Cave + CodeOffset, expected.Length).AsSpan().SequenceEqual(expected);
-    }
-
-    ForceTransferOffersState Migrate(ForceTransferOffersState old)
-    {
-        RequireOffsets(profile);
-        var stolen = memory.Read(old.Cave + OriginalOffset, StolenLength);
-        ulong cave = host!.AllocateNear(old.Site, BlockSize);
-        var block = BuildBlock(cave, old.Site, stolen, profile);
-        BitConverter.GetBytes(old.Calls).CopyTo(block, CallsOffset);
-        BitConverter.GetBytes(old.Forced).CopyTo(block, ForcedOffset);
-        block[EnabledOffset] = old.Enabled ? (byte)1 : (byte)0;
-        int count = Math.Min(old.ClubIds.Count, MaxIds);
-        BitConverter.GetBytes(count).CopyTo(block, IdCountOffset);
-        for (int i = 0; i < count; i++)
-            BitConverter.GetBytes(old.ClubIds[i]).CopyTo(block, IdsOffset + i * 4);
-        Put(cave, block);
-        host.FlushCode(cave, block.Length);
-
-        var patch = BuildPatch(old.Site, cave + CodeOffset);
-        using (host.Pause())
-        {
-            var current = memory.Read(old.Site, StolenLength);
-            if (!IsPatchedSite([.. current, .. memory.Read(old.Site + StolenLength, 8)]) ||
-                old.Site + 5 + (ulong)(long)BitConverter.ToInt32(current, 1) != old.Cave + CodeOffset)
-                throw new StaleObjectException("The transfer-offer patch changed while it was being updated");
-            uint previous = host.Protect(old.Site, StolenLength, PageExecuteReadWrite);
-            try { Put(old.Site, patch); }
-            finally { host.Protect(old.Site, StolenLength, previous); }
-            host.FlushCode(old.Site, StolenLength);
-        }
-        return Read() ?? throw new MemoryAccessException("The transfer-offer patch did not stay in place");
     }
 
     /// <summary>Assembles the entire 4 KB cave block for tests and installation.</summary>
@@ -371,9 +361,16 @@ public sealed class ForceTransferOffersHook(
 
     IEnumerable<(ulong Start, ulong Size)> CodeSections()
     {
-        int peOffset = BitConverter.ToInt32(memory.Read(moduleBase + 0x3C, 4));
+        var dos = memory.Read(moduleBase, 64);
+        if (dos[0] != 'M' || dos[1] != 'Z') throw new InvalidOperationException("Expected a PE game image");
+        int peOffset = BitConverter.ToInt32(dos, 0x3C);
+        if (peOffset < 64 || peOffset > moduleSize - 24) throw new InvalidOperationException("Invalid PE header");
         var header = memory.Read(moduleBase + (ulong)peOffset, 24);
+        if (BitConverter.ToUInt32(header, 0) != 0x4550 || BitConverter.ToUInt16(header, 4) != 0x8664)
+            throw new InvalidOperationException("Expected an x64 PE game image");
         int sections = BitConverter.ToUInt16(header, 6), optional = BitConverter.ToUInt16(header, 20);
+        if (sections is < 1 or > 96 || (long)peOffset + 24 + optional + sections * 40 > moduleSize)
+            throw new InvalidOperationException("Invalid PE section table");
         var table = memory.Read(moduleBase + (ulong)peOffset + 24 + (ulong)optional, sections * 40);
         for (int i = 0; i < sections; i++)
         {
@@ -386,7 +383,7 @@ public sealed class ForceTransferOffersHook(
 
     void Put(ulong address, byte[] data)
     {
-        if (!memory.TryWrite(address, data))
+        if (!memory.TryWrite(address, data) || !memory.Read(address, data.Length).AsSpan().SequenceEqual(data))
             throw new MemoryAccessException($"Cannot write {data.Length} bytes at 0x{address:X}");
     }
 }

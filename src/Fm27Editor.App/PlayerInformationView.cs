@@ -77,7 +77,7 @@ public sealed partial class MainWindow
             else column.Children.Add(Column(groups[i]));
             if (groups[i] == "Mental")
             {
-                var personality = PersonalityClassifier.Classify(player);
+                var personality = ScoutingMetrics.Personality(player);
                 var persBadge = new TextBlock
                 {
                     Text = personality.Name,

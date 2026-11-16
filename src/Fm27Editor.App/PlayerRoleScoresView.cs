@@ -32,7 +32,7 @@ public sealed partial class MainWindow
         Control Row(string label, string value, string hex = "#E2E8F0", bool bold = false)
         {
             var g = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), Margin = new Thickness(0, 2) };
-            var l = new TextBlock { Text = label, FontSize = 12, Foreground = UiKit.Brush("#94A3B8"), VerticalAlignment = VerticalAlignment.Center };
+            var l = new TextBlock { Text = Loc.S(label), FontSize = 12, Foreground = UiKit.Brush("#94A3B8"), VerticalAlignment = VerticalAlignment.Center };
             var v = new TextBlock
             {
                 Text = value,
@@ -54,7 +54,7 @@ public sealed partial class MainWindow
         [
             Row("RCA", $"{rca.BestRca} ({PositionLabels.Short(rca.BestPosition)})", "#38BDF8", bold: true),
             Row("Best Role", $"{bestRole.Role.Code} ({bestRole.Score.ToString("0.0", InvCulture)}%)", "#C084FC", bold: true),
-            Row("Personality", personality.Name, persColor, bold: personality.IsNegative),
+            Row("Personality", Loc.S(personality.Name), persColor, bold: personality.IsNegative),
             Row("Progress Rate", $"{progress.ToString("0.0", InvCulture)} / 10.0"),
             Row("Core Mental", $"{coreMental.ToString("0", InvCulture)}%"),
         ]);
@@ -89,7 +89,7 @@ public sealed partial class MainWindow
 
         AddStat("RCA", $"{rca.BestRca} ({PositionLabels.Short(rca.BestPosition)})", "#38BDF8");
         AddStat("Best Fit", $"{bestFit.Role.Code} {bestFit.Score.ToString("0.0", InvCulture)}%", "#C084FC");
-        AddStat("Personality", personality.Name, personality.IsNegative ? "#F87171" : "#E2E8F0");
+        AddStat("Personality", Loc.S(personality.Name), personality.IsNegative ? "#F87171" : "#E2E8F0");
         AddStat("Progress", $"{progress.ToString("0.0", InvCulture)} / 10.0", "#E2E8F0");
         AddStat("Core Mental", $"{coreMental.ToString("0", InvCulture)}%", "#E2E8F0");
 
@@ -101,7 +101,7 @@ public sealed partial class MainWindow
                 $"{PositionLabels.Short(p.Position)} ({p.Rating}): {(int)Math.Floor(p.UnweightedBase + 0.5)}"));
             summaryStack.Children.Add(new TextBlock
             {
-                Text = "Position RCA (rating >= 12): " + posLine,
+                Text = Loc.S("Position RCA (rating >= 12): ") + posLine,
                 FontSize = 12,
                 Foreground = UiKit.Brush("#94A3B8"),
                 TextWrapping = TextWrapping.Wrap,
@@ -111,7 +111,7 @@ public sealed partial class MainWindow
 
         // 85 Role Scores filter + ToolGrid
         RoleGroup? activeGroup = null;
-        var filterBox = new TextBox { Watermark = "Filter roles (e.g. BPD, Pressing, Keeper)...", Width = 260 };
+        var filterBox = new TextBox { Watermark = Loc.S("Filter roles (e.g. BPD, Pressing, Keeper)..."), Width = 260 };
         var countLabel = new TextBlock { FontSize = 12, Foreground = UiKit.Brush("#94A3B8"), VerticalAlignment = VerticalAlignment.Center };
 
         var table = ToolGrid.Create();
@@ -133,8 +133,8 @@ public sealed partial class MainWindow
                 Margin = new Thickness(0, 0, 8, 0),
             }),
         });
-        table.Columns.Add(ToolGrid.Text<RoleScoreRow>("Key Attributes (x3)", r => r.PrimaryText, double.NaN, "Primary role attributes (weight x3)", "#CBD5E1", minWidth: 200));
-        table.Columns.Add(ToolGrid.Text<RoleScoreRow>("Secondary (x2)", r => r.SecondaryText, double.NaN, "Secondary role attributes (weight x2)", "#94A3B8", minWidth: 180));
+        table.Columns.Add(ToolGrid.Text<RoleScoreRow>("Key Attributes (x3)", r => r.PrimaryText, 0, "Primary role attributes (weight x3)", "#CBD5E1", minWidth: 200));
+        table.Columns.Add(ToolGrid.Text<RoleScoreRow>("Secondary (x2)", r => r.SecondaryText, 0, "Secondary role attributes (weight x2)", "#94A3B8", minWidth: 180));
 
         ToolGrid.EnableSort<RoleScoreRow>(table, new Dictionary<string, Func<RoleScoreRow, IComparable?>>
         {
@@ -146,12 +146,12 @@ public sealed partial class MainWindow
 
         var allRows = allScores.Select(s => new RoleScoreRow(
             s.Role.Code,
-            s.Role.Name,
+            ScoutingLabels.Role(s.Role.Name),
             s.Role.Group.ToString(),
             s.Score,
             s.Score.ToString("0.0", InvCulture) + "%",
-            string.Join(", ", s.Role.Primary),
-            string.Join(", ", s.Role.Secondary))).ToList();
+            string.Join(", ", s.Role.Primary.Select(ScoutingLabels.Attribute)),
+            string.Join(", ", s.Role.Secondary.Select(ScoutingLabels.Attribute)))).ToList();
 
         void ApplyFilter()
         {
@@ -165,13 +165,13 @@ public sealed partial class MainWindow
                     || r.SecondaryText.Contains(needle, StringComparison.OrdinalIgnoreCase)))
                 .ToList();
             ToolGrid.SetItems(table, filtered);
-            countLabel.Text = $"{filtered.Count} / {allRows.Count} roles";
+            countLabel.Text = Loc.F("{0} / {1} roles", filtered.Count, allRows.Count);
         }
 
         var groupOptions = new (string Label, RoleGroup? Group)[]
         {
-            ($"All ({allRows.Count})", null),
-            ($"GK ({allRows.Count(r => r.Group == nameof(RoleGroup.Goalkeeper))})", RoleGroup.Goalkeeper),
+            (Loc.F($"All ({allRows.Count})"), null),
+            (Loc.F($"GK ({allRows.Count(r => r.Group == nameof(RoleGroup.Goalkeeper))})"), RoleGroup.Goalkeeper),
             ($"Def ({allRows.Count(r => r.Group == nameof(RoleGroup.Defence))})", RoleGroup.Defence),
             ($"Mid ({allRows.Count(r => r.Group == nameof(RoleGroup.Midfield))})", RoleGroup.Midfield),
             ($"Wing ({allRows.Count(r => r.Group == nameof(RoleGroup.Wing))})", RoleGroup.Wing),

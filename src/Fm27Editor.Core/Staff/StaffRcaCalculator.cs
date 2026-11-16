@@ -48,9 +48,9 @@ public static class StaffRcaCalculator
         }
 
         double Attr(StaffAttribute a) =>
-            (int)a < staff.Attributes.Length ? Scale20(staff.Attributes[(int)a]) : 0;
+            (int)a < staff.Attributes.Length ? staff.Attributes[(int)a] : double.NaN;
         double Pers(StaffPersonality p) =>
-            (int)p < staff.Personality.Length ? Scale20(staff.Personality[(int)p]) : 0;
+            (int)p < staff.Personality.Length ? staff.Personality[(int)p] : double.NaN;
 
         Span<double> attrs = stackalloc double[26];
         attrs[0]  = Attr(StaffAttribute.CoachingAttacking);
@@ -101,7 +101,7 @@ public static class StaffRcaCalculator
         }
 
         if (totalRoleWeight == 0)
-            return new StaffRcaResult(1, primaryRole);
+            return new StaffRcaResult(null, primaryRole, false, "No qualified role available for RCA");
 
         double weightedSum = 0;
         double weightDenom = 0;
@@ -109,16 +109,17 @@ public static class StaffRcaCalculator
         {
             double w = blended[i] / totalRoleWeight;
             if (w <= 0) continue;
+            if (!double.IsFinite(attrs[i]) || attrs[i] is < 1 or > 20)
+                return new StaffRcaResult(null, primaryRole, false, "Required staff attributes are unavailable");
             weightedSum += attrs[i] * w;
             weightDenom += w;
         }
 
         if (weightDenom == 0)
-            return new StaffRcaResult(1, primaryRole);
+            return new StaffRcaResult(null, primaryRole, false, "No qualified role available for RCA");
 
         int score = Math.Clamp((int)Math.Floor((weightedSum / weightDenom) * 10.0 + 0.5), 1, 200);
         return new StaffRcaResult(score, primaryRole);
     }
 
-    static double Scale20(int value) => value > 20 ? (value / 255.0) * 20.0 : value;
 }

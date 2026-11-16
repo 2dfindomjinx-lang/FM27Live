@@ -363,11 +363,11 @@ internal sealed partial class StaffScreen(IScreenHost host, IStaffPanels panels)
         var caDisplay = new TextBlock { Text = s.CurrentAbility.ToString(Inv), FontSize = 16, FontWeight = FontWeight.Bold, Foreground = UiKit.Brush("#38BDF8"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 4, 0) };
         var paDisplay = new TextBlock { Text = s.PotentialAbility.ToString(Inv), FontSize = 16, FontWeight = FontWeight.Bold, Foreground = UiKit.Brush("#C084FC"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 4, 0) };
         var staffRca = StaffRcaCalculator.Calculate(s);
-        string rcaHeaderText = staffRca.Score is { } rcaVal ? rcaVal.ToString(Inv) : "N/A";
+        string rcaHeaderText = staffRca.Score is { } rcaVal ? rcaVal.ToString(Inv) : Loc.S("Unavailable");
         string rcaColor = staffRca.HasUnavailableDataAnalystInput ? "#FBBF24" : staffRca.Score is not null ? "#4ADE80" : "#94A3B8";
         var rcaDisplay = new TextBlock { Text = rcaHeaderText, FontSize = 16, FontWeight = FontWeight.Bold, Foreground = UiKit.Brush(rcaColor), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 4, 0) };
         if (staffRca.UnavailableReason is { } rcaReason)
-            ToolTip.SetTip(rcaDisplay, rcaReason);
+            ToolTip.SetTip(rcaDisplay, Loc.S(rcaReason));
         var headerCommands = new StackPanel
         {
             Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center,
@@ -428,7 +428,7 @@ internal sealed partial class StaffScreen(IScreenHost host, IStaffPanels panels)
         }
         string rcaCardText = staffRca.Score is { } sr
             ? (staffRca.PrimaryRole is { } pr ? $"{sr} ({StaffDetailsMassEdit.RoleLabel(pr)})" : sr.ToString(Inv))
-            : (staffRca.HasUnavailableDataAnalystInput ? "Unavailable (Data Analyst in FM27)" : "Unavailable");
+            : (staffRca.HasUnavailableDataAnalystInput ? Loc.S("Unavailable (Data Analyst in FM27)") : Loc.S("Unavailable"));
         var rcaLabel = new TextBlock
         {
             Text = rcaCardText,
@@ -437,7 +437,7 @@ internal sealed partial class StaffScreen(IScreenHost host, IStaffPanels panels)
             VerticalAlignment = VerticalAlignment.Center,
             HorizontalAlignment = HorizontalAlignment.Right,
         };
-        if (staffRca.UnavailableReason is { } reasonTip) ToolTip.SetTip(rcaLabel, reasonTip);
+        if (staffRca.UnavailableReason is { } reasonTip) ToolTip.SetTip(rcaLabel, Loc.S(reasonTip));
         col[0].Children.Add(UiKit.Card("Ability", Rows([
             ("CA", Box("CA", s.CurrentAbility.ToString(Inv), 58)),
             ("PA", Box("PA", s.PotentialAbility.ToString(Inv), 58)),

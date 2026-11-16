@@ -94,6 +94,8 @@ internal sealed class LoadedGameData(GameSession session)
         {
             data.Players = report.Read("players", "Reading players…", () => session.Players.LoadAll());
             foreach (var player in data.Players) player.GameDate = data.GameDate;
+            RegenIds.Current = RegenIds.FirstCreatedId(data.Players.Where(p => p.Id is not null).Select(p => p.Id!.Value));
+            report.Run("scouting metrics", "Reading scouting metrics…", () => ScoutingMetrics.Warm(data.Players));
             data.Clubs = report.Read("clubs", "Reading clubs…", () => session.LoadClubs(data.Players));
             data.Nations = report.Read("nations", "Reading nations…", () => session.Nations.LoadAll());
             if (session.Profile.Competition is not null)

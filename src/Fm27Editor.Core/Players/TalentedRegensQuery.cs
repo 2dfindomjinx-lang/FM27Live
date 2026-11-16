@@ -35,6 +35,9 @@ public static class TalentedRegensQuery
         ArgumentNullException.ThrowIfNull(players);
         ArgumentNullException.ThrowIfNull(criteria);
 
+        if (criteria.MinPotentialAbility is < 1 or > 200 || criteria.MaxAge is < 0 or > 100 ||
+            criteria.MinCurrentAbility is < 1 or > 200 || criteria.Gender is { } gender && !Enum.IsDefined(gender))
+            throw new ArgumentOutOfRangeException(nameof(criteria));
         int? floor = regenIdFloorOverride ?? RegenIds.Current;
         if (floor is not { } validFloor || validFloor <= 0)
             return new TalentedRegensResult([], RegenIdentificationUnavailable: true, RegenIdFloor: null);
@@ -53,7 +56,7 @@ public static class TalentedRegensQuery
 
             if (p.PotentialAbility < criteria.MinPotentialAbility) continue;
             if (criteria.MinCurrentAbility is { } minCa && p.CurrentAbility < minCa) continue;
-            if (p.Age is not { } age || age > criteria.MaxAge) continue;
+            if (p.Age is not { } age || age < 0 || age > criteria.MaxAge) continue;
             if (criteria.FreeAgentsOnly && p.Contract is not null) continue;
 
             if (needle is not null)

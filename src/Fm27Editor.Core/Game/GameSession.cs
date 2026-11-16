@@ -86,7 +86,7 @@ public sealed class GameSession : IDisposable
 
     /// <summary>Guarded trampoline hook for forcing other clubs to accept transfer offers made by your managed club.</summary>
     public Presets.ForceTransferOffersHook ForceTransferOffersHook =>
-        _forceTransfer ??= new(_memory, _memory.CanWrite ? _memory : null, Profile, Game.ModuleBase, Game.ModuleSize);
+        _forceTransfer ??= new(_memory, CanWrite ? _memory as Presets.ICodePatchHost : null, Profile, Game.ModuleBase, Game.ModuleSize);
 
     /// <summary>Current in-game date, read fresh on every call; null if unknown.</summary>
     public DateOnly? ReadGameDate() => GameClock.Read(_memory, Profile, Game.ModuleBase);

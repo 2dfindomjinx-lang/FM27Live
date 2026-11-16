@@ -13,6 +13,7 @@ public sealed partial class MainWindow
     Control BuildForceAcceptTransferSection(GameSession session)
     {
         var hook = session.ForceTransferOffersHook;
+        var edits = backend.Edits;
         var panel = new StackPanel { Spacing = 6 };
         if (!hook.IsArchitectureSupported)
         {
@@ -92,7 +93,7 @@ public sealed partial class MainWindow
             var seen = new HashSet<int>();
             foreach (var staff in session.Staff.LoadAll())
             {
-                if (staff.ManagerAttributes is null || staff.Club is not { } club) continue;
+                if (!staff.Kind.Manager || staff.ManagerAttributes is null || staff.Club is not { } club) continue;
                 var raw = new byte[4];
                 if (!session.Memory.TryRead(club.Address + (ulong)idOff, raw)) continue;
                 int id = BitConverter.ToInt32(raw, 0);
@@ -159,14 +160,16 @@ public sealed partial class MainWindow
                     {
                         if (clubs.Count == 0)
                             throw new InvalidOperationException("No managed club found in the loaded save.");
-                        var s = hook.Configure(true, clubs.Select(c => c.Id));
+                        ForceTransferOffersState? s = null;
+                        edits.Execute("Hook", "Force Accept Transfer", "Configure", () => s = hook.Configure(true, clubs.Select(c => c.Id)));
                         return (s, clubs);
                     }
                     else
                     {
                         var existing = hook.Read();
                         var ids = existing?.ClubIds ?? clubs.Select(c => c.Id).ToList();
-                        var s = existing is null ? null : hook.Configure(false, ids);
+                        ForceTransferOffersState? s = null;
+                        if (existing is not null) edits.Execute("Hook", "Force Accept Transfer", "Configure", () => s = hook.Configure(false, ids));
                         return (s, clubs);
                     }
                 });
@@ -194,7 +197,7 @@ public sealed partial class MainWindow
             {
                 var clubs = await Task.Run(() =>
                 {
-                    hook.Uninstall();
+                    edits.Execute("Hook", "Force Accept Transfer", "Remove", hook.Uninstall);
                     return ReadManagedClubs();
                 });
                 RenderState(null, clubs);

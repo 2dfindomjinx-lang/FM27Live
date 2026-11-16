@@ -95,12 +95,10 @@ public sealed partial class MainWindow
                 report.Run("youth candidate manager", "Reading…", () => session.YouthCandidates.FindManager());
             if (session.Profile.Nation is not null)
                 report.Run("work permit table", "Reading…", () => new WorkPermitTable(session.Memory, session.Profile, session.ModuleBase).Locate());
-            if (!session.Profile.IsArm64)
-            {
-                report.Run("academy site", "Reading…", () => session.GoldenGenerationHook.FindSite());
-                report.Run("development site", "Reading…", () => session.AcceleratedDevelopment.FindSite());
+            report.Run("academy site", "Reading…", () => session.GoldenGenerationHook.FindSite());
+            report.Run("development site", "Reading…", () => session.AcceleratedDevelopment.FindSite());
+            if (session.ForceTransferOffersHook.IsArchitectureSupported)
                 report.Run("transfer offer site", "Reading…", () => session.ForceTransferOffersHook.FindSite());
-            }
             report.Run("freezer", "Reading…", () => backend.InitializeFreezer(data));
         });
         futureDirty = retiringDirty = false;

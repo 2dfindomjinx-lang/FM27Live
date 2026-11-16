@@ -343,8 +343,7 @@ public sealed partial class MainWindow : Window
         {
             new(PlayerSortKey.CurrentAbility, "Sort: CA", null, true),
             new(PlayerSortKey.PotentialAbility, "Sort: PA", null, true),
-            new(PlayerSortKey.Rca, "Sort: RCA", null, true),
-            new(PlayerSortKey.BestRoleScore, "Sort: Best Role %", null, true),
+            // Suspended pending FM27 oracle calibration: RCA / role sort options.
             new(PlayerSortKey.Personality, "Sort: Personality", null, false),
             new(PlayerSortKey.Age, "Sort: Age", null, false),
             new(PlayerSortKey.Name, "Sort: Name", null, false),
@@ -412,8 +411,8 @@ public sealed partial class MainWindow : Window
                 activeMaxAge = preset.MaxAge;
                 activeMinCa = preset.MinCa;
                 activeMaxCa = preset.MaxCa;
-                activeRoleCode = preset.RoleCode;
-                activeMinRoleScore = preset.MinRoleScore;
+                activeRoleCode = LegacyScoutingAvailability.Enabled ? preset.RoleCode : null;
+                activeMinRoleScore = LegacyScoutingAvailability.Enabled ? preset.MinRoleScore : null;
                 activeMinPa = preset.MinPa;
                 activeMaxPa = preset.MaxPa;
                 activePositions.Clear();
@@ -426,7 +425,8 @@ public sealed partial class MainWindow : Window
                     foreach (var (position, rating) in thresholds) activePositionThresholds[position] = rating;
                 activeNumericRanges.Clear();
                 if (preset.NumericRanges is { } ranges)
-                    foreach (var (key, range) in ranges) activeNumericRanges[key] = range;
+                    foreach (var (key, range) in ranges)
+                        if (LegacyScoutingAvailability.Enabled || !LegacyScoutingAvailability.IsLegacyFilter(key)) activeNumericRanges[key] = range;
                 activePreferredMoves = preset.RequiredPreferredMoves;
                 activePosMinRating = Math.Clamp(preset.PositionMinRating, 1, 20);
                 activeAttrThresholds.Clear();
@@ -1020,6 +1020,8 @@ public sealed partial class MainWindow : Window
         }
         if (module is PlayersModule)
         {
+            if (LegacyScoutingAvailability.Enabled)
+            {
             grid.Columns.Add(new DataGridTemplateColumn
             {
                 Header = "RCA",
@@ -1055,6 +1057,7 @@ public sealed partial class MainWindow : Window
                     };
                 })
             });
+            }
             grid.Columns.Add(new DataGridTemplateColumn
             {
                 Header = Loc.S("Personality"),
@@ -1292,6 +1295,8 @@ public sealed partial class MainWindow : Window
             };
             commands.Children.Add(UiKit.StatBox(Loc.S(field.Label), ability));
         }
+        if (LegacyScoutingAvailability.Enabled)
+        {
         var rcaValue = new TextBlock
         {
             Text = ScoutingMetrics.Rca(player).ToString(Inv),
@@ -1314,6 +1319,8 @@ public sealed partial class MainWindow : Window
             VerticalAlignment = VerticalAlignment.Center,
         };
         commands.Children.Add(UiKit.StatBox("Best Role", roleValue));
+
+        }
 
         saveButton = new Button { IsVisible = false, Content = Loc.S("Save changes"), IsEnabled = draft.Count > 0, Classes = { "accent" }, Margin = new Thickness(4, 0, 0, 0) };
         saveButton.Click += (_, _) => SavePlayerChanges(player);
@@ -1399,7 +1406,6 @@ public sealed partial class MainWindow : Window
         var sections = new List<SectionHost.Section>
         {
             new("Information", "Information", () => InformationSection(player)),
-            new("Role Scores", "Role Scores", () => RoleScoresPanel(player)),
             new("Positions", "Positions", () => CreatePitch(player, draft)),
             new("Career Plans", "Career Plans", () => CareerPlansPanel(player)),
             new("Move to club", "Move to club", () => MovePanel(player)),
@@ -1408,6 +1414,7 @@ public sealed partial class MainWindow : Window
             new("Promises", "Promises", () => PromisesPanel(player)),
             new("Unavailability", "Unavailability", () => UnavailabilityPanel(player)),
         };
+        if (LegacyScoutingAvailability.Enabled) sections.Insert(1, new("Role Scores", "Role Scores", () => RoleScoresPanel(player)));
         // Like FMRTE, Future Transfer appears only for players with an agreed future move.
         if (HasFutureTransfer(player))
             sections.Add(new("Future Transfer", "Future Transfer", () => FutureTransferPanel(player)!));

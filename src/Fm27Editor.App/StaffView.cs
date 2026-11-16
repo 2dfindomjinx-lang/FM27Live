@@ -371,7 +371,7 @@ internal sealed partial class StaffScreen(IScreenHost host, IStaffPanels panels)
         var headerCommands = new StackPanel
         {
             Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center,
-            Children = { UiKit.StatBox("CA", caDisplay), UiKit.StatBox("PA", paDisplay), UiKit.StatBox("RCA", rcaDisplay) },
+            Children = { UiKit.StatBox("CA", caDisplay), UiKit.StatBox("PA", paDisplay) },
         };
         // Freezer: the same Freeze / Unfreeze pair the player tools have; every attribute is frozen at its current value.
         if (Host.Backend.Freezer is { } freezer)
@@ -441,7 +441,6 @@ internal sealed partial class StaffScreen(IScreenHost host, IStaffPanels panels)
         col[0].Children.Add(UiKit.Card("Ability", Rows([
             ("CA", Box("CA", s.CurrentAbility.ToString(Inv), 58)),
             ("PA", Box("PA", s.PotentialAbility.ToString(Inv), 58)),
-            ("RCA", rcaLabel),
         ])));
         col[0].Children.Add(UiKit.Card("Reputation", Rows([
             (Loc.S("Home"), Box("rep:Home", s.HomeReputation.ToString(Inv), 68)),

@@ -227,8 +227,8 @@ public sealed class AttributeFilterDialog : Window
     public int? ResultMaxCa => ParseOptInt(maxCaBox.Text);
     public int? ResultMinPa => ParseOptInt(minPaBox.Text);
     public int? ResultMaxPa => ParseOptInt(maxPaBox.Text);
-    public string? ResultRoleCode => (roleFilterCombo.SelectedItem as RoleChoice)?.Code;
-    public double? ResultMinRoleScore => double.TryParse(minRoleScoreBox.Text?.Trim(), NumberStyles.Float, Inv, out double score)
+    public string? ResultRoleCode => LegacyScoutingAvailability.Enabled ? (roleFilterCombo.SelectedItem as RoleChoice)?.Code : null;
+    public double? ResultMinRoleScore => LegacyScoutingAvailability.Enabled && double.TryParse(minRoleScoreBox.Text?.Trim(), NumberStyles.Float, Inv, out double score)
         && double.IsFinite(score) && score is >= 0 and <= 100 ? score : null;
     public string? ResultNameQuery => string.IsNullOrWhiteSpace(nameQueryBox.Text) ? null : nameQueryBox.Text.Trim();
     public Fm27Editor.Core.Offsets.Gender? ResultGender => genderCombo.SelectedIndex switch { 0 => Fm27Editor.Core.Offsets.Gender.Men, 1 => Fm27Editor.Core.Offsets.Gender.Women, _ => null };
@@ -827,7 +827,7 @@ public sealed class AttributeFilterDialog : Window
                 summaryText.Foreground = Brush("#F59E0B");
                 return;
             }
-            if (!string.IsNullOrWhiteSpace(minRoleScoreBox.Text) && ResultMinRoleScore is null)
+            if (LegacyScoutingAvailability.Enabled && !string.IsNullOrWhiteSpace(minRoleScoreBox.Text) && ResultMinRoleScore is null)
             { summaryText.Text = Loc.S("Role score must be 0-100"); return; }
             var preset = new FilterPreset(
                 name,
@@ -1001,7 +1001,7 @@ public sealed class AttributeFilterDialog : Window
         roleRow.Children.Add(roleFilterCombo);
         roleRow.Children.Add(MutedLabel("Min %"));
         roleRow.Children.Add(minRoleScoreBox);
-        stack.Children.Add(roleRow);
+        if (LegacyScoutingAvailability.Enabled) stack.Children.Add(roleRow);
 
         // Row 2: Positions
         var posRow = new WrapPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
@@ -1557,7 +1557,7 @@ public sealed class AttributeFilterDialog : Window
     Control BuildAdditionalRanges()
     {
         var panel = new WrapPanel { Orientation = Orientation.Horizontal };
-        var keys = new[] { "Height", "Caps", "Goals", "Home Reputation", "Current Reputation", "World Reputation", "CA/PA Difference", "RCA" };
+        var keys = new[] { "Height", "Caps", "Goals", "Home Reputation", "Current Reputation", "World Reputation", "CA/PA Difference" };
         foreach (string key in keys)
         {
             initialRanges.TryGetValue(key, out var range);
@@ -1850,7 +1850,7 @@ public sealed class AttributeFilterDialog : Window
                 Close();
                 return;
             }
-            if (!string.IsNullOrWhiteSpace(minRoleScoreBox.Text) && ResultMinRoleScore is null)
+            if (LegacyScoutingAvailability.Enabled && !string.IsNullOrWhiteSpace(minRoleScoreBox.Text) && ResultMinRoleScore is null)
             { summaryText.Text = Loc.S("Role score must be 0-100"); return; }
             foreach (var (_, controls) in rangeInputs)
             {

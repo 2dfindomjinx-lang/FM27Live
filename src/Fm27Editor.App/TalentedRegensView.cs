@@ -83,9 +83,12 @@ public sealed class TalentedRegensTab
         grid.Columns.Add(ToolGrid.Number<RegenRow>("Age", r => r.Age?.ToString(Inv) ?? "", 52, "Current age"));
         grid.Columns.Add(ToolGrid.Number<RegenRow>("CA", r => r.CA.ToString(Inv), 54, "Current Ability"));
         grid.Columns.Add(ToolGrid.Number<RegenRow>("PA", r => r.PA.ToString(Inv), 54, "Potential Ability"));
+        if (LegacyScoutingAvailability.Enabled)
+        {
         grid.Columns.Add(ToolGrid.Number<RegenRow>("RCA", r => r.RCA.ToString(Inv), 54, "Recommended Current Ability"));
         grid.Columns.Add(ToolGrid.Text<RegenRow>("Role", r => r.BestRoleCode, 76, "Best fit tactical role", "#C084FC", bold: true));
         grid.Columns.Add(ToolGrid.Number<RegenRow>("Role %", r => r.BestRoleScore.ToString("0.0", Inv) + "%", 68, "Best role score"));
+        }
         grid.Columns.Add(new DataGridTemplateColumn
         {
             Header = ToolGrid.Header("Personality", "Classified personality (red = negative)", HorizontalAlignment.Left),

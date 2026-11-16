@@ -33,8 +33,9 @@ public sealed partial class MainWindow
             Spacing = 8,
             Width = 295,
             HorizontalAlignment = HorizontalAlignment.Left,
-            Children = { personal, MiniScoutingCard(player) },
+            Children = { personal },
         };
+        if (LegacyScoutingAvailability.Enabled) column0.Children.Add(MiniScoutingCard(player));
         Grid.SetColumn(column0, 0);
         host.Children.Add(column0);
 

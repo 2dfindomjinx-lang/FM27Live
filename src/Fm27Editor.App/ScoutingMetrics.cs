@@ -8,8 +8,10 @@ internal static class ScoutingMetrics
 {
     sealed class Entry(PlayerRecord player)
     {
-        public int Rca { get; } = RcaCalculator.Calculate(player);
-        public RoleScore BestRole { get; } = RoleScores.BestFitRole(player);
+        readonly Lazy<int> rca = new(() => RcaCalculator.Calculate(player));
+        public int Rca => rca.Value;
+        readonly Lazy<RoleScore> bestRole = new(() => RoleScores.BestFitRole(player));
+        public RoleScore BestRole => bestRole.Value;
         public DateOnly? Date;
         public int? Floor;
         public PersonalityClassification? Personality;

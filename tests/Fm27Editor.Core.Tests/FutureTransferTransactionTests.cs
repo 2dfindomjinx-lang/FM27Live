@@ -28,6 +28,22 @@ public class FutureTransferTransactionTests
         Assert.Equal(2, inner.Read(0x2000, 1)[0]);
     }
 
+    [Fact]
+    public void Incomplete_rollback_is_reported_explicitly()
+    {
+        var inner = new FakeMemory(); inner.Map(0x1000, 1)[0] = 1; inner.Map(0x2000, 1)[0] = 2;
+        var error = Assert.Throws<AggregateException>(() => FutureTransferTransaction.Apply(new FailsFromSecondWrite(inner), [],
+            [new(0x1000, [1], [8], "first"), new(0x2000, [2], [9], "second")]));
+        Assert.Contains("rollback incomplete", error.Message);
+    }
+
+    sealed class FailsFromSecondWrite(FakeMemory inner) : IProcessMemory
+    {
+        int calls;
+        public bool TryRead(ulong address, Span<byte> buffer) => inner.TryRead(address, buffer);
+        public bool TryWrite(ulong address, ReadOnlySpan<byte> data) => ++calls < 2 && inner.TryWrite(address, data);
+    }
+
     sealed class FailsSecondWrite(FakeMemory inner) : IProcessMemory
     {
         int calls;

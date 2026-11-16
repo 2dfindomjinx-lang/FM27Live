@@ -26,8 +26,8 @@ public static class FutureTransferTransaction
             foreach (var w in writes)
             {
                 Check(memory, w);
-                if (!memory.TryWrite(w.Address, w.Value)) throw new MemoryAccessException($"Could not write {w.What}; the failed write may have been partial");
                 completed.Add(w);
+                if (!memory.TryWrite(w.Address, w.Value)) throw new MemoryAccessException($"Could not write {w.What}; the failed write may have been partial");
                 if (!memory.Read(w.Address, w.Value.Length).AsSpan().SequenceEqual(w.Value))
                     throw new MemoryAccessException($"Could not verify {w.What}");
             }
@@ -40,14 +40,17 @@ public static class FutureTransferTransaction
                 var w = completed[i];
                 try
                 {
-                    if (!memory.Read(w.Address, w.Value.Length).AsSpan().SequenceEqual(w.Value) ||
+                    var current = memory.Read(w.Address, w.Value.Length);
+                    if (current.AsSpan().SequenceEqual(w.Expected)) continue;
+                    // A failed OS write can leave a mixture of old and new bytes. Do not overwrite unrelated changes.
+                    if (current.Where((value, index) => value != w.Value[index] && value != w.Expected[index]).Any() ||
                         !memory.TryWrite(w.Address, w.Expected) ||
                         !memory.Read(w.Address, w.Expected.Length).AsSpan().SequenceEqual(w.Expected))
                         throw new MemoryAccessException($"Could not safely restore {w.What}");
                 }
                 catch (Exception rollback) { rollbackErrors.Add(rollback); }
             }
-            if (rollbackErrors.Count != 0) throw new AggregateException("Future-transfer write failed; rollback incomplete", [error, .. rollbackErrors]);
+            if (rollbackErrors.Count != 0) throw new AggregateException("Transfer write failed; rollback incomplete", [error, .. rollbackErrors]);
             throw;
         }
     }

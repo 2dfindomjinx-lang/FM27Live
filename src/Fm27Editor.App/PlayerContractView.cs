@@ -507,7 +507,8 @@ public sealed partial class MainWindow
             int Range(string x, int min, int max) { int n = Number(x); return n >= min && n <= max ? n : throw new ArgumentOutOfRangeException(nameof(x), Loc.F("Expected {0}-{1}", min, max)); }
             T EnumValue<T>(string x) where T : struct, Enum { if (!Enum.TryParse<T>(x, true, out var v) || !Enum.IsDefined(v)) throw new FormatException($"Invalid {typeof(T).Name}: {x}"); return v; }
             // Parse everything first, so a typo stops the save before anything is written.
-            Add("Wage", x => Range(x, 0, 3_500_000), x => c.SetWage(p, x));   // in-game editor: £0 to £3.5M Add("Expires", Date, x => c.SetExpiry(p, d, x));
+            Add("Wage", x => Range(x, 0, 3_500_000), x => c.SetWage(p, x));   // in-game editor: £0 to £3.5M
+            Add("Expires", Date, x => c.SetExpiry(p, d, x));
             Add("Started", Date, x => c.SetStarted(p, d, x)); Add("Signed", Date, x => c.SetSigned(p, d, x)); Add("Joined Club", Date, x => c.SetJoinedClub(p, d, x));
             Add("Type", EnumValue<ContractType>, x => c.SetType(p, d, x));
             Add("Loyalty Bonus", x => Range(x, 0, 10_000_000), x => c.SetLoyaltyBonus(p, d, x)); Add("Number", x => string.IsNullOrWhiteSpace(x) ? -1 : Range(x, 0, 99), x => c.SetSquadNumber(p, d, x));

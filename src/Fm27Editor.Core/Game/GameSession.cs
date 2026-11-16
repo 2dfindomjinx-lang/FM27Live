@@ -57,14 +57,7 @@ public sealed class GameSession : IDisposable
     public void ApplyTransfer(Transfer.TransferPlan plan)
     {
         var today = ReadGameDate() ?? throw new InvalidOperationException("The in-game date could not be read");
-        ulong buyer = plan.Buyer.FirstTeam?.Address ?? throw new InvalidOperationException($"{plan.Buyer.DisplayName} has no first team");
-        ulong seller = plan.Seller.FirstTeam?.Address ?? throw new InvalidOperationException($"{plan.Seller.DisplayName} has no first team");
-        // Checked before anything is written, so a full offer list stops the move instead of leaving it half done.
-        var record = new Transfer.CompletedTransferRecord(_memory, Profile, Game.ModuleBase);
-        record.Plan(plan.Player.Address, buyer, seller, plan.Fee, today);
-        Transfers.Apply(plan, AllocateGameBlock);
-        // FM counts the buyer's FFP transfer expenditure from its finished-transfer records, not from the club finances.
-        record.Apply(record.Plan(plan.Player.Address, buyer, seller, plan.Fee, today), AllocateGameBlock);
+        Transfers.ApplyWithRecord(plan, today, AllocateGameBlock);
     }
 
     Presets.AcceleratedDevelopment? _accelerated;

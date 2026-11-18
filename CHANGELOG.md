@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.5.0
 
 Support for **Steam and Game Pass `27.1.0+2505117`** has been measured on the live game. Calibration passed 595 checks
 with 0 failures and the existing `staff.CityOfBirth` skip; `gamecheck` passed all 72 features with no empty or failing
@@ -13,6 +13,18 @@ readers.
 - **Load Game** refuses every write while FM is loading a save or has no save loaded (the GAME_UI save count and the
   player list), on both Steam and Game Pass.
 - **Role scores** ship inside the exe; there is no role catalog file to locate or import.
+
+
+### macOS
+- **Steam `27.1.0+2505117`** on Apple silicon, measured on the live game: `gamecheck` 72/72, round-trip writes 24/24,
+  and every transfer path (Move now with sell-on, free agent, future transfer, loan, release) followed by Continue and
+  Load Game without a crash.
+- **Load Game no longer exits FM after an edit that adds a row** (languages, promises, work permits, future transfers,
+  club vision, agreements). The new records are allocated by the game's own `calloc` instead of raw VM memory, which FM
+  could not free.
+- **Squad rules are editable**: maximum squad size and homegrown minimums write the runtime rule and every saved copy.
+- **Move staff** to a club whose department list is full.
+- Football Manager Touch remains experimental.
 
 ## 1.4.0
 

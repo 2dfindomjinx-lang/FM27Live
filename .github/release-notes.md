@@ -8,7 +8,7 @@
 
 Windows: each exe runs on its own, no install, no .NET needed. Windows 10/11 x64, Football Manager 27 `27.1.0+2505117` (Steam and Game Pass), `27.0.1+2503222` (Steam) and `27.0.1+2494687` (Game Pass).
 
-Mac: open the dmg and drag FM27 Editor to Applications. macOS 13 or later, Football Manager 27 `27.1.0+2505117` and `27.0.1+2503222` (Steam) and Football Manager Touch `27.0.0+2492889`. The app is not notarised: the first time macOS refuses to open it; open System Settings > Privacy & Security and click Open Anyway (on macOS 13-14, right-click the app and choose Open). On first connect it asks for your password once, to install the helper that reads the game's memory.
+Mac: open the dmg and drag FM27 Editor to Applications. macOS 13 or later, Football Manager 27 `27.1.0+2505117` and `27.0.1+2503222` (Steam) and Football Manager Touch `27.0.0+2492889` (experimental). The app is not notarised: the first time macOS refuses to open it; open System Settings > Privacy & Security and click Open Anyway (on macOS 13-14, right-click the app and choose Open). On first connect it asks for your password once, to install the helper that reads the game's memory.
 
 ## Tải file nào?
 
@@ -20,7 +20,7 @@ Mac: open the dmg and drag FM27 Editor to Applications. macOS 13 or later, Footb
 
 Windows: mỗi file exe chạy độc lập, không cần cài đặt, không cần .NET. Windows 10/11 x64, Football Manager 27 `27.1.0+2505117` (Steam và Game Pass), `27.0.1+2503222` (Steam) và `27.0.1+2494687` (Game Pass).
 
-Mac: mở file dmg rồi kéo FM27 Editor vào Applications. macOS 13 trở lên, Football Manager 27 `27.1.0+2505117` và `27.0.1+2503222` (Steam) và Football Manager Touch `27.0.0+2492889`. App chưa được Apple notarise: lần đầu macOS sẽ chặn; vào System Settings > Privacy & Security và bấm Open Anyway (macOS 13-14: nhấp chuột phải vào app và chọn Open). Lần kết nối đầu tiên app hỏi mật khẩu một lần để cài helper đọc bộ nhớ game.
+Mac: mở file dmg rồi kéo FM27 Editor vào Applications. macOS 13 trở lên, Football Manager 27 `27.1.0+2505117` và `27.0.1+2503222` (Steam) và Football Manager Touch `27.0.0+2492889` (thử nghiệm). App chưa được Apple notarise: lần đầu macOS sẽ chặn; vào System Settings > Privacy & Security và bấm Open Anyway (macOS 13-14: nhấp chuột phải vào app và chọn Open). Lần kết nối đầu tiên app hỏi mật khẩu một lần để cài helper đọc bộ nhớ game.
 
 ## Verify / Kiểm chứng
 

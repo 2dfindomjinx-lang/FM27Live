@@ -8,6 +8,9 @@ public sealed record CompletedTransferPlan(ulong Player, ulong Person, ulong Buy
     ulong Root, int OfferId, int Serial, FutureTransferVectorSnapshot? Ids, FutureTransferVectorSnapshot? Links, IReadOnlyList<PlannedWrite> Guards)
 {
     public required FutureTransferVectorSnapshot Offers { get; init; }
+
+    /// <summary>The offer's terms, including a sell-on; null or all zero writes the empty terms object.</summary>
+    public TransferTerms? Terms { get; init; }
 }
 
 /// <summary>
@@ -19,9 +22,9 @@ public sealed record CompletedTransferPlan(ulong Player, ulong Person, ulong Buy
 /// </summary>
 public sealed class CompletedTransferRecord(IProcessMemory memory, OffsetProfile profile, ulong moduleBase)
 {
-    const int MaxOffers = 100_000, MaxPersonOffers = 100, AuxSize = 0x60;
+    const int MaxOffers = 100_000, MaxPersonOffers = 100;
 
-    public CompletedTransferPlan Plan(ulong player, ulong buyerTeam, ulong sellerTeam, int fee, DateOnly today)
+    public CompletedTransferPlan Plan(ulong player, ulong buyerTeam, ulong sellerTeam, int fee, DateOnly today, TransferTerms? terms = null)
     {
         var po = profile.Proposals ?? throw new InvalidOperationException("No offer offsets");
         var fo = profile.FutureTransfers ?? throw new InvalidOperationException("No future-transfer offsets");
@@ -42,7 +45,8 @@ public sealed class CompletedTransferRecord(IProcessMemory memory, OffsetProfile
         ulong links = Pointer(player + (ulong)fo.PlayerOffers, "player offers");
         return new(player, player + (ulong)rel.PlayerPerson, buyerTeam, sellerTeam, fee, today, root, slot, serial,
             ids == 0 ? null : FutureTransferVectorSnapshot.Capture(memory, ids, 4, MaxPersonOffers),
-            links == 0 ? null : FutureTransferVectorSnapshot.Capture(memory, links, 8, MaxPersonOffers), guards) { Offers = offers };
+            links == 0 ? null : FutureTransferVectorSnapshot.Capture(memory, links, 8, MaxPersonOffers), guards)
+            { Offers = offers, Terms = terms };
     }
 
     /// <summary>
@@ -75,6 +79,7 @@ public sealed class CompletedTransferRecord(IProcessMemory memory, OffsetProfile
         var scratch = new List<PlannedWrite>(); var publish = new List<PlannedWrite>();
         ulong Fresh(byte[] data, string name)
         {
+            if (data.Length == 0) return 0;
             ulong at = allocate(data.Length);
             if (at == 0) throw new MemoryAccessException($"Allocation failed: {name}");
             var before = memory.Read(at, data.Length);
@@ -89,7 +94,14 @@ public sealed class CompletedTransferRecord(IProcessMemory memory, OffsetProfile
             BitConverter.GetBytes(data + (ulong)item.Length).CopyTo(h, 8); BitConverter.GetBytes(data + (ulong)item.Length).CopyTo(h, 16);
             publish.Add(new(slot, memory.Read(slot, 8), BitConverter.GetBytes(Fresh(h, "new vector holder")), "vector holder"));
         }
-        ulong aux = Fresh(new byte[AuxSize], "offer terms");   // all zero in the game's record
+        // The terms object is 208 bytes (TransferTermsLayout.Size). FM's own future transfer writes the sell-on at +0xC4
+        // in this object, not as a record in the club's clause vector (FMRTE, Game Pass 27.1.0, 18/11/2026: a 208-byte
+        // all-zero object with only +0xC4=15). The six vectors stay empty unless the terms have amounts.
+        var terms = plan.Terms ?? new TransferTerms(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, false, 0);
+        var termRecords = TransferTermsLayout.Records(terms);
+        var termAddresses = new ulong[termRecords.Length];
+        for (int i = 0; i < termRecords.Length; i++) termAddresses[i] = Fresh(termRecords[i], $"offer term {i}");
+        ulong aux = Fresh(TransferTermsLayout.Object(terms, termAddresses, termRecords), "offer terms");
         ulong address = Fresh(Offer(moduleBase + po.TransferVtable, plan.Person, plan.Buyer, plan.Seller, plan.Fee, plan.OfferId, plan.Serial, plan.Today, aux), "offer");
         var link = Staff.FreeStaffSigning.Link(plan.OfferId); link[0x41] = 1;   // the game's player link had 01 01 at +0x40
         ulong linkAddress = Fresh(link, "offer link");

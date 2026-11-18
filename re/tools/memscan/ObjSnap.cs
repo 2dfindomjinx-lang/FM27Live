@@ -106,4 +106,62 @@ static partial class Program
         int vanished = before.Keys.Count(a => !now.ContainsKey(a));
         Console.WriteLine($"{changed} objects changed, {vanished} gone, {now.Count} now");
     }
+
+    // vtptr <vtableRvaHex> <size>: per-qword statistics over every object that starts with the vtable. Counts zero,
+    // module pointers, heap pointers and the pointers that themselves point at a (begin, end, capacity) vector header,
+    // plus offsets whose own three qwords form a vector. Read only; used to tell a contract's owned lists from its fields.
+    static void VtPtrStats(int vtableRva, int size)
+    {
+        var objects = ObjectsWithVtable(vtableRva, size);
+        int words = size / 8;
+        var zero = new int[words];
+        var module = new int[words];
+        var heap = new int[words];
+        var other = new int[words];
+        var vectorHeader = new int[words];
+        var vectorTriple = new int[words];
+        var sample = new ulong[words];
+
+        bool InModule(ulong v) => v >= ModBase && v < ModEnd;
+        bool IsPointer(ulong v) => v > 0x10000 && v < 0x7FFFFFFFFFFF && !InModule(v);
+        bool TryRead(ulong address, byte[] buffer) =>
+            Native.ReadProcessMemory(H, (nint)address, buffer, buffer.Length, out var read) && read == buffer.Length;
+        bool VectorAt(byte[] d, int at)
+        {
+            if (at + 24 > d.Length) return false;
+            ulong begin = BitConverter.ToUInt64(d, at), end = BitConverter.ToUInt64(d, at + 8), cap = BitConverter.ToUInt64(d, at + 16);
+            if (begin == 0) return end == 0 && cap == 0;
+            if (!IsPointer(begin) || end < begin || cap < end) return false;
+            return cap - begin <= 0x1000000 && (end - begin) % 4 == 0 && (cap - begin) % 4 == 0;
+        }
+        bool HeaderAt(ulong address)
+        {
+            if (!IsPointer(address)) return false;
+            var b = new byte[24];
+            return TryRead(address, b) && VectorAt(b, 0);
+        }
+
+        foreach (var (_, d) in objects)
+        {
+            for (int w = 0; w < words; w++)
+            {
+                ulong v = BitConverter.ToUInt64(d, w * 8);
+                if (v == 0) zero[w]++;
+                else if (InModule(v)) module[w]++;
+                else if (IsPointer(v)) { heap[w]++; if (HeaderAt(v)) vectorHeader[w]++; }
+                else other[w]++;
+                if (v != 0 && sample[w] == 0) sample[w] = v;
+            }
+            for (int w = 0; w + 3 <= words; w++)
+                if (VectorAt(d, w * 8)) vectorTriple[w]++;
+        }
+
+        Console.WriteLine($"objects={objects.Count} vtable module+0x{vtableRva:X} size 0x{size:X}");
+        Console.WriteLine($"{"off",-6} {"zero",6} {"module",6} {"heap",6} {"other",6} {"vecHdr",7} {"vecTriple",9}  sample");
+        for (int w = 0; w < words; w++)
+        {
+            if (heap[w] == 0 && module[w] == 0 && vectorHeader[w] == 0 && vectorTriple[w] == 0) continue;
+            Console.WriteLine($"+0x{w * 8:X3} {zero[w],6} {module[w],6} {heap[w],6} {other[w],6} {vectorHeader[w],7} {vectorTriple[w],9}  0x{sample[w]:X}");
+        }
+    }
 }

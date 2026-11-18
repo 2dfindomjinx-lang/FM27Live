@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 namespace Fm27Editor.Core.Memory;
 
 /// <summary>ReadProcessMemory / WriteProcessMemory on an opened process handle.</summary>
-public sealed partial class WindowsProcessMemory : IConcurrentMemoryReads, IMemoryRegions, IRemoteAllocator, IMemoryWriteObserver, IDisposable
+public sealed partial class WindowsProcessMemory : IConcurrentMemoryReads, IMemoryRegions, IRemoteAllocator, IMemoryWriteObserver, IWriteGate, IDisposable
 {
     const uint QueryInformation = 0x0400, VmRead = 0x0010, VmWrite = 0x0020, VmOperation = 0x0008;
 
@@ -37,9 +37,13 @@ public sealed partial class WindowsProcessMemory : IConcurrentMemoryReads, IMemo
     /// <summary>Called with the address and size of each fresh block, so the history can ignore writes into it.</summary>
     public Action<ulong, int>? OnAllocate { get; set; }
 
+    /// <summary>Called before each write; throws to refuse it while the game loads a save or has none loaded.</summary>
+    public Action? BeforeWrite { get; set; }
+
     public unsafe bool TryWrite(ulong address, ReadOnlySpan<byte> data)
     {
         if (!CanWrite) throw new InvalidOperationException("Process was opened read-only");
+        BeforeWrite?.Invoke();
         var listener = OnWrite;
         byte[]? before = null;
         if (listener is not null)

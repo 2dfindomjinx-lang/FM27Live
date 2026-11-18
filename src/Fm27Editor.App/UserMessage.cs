@@ -21,6 +21,8 @@ public static class UserMessage
         SaveChangedException ex => Loc.S(ex.Message),
         UnsupportedBuildException => Loc.S("This game version is not supported"),
         PartialClauseWriteException => Loc.S("Some clause fields may have been saved. Reload before retrying."),
+        GameNotReadyException => Loc.T("The game is loading a save or has no save loaded. Wait until it is in game, then press Load Game.",
+            "FM đang tải save hoặc chưa có save. Chờ vào game rồi nhấn Load Game."),
         StaleObjectException => Loc.S("Game data changed. Reload before retrying."),
         MemoryAccessException => Loc.S("Couldn't access game data. Check that a save is loaded and retry."),
         AggregateException => Loc.S("The edit failed and could not be fully restored. Reload your backup save before continuing."),

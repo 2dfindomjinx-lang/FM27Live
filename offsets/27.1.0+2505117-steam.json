@@ -2,6 +2,9 @@
   "build": "27.1.0+2505117",
   "module": "game_plugin.dll",
   "buildStringRva": "0x4C3E532",
+  "gameUiRva": "0x587C470",
+  "gameUiVtable": "0x4C3ED08",
+  "gameUiLoadsOffset": "0x100",
   "retirementManagerRva": "0x586F850",
   "retirementManagerVtable": "0x5036E30",
   "nationAppointmentVtable": "0x4C5E518",
@@ -834,7 +837,7 @@
       },
       "CorporateFacilities": {
         "root": "club",
-        "path": "0x150->0x8AA",
+        "path": "0x150->0x8AD",
         "type": "byte",
         "objectVtables": [
           "0x4E52C38"
@@ -1091,8 +1094,8 @@
   },
   "award": {
     "vtable": "0x4E57FE8",
-    "listRootRva": "0x586EBA0",
-    "listOffset": "0xC0",
+    "listRootRva": "0x586C5A8",
+    "listOffset": "0x30",
     "index": "0x8",
     "id": "0xC",
     "name": "0x30",
@@ -1134,9 +1137,9 @@
     "knowledgeValue": "0x24",
     "tendenciesHolder": "0xA8",
     "formations": "0xDF",
-    "personListRootRva": "0x586EBA8",
-    "personListOffset": "0x500",
-    "directStaffVector": false,
+    "personListRootRva": "0x587B900",
+    "personListOffset": "0x0",
+    "directStaffVector": true,
     "kinds": [
       {
         "personVtable": "0x4EECF78",

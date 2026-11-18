@@ -38,7 +38,7 @@ using Fm27Editor.Core.Presets;
 
 namespace Fm27Editor.Core.Memory;
 
-public sealed class MacHelperProcessMemory : IMacMemory, IMemoryRegions, IRemoteAllocator, IMemoryWriteObserver, ICodePatchHost, IScatterReadMemory, IDisposable
+public sealed class MacHelperProcessMemory : IMacMemory, IMemoryRegions, IRemoteAllocator, IMemoryWriteObserver, IWriteGate, ICodePatchHost, IScatterReadMemory, IDisposable
 {
     private const string SocketPath = "/var/run/fm27editor.sock";
 
@@ -80,6 +80,10 @@ public sealed class MacHelperProcessMemory : IMacMemory, IMemoryRegions, IRemote
     // The write observer events are set by the edit history; the helper fires them through the client.
     public Action<ulong, byte[], byte[]>? OnWrite { get; set; }
     public Action<ulong, int>? OnAllocate { get; set; }
+
+    /// <summary>Called before each write; throws to refuse it while the game loads a save or has none loaded. Kept
+    /// outside <see cref="_gate"/> so the hook's own reads through this client can take the lock.</summary>
+    public Action? BeforeWrite { get; set; }
 
     public int ProcessId { get; }
     public bool CanWrite { get; }
@@ -384,6 +388,7 @@ public sealed class MacHelperProcessMemory : IMacMemory, IMemoryRegions, IRemote
 
     public unsafe bool TryWrite(ulong address, ReadOnlySpan<byte> data)
     {
+        BeforeWrite?.Invoke();
         lock (_gate)
         {
             if (_socket == null || _disposed) return false;

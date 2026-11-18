@@ -106,6 +106,10 @@ public sealed partial class MainWindow
     void CheckForNewSave()
     {
         if (backend.State.Status != ConnectionStatus.Connected || busy) { watchedSave = null; emptyChecks = differentChecks = 0; return; }
+        // The game's own save-load count tells a load even when the new save happens to reuse the old addresses.
+        var loadState = backend.Session.LoadState;
+        loadState.Refresh();
+        if (!backend.SaveChanged && loadState.SaveChanged) { MarkSaveChanged("A save was loaded in the game"); return; }
         if (!SaveIsLoaded())
         {
             // Back at the start screen (or the game dropped its save): the player list is empty, so what the editor shows belongs

@@ -9,14 +9,23 @@ namespace Fm27Editor.App;
 public sealed partial class MainWindow
 {
     sealed record PhaseRoleRow(string Name, double? Score, string Key, string Preferable, string Avoid);
+    const string BundledCatalog = "Fm27Editor.Ratings.rolesAndDuties.json";
     static string? phaseRoleCatalogPath;
+
+    /// <summary>The role catalog embedded in the exe; null only for a build made without it.</summary>
+    internal static PhaseRoleRatings? LoadBundledRoleCatalog()
+    {
+        using var stream = typeof(MainWindow).Assembly.GetManifestResourceStream(BundledCatalog);
+        return stream is null ? null : PhaseRoleRatings.Load(stream);
+    }
 
     internal static string? FindPhaseRoleCatalog()
     {
         if (phaseRoleCatalogPath is { } chosen && File.Exists(chosen)) return chosen;
+        // The catalog is embedded; these files remain a fallback for a build without the resource, and let a player
+        // point at a newer FMRTE catalog with Choose role catalog.
         string[] candidates =
         [
-            Path.Combine(AppContext.BaseDirectory, "Ratings", "rolesAndDuties.json"),
             "/Applications/FMRTE 27.app/Contents/MacOS/Assets/Ratings/rolesAndDuties.json",
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "FMRTE 27", "Assets", "Ratings", "rolesAndDuties.json"),
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "FMRTE 27", "Assets", "Ratings", "rolesAndDuties.json"),
@@ -67,8 +76,22 @@ public sealed partial class MainWindow
             Load(path);
             if (catalog is not null) phaseRoleCatalogPath = path;
         };
-        Load(FindPhaseRoleCatalog());
+        LoadBundled();
         return root;
+
+        void LoadBundled()
+        {
+            try
+            {
+                catalog = LoadBundledRoleCatalog();
+                if (catalog is null) { Load(FindPhaseRoleCatalog()); return; }
+                import.IsVisible = false;
+                source.Text = Loc.T("Role catalog: built in", "Bộ dữ liệu vai trò: tích hợp sẵn");
+                ToolTip.SetTip(source, source.Text);
+                Render();
+            }
+            catch (Exception ex) { catalog = null; content.Content = null; source.Text = UserMessage.For(ex); }
+        }
     }
 
     sealed record PhasePosition(PlayerPosition Position)

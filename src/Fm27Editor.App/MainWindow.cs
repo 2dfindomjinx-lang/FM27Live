@@ -876,7 +876,7 @@ public sealed partial class MainWindow : Window
     void UpdateProfileCapabilities()
     {
         bool connected = backend.State.Status == ConnectionStatus.Connected;
-        SetModuleVisible("Referees", !connected || backend.Session.Profile.Officials is not null);
+        SetModuleVisible("Referees", !connected || Fm27Editor.Core.Officials.RefereeDirectory.Supported(backend.Session.Profile.Officials));
         if (clubSectionList.ItemsSource is not null) RefreshClubSectionRail();
     }
 

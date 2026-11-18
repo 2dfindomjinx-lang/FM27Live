@@ -37,6 +37,13 @@ public sealed record RefereeRecord(ulong Address, uint VtableRva, string? FirstN
 /// </summary>
 public sealed class RefereeDirectory(IProcessMemory memory, ulong moduleBase, ulong moduleSize, Fm27Editor.Core.Offsets.OfficialsOffsets? offsets = null)
 {
+    /// <summary>
+    /// Whether referees can be read with these offsets: a measured officials section, or the x86-64 defaults, which hold on
+    /// every Windows build (no Windows profile has an officials section). A Mac profile without one has no known layout.
+    /// v1.4.0 required the section and so lost the Referees module on Windows.
+    /// </summary>
+    public static bool Supported(Fm27Editor.Core.Offsets.OfficialsOffsets? offsets) => offsets is not null || OperatingSystem.IsWindows();
+
     // x86-64 (Windows 27.0.0) defaults, used when the profile has no officials section.
     const int FirstNameDefault = 0x28, LastNameDefault = 0x30, CommonNameDefault = 0x38, NationDefault = 0x40, CityDefault = 0x58;
     const int BirthDayDefault = 0x60, BirthYearDefault = 0x62;

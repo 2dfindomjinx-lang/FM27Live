@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using Fm27Editor.Core.Diagnostics;
 using Fm27Editor.Core.Settings;
 
 namespace Fm27Editor.App.Tests;
@@ -17,6 +18,9 @@ static class AppTestDefaults
         DateSetting.Set(DateLayout.YearMonthDay);
         LanguageSetting.SettingPathOverride = Path.Combine(Path.GetTempPath(), "fm27-app-tests-lang-" + Environment.ProcessId + ".txt");
         LanguageSetting.Set(AppLanguage.English);
+        // The Avalonia test host runs App.OnFrameworkInitializationCompleted, which would start the flight recorder
+        // in the player's own %LOCALAPPDATA%\Fm27Editor\logs folder; keep every test out of it.
+        FlightRecorder.Enabled = false;
     }
 }
 

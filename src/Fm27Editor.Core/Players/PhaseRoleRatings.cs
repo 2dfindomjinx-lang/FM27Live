@@ -18,7 +18,14 @@ public sealed class PhaseRoleRatings
 
     public static PhaseRoleRatings Load(string path)
     {
-        using var doc = JsonDocument.Parse(File.ReadAllText(path));
+        using var stream = File.OpenRead(path);
+        return Load(stream);
+    }
+
+    /// <summary>Loads a catalog from an embedded resource or any other stream; the caller owns the stream.</summary>
+    public static PhaseRoleRatings Load(Stream stream)
+    {
+        using var doc = JsonDocument.Parse(stream);
         var root = doc.RootElement;
         double Weight(string name)
         {

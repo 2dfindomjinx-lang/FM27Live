@@ -2,8 +2,17 @@
 
 ## Unreleased
 
-Support for Steam `27.1.0+2505117` has been measured on the live game. Calibration passed `595/595` checks with the
-existing `staff.CityOfBirth` skip; `gamecheck` passed all 72 features with no empty or failing readers.
+Support for **Steam and Game Pass `27.1.0+2505117`** has been measured on the live game. Calibration passed 595 checks
+with 0 failures and the existing `staff.CityOfBirth` skip; `gamecheck` passed all 72 features with no empty or failing
+readers.
+
+- **Move now with a sell-on** writes it in the completed offer's terms object at `+0xC4`, as FMRTE does. The previous
+  club-clause record survived Save As but crashed FM when the save was loaded again.
+- **Loan contracts** clear the template's owned records (`+0x30` unhappiness, `+0x68` clause list) and write `+0x54=0`;
+  loading a loan created by the editor no longer exits FM.
+- **Load Game** refuses every write while FM is loading a save or has no save loaded (the GAME_UI save count and the
+  player list), on both Steam and Game Pass.
+- **Role scores** ship inside the exe; there is no role catalog file to locate or import.
 
 ## 1.4.0
 

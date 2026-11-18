@@ -52,6 +52,8 @@
 
   <ItemGroup>
     <None Include="..\..\offsets\*.json" Link="offsets\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Community Football Manager role/duty weights, embedded in the exe so no extra file is installed next to it. -->
+    <EmbeddedResource Include="Ratings\rolesAndDuties.json" LogicalName="Fm27Editor.Ratings.rolesAndDuties.json" />
   </ItemGroup>
 
 </Project>

@@ -15,6 +15,8 @@ public sealed class GameSession : IDisposable
     public WindowsProcessMemory? Process => _memory as WindowsProcessMemory;
     public GameProcess Game { get; }
     public OffsetProfile Profile { get; }
+    /// <summary>The game's save-load count and player list, checked before every write and by the app's save watcher.</summary>
+    public GameLoadState LoadState { get; }
     public ulong ModuleBase => Game.ModuleBase;
     public bool CanWrite => (_memory as IRemoteAllocator)?.CanWrite ?? false;
 
@@ -30,6 +32,7 @@ public sealed class GameSession : IDisposable
     /// </summary>
     public ulong AllocateGameBlock(int size)
     {
+        LoadState.EnsureWritable();
         ulong at;
         if (_memory is WindowsProcessMemory wpm) at = RemoteCrtAllocator.Allocate(wpm, size);
         else if (_memory is IRemoteAllocator alloc) at = alloc.Allocate(size);
@@ -53,20 +56,20 @@ public sealed class GameSession : IDisposable
     public void AddContractTerm(PlayerRecord player, ContractDetails snapshot, short type, int value, short parameter, ulong futureContract = 0) =>
         (futureContract == 0 ? Contracts : FutureContract(futureContract)).AddTerm(player, snapshot, type, value, parameter, AllocateGameBlock);
 
-    /// <summary>Applies a transfer, allocating a new squad buffer in the game process when the destination squad is full.</summary>
+    /// <summary>Applies a transfer, allocating a new squad buffer in the game process when the destination squad is full.
+    /// A sell-on is written into the completed offer's terms object (+0xC4), the way FMRTE writes one; it is not a
+    /// record in the club's clause vector (adding one there survived Save As but crashed FM on the next load,
+    /// Game Pass 27.1.0, 18/11/2026).</summary>
     public void ApplyTransfer(Transfer.TransferPlan plan, int sellOnPercent = 0)
     {
         if (sellOnPercent is < 0 or > 100) throw new ArgumentOutOfRangeException(nameof(sellOnPercent));
         var today = ReadGameDate() ?? throw new InvalidOperationException("The in-game date could not be read");
+        var terms = sellOnPercent > 0
+            ? new Players.TransferTerms(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, (short)sellOnPercent, false, 0)
+            : null;
         MemoryWriteBatch.Run(_memory, staged =>
         {
-            new Transfer.TransferService(staged, Profile, Game.ModuleBase).ApplyWithRecord(plan, today, AllocateGameBlock);
-            if (sellOnPercent > 0)
-            {
-                int id = plan.Player.Id ?? throw new InvalidOperationException("Player ID is unavailable");
-                new Clubs.TransferClauseWriter(staged, Profile, Game.ModuleBase).AddSellOn(plan.Buyer.Address, id,
-                    plan.Seller.Address, sellOnPercent, AllocateGameBlock, plan.Fee > 0 ? plan.Fee : null);
-            }
+            new Transfer.TransferService(staged, Profile, Game.ModuleBase).ApplyWithRecord(plan, today, AllocateGameBlock, terms);
         });
     }
 
@@ -668,12 +671,14 @@ public sealed class GameSession : IDisposable
     public IReadOnlyList<ContractClause> ReadClauses(PlayerRecord player) =>
         new PendingContractReader(_memory, Profile).ReadClauses(player.PendingContractAddress);
 
-    GameSession(IProcessMemory memory, GameProcess game, OffsetProfile profile)
+    internal GameSession(IProcessMemory memory, GameProcess game, OffsetProfile profile)
     {
         _memory = memory;
         _disposable = memory as IDisposable;
         Game = game;
         Profile = profile;
+        LoadState = new GameLoadState(memory, profile, game.ModuleBase);
+        if (memory is IWriteGate gate) gate.BeforeWrite = LoadState.EnsureWritable;
         Players = new PlayerRepository(memory, profile, game.ModuleBase);
         Writer = new PlayerWriter(memory, profile, game.ModuleBase);
         Contracts = new ContractWriter(memory, profile, game.ModuleBase);

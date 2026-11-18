@@ -43,7 +43,9 @@ public static class GameClock
         Span<byte> d = stackalloc byte[4];
         if (node == 0 || !memory.TryRead(node + (ulong)c.DateOffset, d)) return null;
         short day = BitConverter.ToInt16(d), year = BitConverter.ToInt16(d[2..]);
-        if (year is < 1800 or > 2300 || day is < 1 or > 366) return null;
+        // FM holds 1/1/1900 (day 1, year 1900, the game's "no date") while a save is still loading (Game Pass 27.1.0, 18/11/2026,
+        // "Loading Game 95%"); a write planned with that date lands in a half-loaded game. No real game date is before 1901.
+        if (year is < 1901 or > 2300 || day is < 1 or > 366) return null;
         var date = new DateOnly(year, 1, 1).AddDays(day - 1);
         return date.Year == year ? date : null;
     }

@@ -26,6 +26,13 @@ public sealed class FlightRecorder : IDisposable
     /// <summary>The recorder of this run; null until <see cref="Start"/> is called (tests and the CLI never start one).</summary>
     public static FlightRecorder? Current { get; private set; }
 
+    /// <summary>
+    /// False in a test run: the Avalonia test host still runs <c>App.OnFrameworkInitializationCompleted</c>, which
+    /// would otherwise create a log in the player's own folder and record test exceptions there. Production runs keep
+    /// this true.
+    /// </summary>
+    public static bool Enabled { get; set; } = true;
+
     public static string DefaultDirectory => System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Fm27Editor", "logs");
 
     public FlightRecorder(string directory, string appVersion, DateTimeOffset? now = null)
@@ -42,6 +49,7 @@ public sealed class FlightRecorder : IDisposable
     /// <summary>Begins the log for this run and keeps it as <see cref="Current"/>. Never throws: a log that cannot be written must not stop the editor.</summary>
     public static FlightRecorder? Start(string appVersion)
     {
+        if (!Enabled) return Current = null;
         try { return Current = new FlightRecorder(DefaultDirectory, appVersion); }
         catch (Exception) { return Current = null; }
     }

@@ -1,0 +1,5697 @@
+{
+  "GeneralPositionToRoleAndDutiesDefinitionsMap": {
+    "Goalkeeper": [
+      {
+        "Role": "Goalkeeper",
+        "DutiesAttributes": {
+          "InPossession": [
+            {
+              "Name": "AerialAbility",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "CommandOfArea",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Communication",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Handling",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Reflexes",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Agility",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Concentration",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Positioning",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Kicking",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "OneOnOnes",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Throwing",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Eccentricity",
+              "KeyAttribute": false,
+              "Avoid": true
+            }
+          ],
+          "OutOfPossession": [
+            {
+              "Name": "AerialAbility",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "CommandOfArea",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Communication",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Handling",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Reflexes",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Agility",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Concentration",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Positioning",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "OneOnOnes",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "RushingOut",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      },
+      {
+        "Role": "BallPlayingGoalkeeper",
+        "DutiesAttributes": {
+          "InPossession": [
+            {
+              "Name": "AerialAbility",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "CommandOfArea",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Communication",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Handling",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Kicking",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Reflexes",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Agility",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Concentration",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Positioning",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Eccentricity",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "OneOnOnes",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Throwing",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Composure",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Passing",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      },
+      {
+        "Role": "NoNonsenseGoalkeeper",
+        "DutiesAttributes": {
+          "InPossession": [
+            {
+              "Name": "AerialAbility",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "CommandOfArea",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Communication",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Handling",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Reflexes",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Agility",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Concentration",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Positioning",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "OneOnOnes",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Eccentricity",
+              "KeyAttribute": false,
+              "Avoid": true
+            },
+            {
+              "Name": "Passing",
+              "KeyAttribute": false,
+              "Avoid": true
+            }
+          ]
+        }
+      },
+      {
+        "Role": "LineHoldingKeeper",
+        "DutiesAttributes": {
+          "OutOfPossession": [
+            {
+              "Name": "AerialAbility",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "CommandOfArea",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Communication",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Handling",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Reflexes",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Agility",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Concentration",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Positioning",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "OneOnOnes",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "RushingOut",
+              "KeyAttribute": false,
+              "Avoid": true
+            }
+          ]
+        }
+      },
+      {
+        "Role": "SweeperKeeper",
+        "DutiesAttributes": {
+          "OutOfPossession": [
+            {
+              "Name": "AerialAbility",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "CommandOfArea",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Communication",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Handling",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "OneOnOnes",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Reflexes",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "RushingOut",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Agility",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Eccentricity",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Concentration",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Positioning",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Acceleration",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      }
+    ],
+    "DefenderCentral": [
+      {
+        "Role": "CentreBack",
+        "DutiesAttributes": {
+          "InPossession": [
+            {
+              "Name": "Heading",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Marking",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Tackling",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Positioning",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Jumping",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Strength",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Aggression",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Bravery",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Composure",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Concentration",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Pace",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Passing",
+              "KeyAttribute": false,
+              "Avoid": true
+            }
+          ],
+          "OutOfPossession": [
+            {
+              "Name": "Heading",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Marking",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Tackling",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Positioning",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Jumping",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Strength",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Aggression",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Bravery",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Composure",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Concentration",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Pace",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      },
+      {
+        "Role": "BallPlayingCentreBack",
+        "DutiesAttributes": {
+          "InPossession": [
+            {
+              "Name": "Heading",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Marking",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Passing",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Tackling",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Composure",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Positioning",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Jumping",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Strength",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "FirstTouch",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Technique",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Aggression",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Bravery",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Concentration",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Vision",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Pace",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      },
+      {
+        "Role": "NoNonsenseCentreBack",
+        "DutiesAttributes": {
+          "InPossession": [
+            {
+              "Name": "Heading",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Marking",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Tackling",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Positioning",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Jumping",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Strength",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Aggression",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Bravery",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Concentration",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Pace",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Composure",
+              "KeyAttribute": false,
+              "Avoid": true
+            },
+            {
+              "Name": "Passing",
+              "KeyAttribute": false,
+              "Avoid": true
+            }
+          ]
+        }
+      },
+      {
+        "Role": "WideCentreBack",
+        "DutiesAttributes": {
+          "InPossession": [
+            {
+              "Name": "Heading",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Marking",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Tackling",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Positioning",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Jumping",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Strength",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Dribbling",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Aggression",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Bravery",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Composure",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Concentration",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Workrate",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Acceleration",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Agility",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Pace",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Stamina",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Passing",
+              "KeyAttribute": false,
+              "Avoid": true
+            }
+          ],
+          "OutOfPossession": [
+            {
+              "Name": "Heading",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Marking",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Tackling",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Positioning",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Jumping",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Strength",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Aggression",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Bravery",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Concentration",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Acceleration",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Agility",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Pace",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      },
+      {
+        "Role": "AdvancedCentreBack",
+        "DutiesAttributes": {
+          "InPossession": [
+            {
+              "Name": "Heading",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Marking",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Passing",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Tackling",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Technique",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Composure",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Positioning",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Teamwork",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Jumping",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Strength",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Dribbling",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "FirstTouch",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Aggression",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Bravery",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Concentration",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Vision",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Pace",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Stamina",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      },
+      {
+        "Role": "OverlappingCentreBack",
+        "DutiesAttributes": {
+          "InPossession": [
+            {
+              "Name": "Crossing",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Heading",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Marking",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Tackling",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Workrate",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Jumping",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Pace",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Stamina",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Strength",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Dribbling",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Technique",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Aggression",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Bravery",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Composure",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Concentration",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "OffTheBall",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Positioning",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Acceleration",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Agility",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      },
+      {
+        "Role": "CoveringCentreBack",
+        "DutiesAttributes": {
+          "OutOfPossession": [
+            {
+              "Name": "Heading",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Marking",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Tackling",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Concentration",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Positioning",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Jumping",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Pace",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Strength",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Bravery",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Acceleration",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      },
+      {
+        "Role": "StoppingCentreBack",
+        "DutiesAttributes": {
+          "OutOfPossession": [
+            {
+              "Name": "Heading",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Marking",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Tackling",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Aggression",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Bravery",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Positioning",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Jumping",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Strength",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Concentration",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Pace",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      },
+      {
+        "Role": "CoveringWideCentreBack",
+        "DutiesAttributes": {
+          "OutOfPossession": [
+            {
+              "Name": "Heading",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Marking",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Tackling",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Concentration",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Positioning",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Jumping",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Strength",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Pace",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Bravery",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Acceleration",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Agility",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      },
+      {
+        "Role": "StoppingWideCentreBack",
+        "DutiesAttributes": {
+          "OutOfPossession": [
+            {
+              "Name": "Heading",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Marking",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Tackling",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Aggression",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Bravery",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Positioning",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Jumping",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Strength",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Concentration",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Acceleration",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Agility",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Pace",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      }
+    ],
+    "FullBack": [
+      {
+        "Role": "FullBack",
+        "DutiesAttributes": {
+          "InPossession": [
+            {
+              "Name": "Marking",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Tackling",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Concentration",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Positioning",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Teamwork",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Acceleration",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Crossing",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Dribbling",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Passing",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Technique",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Workrate",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Agility",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Pace",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Stamina",
+              "KeyAttribute": false
+            }
+          ],
+          "OutOfPossession": [
+            {
+              "Name": "Marking",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Tackling",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Positioning",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Teamwork",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Acceleration",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Aggression",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Concentration",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Workrate",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Agility",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Pace",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Stamina",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      },
+      {
+        "Role": "InsideFullBack",
+        "DutiesAttributes": {
+          "InPossession": [
+            {
+              "Name": "Heading",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Marking",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Tackling",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Positioning",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Strength",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Dribbling",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Aggression",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Bravery",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Composure",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Concentration",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Workrate",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Acceleration",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Agility",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Jumping",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Pace",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Stamina",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      },
+      {
+        "Role": "HoldingFullBack",
+        "DutiesAttributes": {
+          "OutOfPossession": [
+            {
+              "Name": "Marking",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Tackling",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Concentration",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Positioning",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Acceleration",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Teamwork",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Agility",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Pace",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      },
+      {
+        "Role": "PressingFullBack",
+        "DutiesAttributes": {
+          "OutOfPossession": [
+            {
+              "Name": "Marking",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Tackling",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Aggression",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Positioning",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Teamwork",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Workrate",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Acceleration",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Bravery",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Concentration",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Agility",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Pace",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Stamina",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      },
+      {
+        "Role": "InsideWingBack",
+        "DutiesAttributes": {
+          "InPossession": [
+            {
+              "Name": "Passing",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Tackling",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Composure",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Positioning",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Teamwork",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Acceleration",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "FirstTouch",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Marking",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Technique",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Concentration",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Workrate",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Agility",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Pace",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Stamina",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      },
+      {
+        "Role": "PlaymakingWingBack",
+        "DutiesAttributes": {
+          "InPossession": [
+            {
+              "Name": "FirstTouch",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Passing",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Tackling",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Technique",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Composure",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Teamwork",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Vision",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Acceleration",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Crossing",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Dribbling",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Marking",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Concentration",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "OffTheBall",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Positioning",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Workrate",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Agility",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Pace",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Stamina",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      },
+      {
+        "Role": "WingBack",
+        "DutiesAttributes": {
+          "InPossession": [
+            {
+              "Name": "Crossing",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Marking",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Tackling",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Teamwork",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Workrate",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Acceleration",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Pace",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Stamina",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Dribbling",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "FirstTouch",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Passing",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Technique",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Concentration",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "OffTheBall",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Positioning",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Agility",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Balance",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      }
+    ],
+    "WingBack": [
+      {
+        "Role": "WingBack",
+        "DutiesAttributes": {
+          "InPossession": [
+            {
+              "Name": "Crossing",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Marking",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Tackling",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Teamwork",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Workrate",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Acceleration",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Pace",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Stamina",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Dribbling",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "FirstTouch",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Passing",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Technique",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Concentration",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "OffTheBall",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Positioning",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Agility",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Balance",
+              "KeyAttribute": false
+            }
+          ],
+          "OutOfPossession": [
+            {
+              "Name": "Marking",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Tackling",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Positioning",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Teamwork",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Acceleration",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Stamina",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Aggression",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Concentration",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Workrate",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Agility",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Pace",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      },
+      {
+        "Role": "InsideWingBack",
+        "DutiesAttributes": {
+          "InPossession": [
+            {
+              "Name": "Passing",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Tackling",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Composure",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Positioning",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Teamwork",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Acceleration",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "FirstTouch",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Marking",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Technique",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Concentration",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Workrate",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Agility",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Pace",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Stamina",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      },
+      {
+        "Role": "PlaymakingWingBack",
+        "DutiesAttributes": {
+          "InPossession": [
+            {
+              "Name": "FirstTouch",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Passing",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Tackling",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Technique",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Composure",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Teamwork",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Vision",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Acceleration",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Crossing",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Dribbling",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Marking",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Concentration",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "OffTheBall",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Positioning",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Workrate",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Agility",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Pace",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Stamina",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      },
+      {
+        "Role": "AdvancedWingBack",
+        "DutiesAttributes": {
+          "InPossession": [
+            {
+              "Name": "Crossing",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Dribbling",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Technique",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "OffTheBall",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Teamwork",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Workrate",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Acceleration",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Agility",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Pace",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Stamina",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "FirstTouch",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Marking",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Passing",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Tackling",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Flair",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Positioning",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Balance",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      },
+      {
+        "Role": "HoldingWingBack",
+        "DutiesAttributes": {
+          "OutOfPossession": [
+            {
+              "Name": "Marking",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Tackling",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Concentration",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Positioning",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Acceleration",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Teamwork",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Agility",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Pace",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Stamina",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      },
+      {
+        "Role": "PressingWingBack",
+        "DutiesAttributes": {
+          "OutOfPossession": [
+            {
+              "Name": "Marking",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Tackling",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Aggression",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Positioning",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Teamwork",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Workrate",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Acceleration",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Stamina",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Bravery",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Concentration",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Agility",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Pace",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      }
+    ],
+    "DefensiveMidfielder": [
+      {
+        "Role": "DefensiveMidfielder",
+        "DutiesAttributes": {
+          "InPossession": [
+            {
+              "Name": "Tackling",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Concentration",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Positioning",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Teamwork",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "FirstTouch",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Marking",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Passing",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Aggression",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Composure",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Workrate",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Stamina",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Strength",
+              "KeyAttribute": false
+            }
+          ],
+          "OutOfPossession": [
+            {
+              "Name": "Tackling",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Positioning",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Teamwork",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Workrate",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Marking",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Aggression",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Concentration",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Stamina",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Strength",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      },
+      {
+        "Role": "BoxToBoxMidfielder",
+        "DutiesAttributes": {
+          "InPossession": [
+            {
+              "Name": "Passing",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Tackling",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "OffTheBall",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Teamwork",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Workrate",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Stamina",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Dribbling",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Finishing",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "FirstTouch",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "LongShots",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Technique",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Aggression",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Composure",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Positioning",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Acceleration",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Balance",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Pace",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Strength",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      },
+      {
+        "Role": "BoxToBoxPlaymaker",
+        "DutiesAttributes": {
+          "InPossession": [
+            {
+              "Name": "FirstTouch",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Passing",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Technique",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Composure",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "OffTheBall",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Teamwork",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Vision",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Workrate",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Stamina",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Dribbling",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Marking",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Tackling",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Positioning",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Acceleration",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Agility",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Balance",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Pace",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "LongShots",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      },
+      {
+        "Role": "DeepLyingPlaymaker",
+        "DutiesAttributes": {
+          "InPossession": [
+            {
+              "Name": "FirstTouch",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Passing",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Technique",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Composure",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Teamwork",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Vision",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Marking",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Tackling",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Concentration",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "OffTheBall",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Positioning",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Workrate",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Balance",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Stamina",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      },
+      {
+        "Role": "HalfBack",
+        "DutiesAttributes": {
+          "InPossession": [
+            {
+              "Name": "Heading",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Marking",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Tackling",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Concentration",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Positioning",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Teamwork",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Jumping",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Strength",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "FirstTouch",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Passing",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Aggression",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Bravery",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Composure",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Workrate",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Stamina",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      },
+      {
+        "Role": "DroppingDefensiveMidfielder",
+        "DutiesAttributes": {
+          "OutOfPossession": [
+            {
+              "Name": "Marking",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Tackling",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Concentration",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Positioning",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Teamwork",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Workrate",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Jumping",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Strength",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Aggression",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Stamina",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      },
+      {
+        "Role": "PressingDefensiveMidfielder",
+        "DutiesAttributes": {
+          "OutOfPossession": [
+            {
+              "Name": "Tackling",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Aggression",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Positioning",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Teamwork",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Workrate",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Stamina",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Marking",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Concentration",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Pace",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Strength",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      },
+      {
+        "Role": "ScreeningDefensiveMidfielder",
+        "DutiesAttributes": {
+          "OutOfPossession": [
+            {
+              "Name": "Marking",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Tackling",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Concentration",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Positioning",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Teamwork",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Workrate",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Stamina",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Strength",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      },
+      {
+        "Role": "WideCoveringDefensiveMidfielder",
+        "DutiesAttributes": {
+          "OutOfPossession": [
+            {
+              "Name": "Marking",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Tackling",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Positioning",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Teamwork",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Workrate",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Agility",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Stamina",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Aggression",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Concentration",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Pace",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Strength",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      }
+    ],
+    "MidfielderCentral": [
+      {
+        "Role": "CentralMidfielder",
+        "DutiesAttributes": {
+          "InPossession": [
+            {
+              "Name": "FirstTouch",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Passing",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Tackling",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Teamwork",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Technique",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Composure",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Concentration",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "OffTheBall",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Positioning",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Vision",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Workrate",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Stamina",
+              "KeyAttribute": false
+            }
+          ],
+          "OutOfPossession": [
+            {
+              "Name": "Tackling",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Teamwork",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Workrate",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Marking",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Aggression",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Concentration",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Positioning",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Stamina",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      },
+      {
+        "Role": "MidfieldPlaymaker",
+        "DutiesAttributes": {
+          "InPossession": [
+            {
+              "Name": "FirstTouch",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Passing",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Technique",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Composure",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "OffTheBall",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Teamwork",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Vision",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Dribbling",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Tackling",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Flair",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Positioning",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Workrate",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Agility",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Stamina",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      },
+      {
+        "Role": "WideCentralMidfielder",
+        "DutiesAttributes": {
+          "InPossession": [
+            {
+              "Name": "FirstTouch",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Passing",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Tackling",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Teamwork",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Crossing",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Dribbling",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Technique",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Composure",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Concentration",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "OffTheBall",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Positioning",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Vision",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Workrate",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Agility",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Stamina",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      },
+      {
+        "Role": "PressingCentralMidfielder",
+        "DutiesAttributes": {
+          "OutOfPossession": [
+            {
+              "Name": "Tackling",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Aggression",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Teamwork",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Workrate",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Stamina",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Marking",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Concentration",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Positioning",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Pace",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Strength",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      },
+      {
+        "Role": "ScreeningCentralMidfielder",
+        "DutiesAttributes": {
+          "OutOfPossession": [
+            {
+              "Name": "Marking",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Tackling",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Concentration",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Positioning",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Teamwork",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Workrate",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Stamina",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      },
+      {
+        "Role": "WideCoveringCentralMidfielder",
+        "DutiesAttributes": {
+          "OutOfPossession": [
+            {
+              "Name": "Marking",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Tackling",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Teamwork",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Workrate",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Agility",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Stamina",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Aggression",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Concentration",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Positioning",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Pace",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      },
+      {
+        "Role": "ChannelMidfielder",
+        "DutiesAttributes": {
+          "InPossession": [
+            {
+              "Name": "Crossing",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "FirstTouch",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Passing",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Technique",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Composure",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "OffTheBall",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Workrate",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Acceleration",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Dribbling",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "LongShots",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Flair",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Vision",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Agility",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Pace",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Stamina",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      },
+      {
+        "Role": "AdvancedPlaymaker",
+        "DutiesAttributes": {
+          "InPossession": [
+            {
+              "Name": "FirstTouch",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Passing",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Technique",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Composure",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "OffTheBall",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Teamwork",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Vision",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Crossing",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Dribbling",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Flair",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Acceleration",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Agility",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      },
+      {
+        "Role": "AttackingMidfielder",
+        "DutiesAttributes": {
+          "InPossession": [
+            {
+              "Name": "FirstTouch",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "LongShots",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Passing",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Technique",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Composure",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Flair",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "OffTheBall",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Crossing",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Dribbling",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Finishing",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Vision",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Acceleration",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Agility",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      }
+    ],
+    "WideMidfielder": [
+      {
+        "Role": "WideMidfielder",
+        "DutiesAttributes": {
+          "InPossession": [
+            {
+              "Name": "Decisions",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Crossing",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Passing",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Technique",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Teamwork",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Workrate",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Pace",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Stamina",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Dribbling",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "FirstTouch",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Composure",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "OffTheBall",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Vision",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Acceleration",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Agility",
+              "KeyAttribute": false
+            }
+          ],
+          "OutOfPossession": [
+            {
+              "Name": "Decisions",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Teamwork",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Workrate",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Acceleration",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Marking",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Aggression",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "OffTheBall",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Agility",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Pace",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Stamina",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      },
+      {
+        "Role": "TrackingWideMidfielder",
+        "DutiesAttributes": {
+          "OutOfPossession": [
+            {
+              "Name": "Aggression",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Teamwork",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Workrate",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Acceleration",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Stamina",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Marking",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Tackling",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "OffTheBall",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Positioning",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Agility",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Pace",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      },
+      {
+        "Role": "WideOutletWideMidfielder",
+        "DutiesAttributes": {
+          "OutOfPossession": [
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Concentration",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "OffTheBall",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Teamwork",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Pace",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Dribbling",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "FirstTouch",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Marking",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Composure",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Acceleration",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Agility",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Stamina",
+              "KeyAttribute": false,
+              "Avoid": true
+            },
+            {
+              "Name": "Workrate",
+              "KeyAttribute": false,
+              "Avoid": true
+            }
+          ]
+        }
+      },
+      {
+        "Role": "InsideWinger",
+        "DutiesAttributes": {
+          "InPossession": [
+            {
+              "Name": "Dribbling",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "FirstTouch",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Technique",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Composure",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Teamwork",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Acceleration",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Agility",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Crossing",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "LongShots",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Passing",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Flair",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "OffTheBall",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Vision",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Workrate",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Balance",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Pace",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Stamina",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      },
+      {
+        "Role": "PlaymakingWinger",
+        "DutiesAttributes": {
+          "InPossession": [
+            {
+              "Name": "Crossing",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Dribbling",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "FirstTouch",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Passing",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Technique",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Composure",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "OffTheBall",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Teamwork",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Vision",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Acceleration",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Flair",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Workrate",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Agility",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Pace",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Stamina",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      },
+      {
+        "Role": "Winger",
+        "DutiesAttributes": {
+          "InPossession": [
+            {
+              "Name": "Crossing",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Dribbling",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Technique",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Teamwork",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Acceleration",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Agility",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Pace",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "FirstTouch",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Passing",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Flair",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "OffTheBall",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Workrate",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Balance",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Stamina",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      }
+    ],
+    "Winger": [
+      {
+        "Role": "Winger",
+        "DutiesAttributes": {
+          "InPossession": [
+            {
+              "Name": "Crossing",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Dribbling",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Technique",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Teamwork",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Acceleration",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Agility",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Pace",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "FirstTouch",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Passing",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Flair",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "OffTheBall",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Workrate",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Balance",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Stamina",
+              "KeyAttribute": false
+            }
+          ],
+          "OutOfPossession": [
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Teamwork",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Workrate",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Acceleration",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Marking",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Aggression",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "OffTheBall",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Agility",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Pace",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Stamina",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      },
+      {
+        "Role": "InsideWinger",
+        "DutiesAttributes": {
+          "InPossession": [
+            {
+              "Name": "Dribbling",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "FirstTouch",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Technique",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Composure",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Teamwork",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Acceleration",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Agility",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Crossing",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "LongShots",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Passing",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Flair",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "OffTheBall",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Vision",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Workrate",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Balance",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Pace",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Stamina",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      },
+      {
+        "Role": "PlaymakingWinger",
+        "DutiesAttributes": {
+          "InPossession": [
+            {
+              "Name": "Crossing",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Dribbling",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "FirstTouch",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Passing",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Technique",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Composure",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "OffTheBall",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Teamwork",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Vision",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Acceleration",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Flair",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Workrate",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Agility",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Pace",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Stamina",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      },
+      {
+        "Role": "InsideForward",
+        "DutiesAttributes": {
+          "InPossession": [
+            {
+              "Name": "Dribbling",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "FirstTouch",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Technique",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Composure",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "OffTheBall",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Acceleration",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Agility",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Crossing",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Finishing",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "LongShots",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Passing",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Flair",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Vision",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Workrate",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Balance",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Pace",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Stamina",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      },
+      {
+        "Role": "WideForward",
+        "DutiesAttributes": {
+          "InPossession": [
+            {
+              "Name": "Dribbling",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "FirstTouch",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Technique",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "OffTheBall",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Acceleration",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Agility",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Pace",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Crossing",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Finishing",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Passing",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Composure",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Flair",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Workrate",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Balance",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Stamina",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      },
+      {
+        "Role": "InsideOutletWinger",
+        "DutiesAttributes": {
+          "OutOfPossession": [
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Concentration",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "OffTheBall",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Teamwork",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Balance",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Dribbling",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "FirstTouch",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Marking",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Composure",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Acceleration",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Strength",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Stamina",
+              "KeyAttribute": false,
+              "Avoid": true
+            },
+            {
+              "Name": "Workrate",
+              "KeyAttribute": false,
+              "Avoid": true
+            }
+          ]
+        }
+      },
+      {
+        "Role": "WideOutletWinger",
+        "DutiesAttributes": {
+          "OutOfPossession": [
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Concentration",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "OffTheBall",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Teamwork",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Pace",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Dribbling",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "FirstTouch",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Marking",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Composure",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Acceleration",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Agility",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Stamina",
+              "KeyAttribute": false,
+              "Avoid": true
+            },
+            {
+              "Name": "Workrate",
+              "KeyAttribute": false,
+              "Avoid": true
+            }
+          ]
+        }
+      },
+      {
+        "Role": "TrackingWinger",
+        "DutiesAttributes": {
+          "OutOfPossession": [
+            {
+              "Name": "Aggression",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Teamwork",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Workrate",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Acceleration",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Stamina",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Marking",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Tackling",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "OffTheBall",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Positioning",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Agility",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Pace",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      }
+    ],
+    "AttackingMidfielderCentral": [
+      {
+        "Role": "AttackingMidfielder",
+        "DutiesAttributes": {
+          "InPossession": [
+            {
+              "Name": "FirstTouch",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "LongShots",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Passing",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Technique",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Composure",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Flair",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "OffTheBall",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Crossing",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Dribbling",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Finishing",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Vision",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Acceleration",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Agility",
+              "KeyAttribute": false
+            }
+          ],
+          "OutOfPossession": [
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Workrate",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Marking",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Aggression",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "OffTheBall",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Teamwork",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Stamina",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      },
+      {
+        "Role": "ChannelMidfielder",
+        "DutiesAttributes": {
+          "InPossession": [
+            {
+              "Name": "Crossing",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "FirstTouch",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Passing",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Technique",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Composure",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "OffTheBall",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Workrate",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Acceleration",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Dribbling",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "LongShots",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Flair",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Vision",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Agility",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Pace",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Stamina",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      },
+      {
+        "Role": "FreeRole",
+        "DutiesAttributes": {
+          "InPossession": [
+            {
+              "Name": "Dribbling",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "FirstTouch",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "LongShots",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Passing",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Technique",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Composure",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Flair",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "OffTheBall",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Vision",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Crossing",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Finishing",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Acceleration",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Agility",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      },
+      {
+        "Role": "SecondStriker",
+        "DutiesAttributes": {
+          "InPossession": [
+            {
+              "Name": "Finishing",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "FirstTouch",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Composure",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "OffTheBall",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Acceleration",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Dribbling",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "LongShots",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Passing",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Technique",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Concentration",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Workrate",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Agility",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Pace",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Stamina",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      },
+      {
+        "Role": "AdvancedPlaymaker",
+        "DutiesAttributes": {
+          "InPossession": [
+            {
+              "Name": "FirstTouch",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Passing",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Technique",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Composure",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "OffTheBall",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Teamwork",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Vision",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Crossing",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Dribbling",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Flair",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Acceleration",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Agility",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      },
+      {
+        "Role": "CentralOutletAttackingMidfielder",
+        "DutiesAttributes": {
+          "OutOfPossession": [
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Concentration",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "OffTheBall",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Teamwork",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Balance",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "FirstTouch",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Marking",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Composure",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Strength",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Stamina",
+              "KeyAttribute": false,
+              "Avoid": true
+            },
+            {
+              "Name": "Workrate",
+              "KeyAttribute": false,
+              "Avoid": true
+            }
+          ]
+        }
+      },
+      {
+        "Role": "SplittingOutletAttackingMidfielder",
+        "DutiesAttributes": {
+          "OutOfPossession": [
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Concentration",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "OffTheBall",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Teamwork",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Pace",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "FirstTouch",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Marking",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Composure",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Acceleration",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Stamina",
+              "KeyAttribute": false,
+              "Avoid": true
+            },
+            {
+              "Name": "Workrate",
+              "KeyAttribute": false,
+              "Avoid": true
+            }
+          ]
+        }
+      },
+      {
+        "Role": "TrackingAttackingMidfielder",
+        "DutiesAttributes": {
+          "OutOfPossession": [
+            {
+              "Name": "Aggression",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Teamwork",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Workrate",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Stamina",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Marking",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "OffTheBall",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Positioning",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      }
+    ],
+    "Striker": [
+      {
+        "Role": "CentreForward",
+        "DutiesAttributes": {
+          "InPossession": [
+            {
+              "Name": "Finishing",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "FirstTouch",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Heading",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Technique",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Composure",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "OffTheBall",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Acceleration",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Strength",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Dribbling",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Passing",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Agility",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Balance",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Jumping",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Pace",
+              "KeyAttribute": false
+            }
+          ],
+          "OutOfPossession": [
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Workrate",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Marking",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Aggression",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "OffTheBall",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Teamwork",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Stamina",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      },
+      {
+        "Role": "ChannelForward",
+        "DutiesAttributes": {
+          "InPossession": [
+            {
+              "Name": "Dribbling",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Finishing",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "FirstTouch",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Technique",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Composure",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "OffTheBall",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Workrate",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Acceleration",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Crossing",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Heading",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Passing",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Agility",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Balance",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Pace",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Stamina",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      },
+      {
+        "Role": "DeepLyingForward",
+        "DutiesAttributes": {
+          "InPossession": [
+            {
+              "Name": "Finishing",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "FirstTouch",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Technique",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Composure",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "OffTheBall",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Strength",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Dribbling",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Passing",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Teamwork",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Vision",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Balance",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      },
+      {
+        "Role": "FalseNine",
+        "DutiesAttributes": {
+          "InPossession": [
+            {
+              "Name": "Dribbling",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "FirstTouch",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Passing",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Technique",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Composure",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "OffTheBall",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Teamwork",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Vision",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Acceleration",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Finishing",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Flair",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Agility",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Balance",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      },
+      {
+        "Role": "Poacher",
+        "DutiesAttributes": {
+          "InPossession": [
+            {
+              "Name": "Finishing",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Heading",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Composure",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Concentration",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "OffTheBall",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Acceleration",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "FirstTouch",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Technique",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Balance",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      },
+      {
+        "Role": "TargetForward",
+        "DutiesAttributes": {
+          "InPossession": [
+            {
+              "Name": "Finishing",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Heading",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Aggression",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Bravery",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Composure",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "OffTheBall",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Balance",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Jumping",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Strength",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "FirstTouch",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Teamwork",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      },
+      {
+        "Role": "CentralOutletCentreForward",
+        "DutiesAttributes": {
+          "OutOfPossession": [
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Concentration",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "OffTheBall",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Teamwork",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Balance",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "FirstTouch",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Marking",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Composure",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Strength",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Stamina",
+              "KeyAttribute": false,
+              "Avoid": true
+            },
+            {
+              "Name": "Workrate",
+              "KeyAttribute": false,
+              "Avoid": true
+            }
+          ]
+        }
+      },
+      {
+        "Role": "SplittingOutletCentreForward",
+        "DutiesAttributes": {
+          "OutOfPossession": [
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Concentration",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "OffTheBall",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Teamwork",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Pace",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "FirstTouch",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Marking",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Composure",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Acceleration",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Stamina",
+              "KeyAttribute": false,
+              "Avoid": true
+            },
+            {
+              "Name": "Workrate",
+              "KeyAttribute": false,
+              "Avoid": true
+            }
+          ]
+        }
+      },
+      {
+        "Role": "TrackingCentreForward",
+        "DutiesAttributes": {
+          "OutOfPossession": [
+            {
+              "Name": "Aggression",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Anticipation",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Decisions",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Teamwork",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Workrate",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Stamina",
+              "KeyAttribute": true
+            },
+            {
+              "Name": "Marking",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "OffTheBall",
+              "KeyAttribute": false
+            },
+            {
+              "Name": "Positioning",
+              "KeyAttribute": false
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "KeyAttributesWeight": 16,
+  "PreferableAttributesWeight": 4,
+  "AvoidAttributesWeight": 3,
+  "PositionRatingPenalties": [
+    76,
+    72,
+    68,
+    64,
+    60,
+    56,
+    52,
+    48,
+    44,
+    40,
+    36,
+    20,
+    17,
+    15,
+    5,
+    4,
+    3,
+    2,
+    1,
+    0
+  ],
+  "SettingsVersion": "27.0.0.0"
+}

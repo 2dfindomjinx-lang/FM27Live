@@ -77,6 +77,7 @@ public sealed class FreeAgentSigning(IProcessMemory memory, OffsetProfile profil
         BitConverter.GetBytes(firstTeam.Address).CopyTo(contract, seniorAt);
         Date(today).CopyTo(contract, StartDate);
         Date(today).CopyTo(contract, SignedDate);
+        ContractCopy.ClearOwned(contract);   // FMRTE copied these too; FM then frees them twice when it unloads the save
 
         ulong parentTeamAt = (ulong)(T.PlayerTeam + 8), joinedSecondAt = (ulong)(joinedAt + 4);
         var writes = new List<PlannedWrite>

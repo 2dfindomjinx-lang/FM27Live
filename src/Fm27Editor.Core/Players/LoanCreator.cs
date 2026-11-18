@@ -107,6 +107,16 @@ public sealed class LoanCreator(IProcessMemory memory, OffsetProfile profile, ul
         int joinedAt = C.PlayerJoinedClub ?? throw new InvalidOperationException("Profile has no joined club offset");
         var template = FindTemplate(players, borrowingTeam) ?? throw new InvalidOperationException("The game has no loan contract to copy as a template");
         var bytes = memory.Read(template.Contract, ContractSize);
+        // FMRTE's new loan contract has 0 at +0x30 and +0x68 (a real FMRTE loan copied a template that had none
+        // there, Game Pass 27.1.0, 18/11/2026). Some loan contracts in the save do hold heap records at these
+        // offsets: a new loan must not share the template's unhappiness record or its clause list, or FM can free
+        // the same object twice when the save is unloaded. +0x58 stays as the template had it: it points at an
+        // empty block in FMRTE's loan, and loading that loan in the same FM session did not crash.
+        Array.Clear(bytes, 0x30, 8);
+        Array.Clear(bytes, 0x68, 8);
+        // FMRTE's 27.1.0 loan contract has +0x54 = 0x00 where its template had 0x03. The byte is not a list, but it
+        // is one of the remaining differences between the FMRTE loan (reloaded fine) and ours (FM exited on load).
+        bytes[0x54] = 0;
         Put64(bytes, 0, moduleBase + F.LoanContractVtable);
         Put64(bytes, ContractPerson, player.Address + (ulong)rel.PlayerPerson);
         Put64(bytes, ContractTeam, borrowingTeam);

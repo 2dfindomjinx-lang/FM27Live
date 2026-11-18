@@ -109,6 +109,11 @@ public class FreeAgentMoveTests
         BitConverter.GetBytes(Team).CopyTo(expected, 0x18);
         Convert.FromHexString("5d01ea07").CopyTo(expected, 0x44);   // FMRTE: 5d01 ea07, the template's flag bits (c21a) dropped
         Convert.FromHexString("5d01ea07").CopyTo(expected, 0x4C);
+        // Not as FMRTE: what the template's contract owns is cleared, not shared (+0x28, +0x30, +0x68..+0x97, +0x98, +0xA0).
+        // Game Pass 27.1.0, 18/11/2026: with them shared, loading another save in the same FM session crashed in ntdll's heap
+        // free; FMLibreEditor clears the same fields when it signs a free agent and was checked playing on in game.
+        foreach (int at in new[] { 0x28, 0x30, 0x98, 0xA0 }) Array.Clear(expected, at, 8);
+        Array.Clear(expected, 0x68, 48);
         Assert.Equal(Convert.ToHexString(expected), Convert.ToHexString(_w.Bytes(contract, 200)));
 
         Assert.Equal((Team, Team), (Q(TestWorld.Mainoo + PlayerTeam), Q(TestWorld.Mainoo + 0x138)));
@@ -119,6 +124,26 @@ public class FreeAgentMoveTests
         // The copied player's own contract is untouched.
         Assert.Equal(TemplateContract, Q(TemplatePlayer + PlayerContract));
         Assert.Equal(0x1E95E563E98UL, Q(TemplateContract + 0x08));
+    }
+
+    [Fact]
+    public void The_new_contract_shares_no_list_or_record_with_the_template()
+    {
+        // Give the template an unhappiness record, a clauses list and a competition bonus list, as many contracts have.
+        Assert.True(_w.Memory.TryWrite(TemplateContract + 0x30, BitConverter.GetBytes(0x6400_0000UL)));
+        foreach (int at in new[] { 0x68, 0x80 })
+        {
+            var list = new byte[24];
+            BitConverter.GetBytes(0x6500_0000UL + (ulong)at).CopyTo(list, 0);
+            BitConverter.GetBytes(0x6500_0010UL + (ulong)at).CopyTo(list, 8);
+            BitConverter.GetBytes(0x6500_0010UL + (ulong)at).CopyTo(list, 16);
+            Assert.True(_w.Memory.TryWrite(TemplateContract + (ulong)at, list));
+        }
+        Signing().Apply(Signing().Plan(Free(), City(), Today), Alloc);
+        ulong contract = Q(TestWorld.Mainoo + PlayerContract);
+        Assert.Equal(0UL, Q(contract + 0x30));
+        Assert.All(_w.Bytes(contract + 0x68, 48), b => Assert.Equal(0, b));
+        Assert.Equal(0x6400_0000UL, Q(TemplateContract + 0x30));   // the template keeps its own
     }
 
     [Fact]

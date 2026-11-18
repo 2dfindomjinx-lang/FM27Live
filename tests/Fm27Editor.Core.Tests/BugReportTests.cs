@@ -19,6 +19,19 @@ public sealed class BugReportTests : IDisposable
     static DateTimeOffset At(int second) => new(2026, 11, 10, 12, 0, second, TimeSpan.Zero);
 
     [Fact]
+    public void A_test_run_does_not_start_a_recorder_in_the_player_folder()
+    {
+        bool previous = FlightRecorder.Enabled;
+        try
+        {
+            FlightRecorder.Enabled = false;
+            Assert.Null(FlightRecorder.Start("test"));
+            Assert.Null(FlightRecorder.Current);
+        }
+        finally { FlightRecorder.Enabled = previous; }
+    }
+
+    [Fact]
     public void A_run_that_closed_normally_and_one_that_did_not_are_told_apart()
     {
         using (var clean = new FlightRecorder(_dir, "1.0", At(1))) clean.Close();

@@ -4,10 +4,13 @@ using Fm27Editor.Core.Memory;
 namespace Fm27Editor.Core.Tests;
 
 /// <summary>Sparse in-memory address space: separate segments, reads may not cross a segment.</summary>
-sealed class FakeMemory : IProcessMemory
+sealed class FakeMemory : IProcessMemory, IWriteGate
 {
     readonly List<(ulong Start, byte[] Data)> _segments = new();
     public int Writes { get; private set; }
+
+    /// <summary>Called before each write; the GameSession tests use it to prove the load gate is installed.</summary>
+    public Action? BeforeWrite { get; set; }
 
     public byte[] Map(ulong start, int length)
     {
@@ -45,6 +48,7 @@ sealed class FakeMemory : IProcessMemory
 
     public bool TryWrite(ulong address, ReadOnlySpan<byte> bytes)
     {
+        BeforeWrite?.Invoke();
         foreach (var (start, data) in _segments)
             if (address >= start && address + (ulong)bytes.Length <= start + (ulong)data.Length)
             {

@@ -177,13 +177,14 @@ public sealed class TransferService(IProcessMemory memory, OffsetProfile profile
         return (guards, writes);
     }
 
-    /// <summary>Finance, squads, contract and completed offer share one rollback boundary.</summary>
-    public void ApplyWithRecord(TransferPlan plan, DateOnly today, Func<int, ulong> allocate)
+    /// <summary>Finance, squads, contract and completed offer share one rollback boundary. The offer's terms carry a
+    /// move's sell-on, as FMRTE writes it into the terms object (+0xC4), not as a club clause record.</summary>
+    public void ApplyWithRecord(TransferPlan plan, DateOnly today, Func<int, ulong> allocate, TransferTerms? offerTerms = null)
     {
         ulong buyer = plan.Buyer.FirstTeam?.Address ?? throw new InvalidOperationException("Buyer has no first team");
         ulong seller = plan.Seller.FirstTeam?.Address ?? throw new InvalidOperationException("Seller has no first team");
         var record = new CompletedTransferRecord(memory, profile, moduleBase);
-        var recordPlan = record.Plan(plan.Player.Address, buyer, seller, plan.Fee, today);
+        var recordPlan = record.Plan(plan.Player.Address, buyer, seller, plan.Fee, today, offerTerms);
         var move = Prepare(plan, allocate);
         var completed = record.Prepare(recordPlan, allocate);
         FutureTransferTransaction.Apply(memory, [.. move.Guards, .. completed.Guards], [.. move.Writes, .. completed.Writes]);

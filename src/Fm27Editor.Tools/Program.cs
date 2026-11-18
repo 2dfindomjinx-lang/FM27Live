@@ -122,6 +122,10 @@ try
         "transfer" => Transfer(args[1..]),
         "clauses" => args[1] == "fee" ? SellOnsWithFee() : Clauses(int.Parse(args[1])),
         "clausecheck" => ClauseCheck(),
+        "regioncheck" => RegionCheck(),
+        "transfercheck" => TransferCheck.Run(args[1..], w => Attach(w)),
+        "crashscan" => CrashScan.Run(),
+        "alloccheck" => AllocCheck.Run(w => Attach(w)),
         "sellonroundtrip" => SellOnRoundTrip(int.Parse(args[1]), int.Parse(args[2])),
         "income" => IncomeCommand(int.Parse(args[1]), args[2..]),
         "alloc" => AllocCommand(int.Parse(args[1])),
@@ -2334,6 +2338,51 @@ int ClauseCheck()
         Console.WriteLine($"  scan-only 0x{a:X} vtable +0x{vt:X} player {BitConverter.ToInt32(b, 8)} club@10 0x{BitConverter.ToUInt64(b, 0x10):X} club@30 0x{BitConverter.ToUInt64(b, 0x30):X}");
     }
     return onlyScan.Count == 0 && onlyVector.Count == 0 ? 0 : 1;
+}
+
+// regioncheck   lists every agreement-region vector the owned lookup considers (holders at the nation root ±0x20 and the
+//               stadium root, plus the nation list's child object), and whether the owned lookup accepts one (read only)
+int RegionCheck()
+{
+    using var session = Attach(writable: false);
+    var p = session.Profile;
+    ulong mb = session.ModuleBase;
+    if (p.AgreementRegionVtable is not { } rv) { Console.WriteLine("profile has no agreementRegionVtable"); return 2; }
+    var roots = new List<(string, ulong)>();
+    if (p.Nation?.ListRootRva is { } nr)
+        for (long d = -0x20; d <= 0x20; d += 8) roots.Add(($"nation{(d < 0 ? "-" : "+")}0x{Math.Abs(d):X}", mb + (ulong)((long)nr + d)));
+    if (p.Stadium is { } s) roots.Add(("stadium", mb + s.ListRootRva));
+    var mem = session.Memory;
+    foreach (var (name, slot) in roots)
+    {
+        if (!mem.TryRead(slot, new byte[8])) { Console.WriteLine($"{name}: slot unreadable"); continue; }
+        ulong holder = mem.ReadUInt64(slot);
+        if (holder < 0x10000) continue;
+        var prefix = new byte[0x810];
+        if (!mem.TryRead(holder, prefix)) { Console.WriteLine($"{name}: holder 0x{holder:X} prefix unreadable"); continue; }
+        for (int at = 0; at + 24 <= prefix.Length; at += 8)
+        {
+            ulong begin = BitConverter.ToUInt64(prefix, at), end = BitConverter.ToUInt64(prefix, at + 8), cap = BitConverter.ToUInt64(prefix, at + 16);
+            if (begin < 0x10000 || end <= begin || cap < end || (end - begin) % 8 != 0 || (cap - begin) % 8 != 0 || (end - begin) / 8 > 64) continue;
+            var ptrs = new byte[(int)(end - begin)];
+            if (!mem.TryRead(begin, ptrs)) { Console.WriteLine($"{name}+0x{at:X}: pointers unreadable"); continue; }
+            int regions = 0, other = 0, unreadable = 0;
+            for (int i = 0; i < ptrs.Length; i += 8)
+            {
+                ulong a = BitConverter.ToUInt64(ptrs, i);
+                var b = new byte[8];
+                if (a < 0x10000 || !mem.TryRead(a, b)) { unreadable++; continue; }
+                if (BitConverter.ToUInt64(b) == mb + rv) regions++; else other++;
+            }
+            // The owned lookup treats a vector of only region or unreadable entries as a possible catalogue it cannot rule out.
+            if (regions > 0 || (other == 0 && unreadable > 0))
+                Console.WriteLine($"{name} holder 0x{holder:X} +0x{at:X}: {ptrs.Length / 8} items, {regions} regions, {other} other, {unreadable} unreadable"
+                    + (unreadable > 0 ? $" (first 0x{BitConverter.ToUInt64(ptrs, 0):X}, begin 0x{begin:X})" : ""));
+        }
+    }
+    var owned = new Fm27Editor.Core.Nations.NationAgreements(mem, p, mb).TryReadOwnedRegions();
+    Console.WriteLine(owned is null ? "owned lookup: null (heap scan fallback)" : $"owned lookup: {owned.Count} regions");
+    return owned is null ? 1 : 0;
 }
 
 // sellonroundtrip <club id> <beneficiary club id>   add a 10% sell-on on the club's first player, read it back through the

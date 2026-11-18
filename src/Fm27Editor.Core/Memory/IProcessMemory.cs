@@ -49,6 +49,16 @@ public interface IMemoryWriteObserver
     Action<ulong, int>? OnAllocate { get; set; }
 }
 
+/// <summary>
+/// Optional capability: a hook called before every write; it throws to refuse the write (the session uses it while the
+/// game is loading a save or has none loaded). Implementations must call it before taking a lock that the hook's reads
+/// would need.
+/// </summary>
+public interface IWriteGate
+{
+    Action? BeforeWrite { get; set; }
+}
+
 public static class ProcessMemoryExtensions
 {
     public static byte[] Read(this IProcessMemory memory, ulong address, int length)

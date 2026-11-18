@@ -64,6 +64,7 @@ static partial class Program
             case "pagediff": PageDiff(args[1], args.Length > 2 ? int.Parse(args[2]) : 40); break;
             case "objsnap": ObjSnap(args[1], Convert.ToInt32(args[2], 16), int.Parse(args[3])); break;
             case "objdiff": ObjDiff(args[1], Convert.ToInt32(args[2], 16), int.Parse(args[3])); break;
+            case "vtptr": VtPtrStats(Convert.ToInt32(args[1], 16), int.Parse(args[2])); break;
             case "findbytes": FindBytes(args[1], args.Length > 2 ? int.Parse(args[2]) : 40); break;
             case "link": FindLink(Convert.ToUInt64(args[1], 16), Convert.ToUInt64(args[2], 16), Convert.ToUInt64(args[3], 16), int.Parse(args[4])); break;
             case "climb": ClimbUp(args[1], Convert.ToUInt64(args[2], 16), int.Parse(args[3])); break;

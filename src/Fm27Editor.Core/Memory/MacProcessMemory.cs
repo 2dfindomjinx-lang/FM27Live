@@ -4,7 +4,7 @@ using System.Text;
 namespace Fm27Editor.Core.Memory;
 
 /// <summary>mach_vm read/write access to one macOS process, obtained through task_for_pid.</summary>
-public sealed partial class MacProcessMemory : IProcessMemory, IMemoryRegions, IRemoteAllocator, IMemoryWriteObserver, IMacMemory, IDisposable
+public sealed partial class MacProcessMemory : IProcessMemory, IMemoryRegions, IRemoteAllocator, IMemoryWriteObserver, IWriteGate, IMacMemory, IDisposable
 {
     const string LibSystem = "/usr/lib/libSystem.B.dylib";
     const int KernSuccess = 0;
@@ -31,6 +31,9 @@ public sealed partial class MacProcessMemory : IProcessMemory, IMemoryRegions, I
 
     /// <summary>Called with the address and size of each fresh block, so the history can ignore writes into it.</summary>
     public Action<ulong, int>? OnAllocate { get; set; }
+
+    /// <summary>Called before each write; throws to refuse it while the game loads a save or has none loaded.</summary>
+    public Action? BeforeWrite { get; set; }
 
     public MacProcessMemory(int processId, bool writable)
     {
@@ -59,6 +62,7 @@ public sealed partial class MacProcessMemory : IProcessMemory, IMemoryRegions, I
     public unsafe bool TryWrite(ulong address, ReadOnlySpan<byte> data)
     {
         if (!CanWrite) throw new InvalidOperationException("Process was opened read-only");
+        BeforeWrite?.Invoke();
         if (data.IsEmpty) return true;
         uint task = _task;
         if (task == 0 || address == 0) return false;

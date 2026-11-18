@@ -56,6 +56,14 @@ public sealed class OffsetProfile
     public GameDateOffsets? GameDate { get; init; }
     /// <summary>Address of a packed in-game date stored directly in the module.</summary>
     public uint? DirectGameDateRva { get; init; }
+    /// <summary>
+    /// The static pointer to the game's one GAME_UI object (profile <c>gameUiRva</c>), its vtable, and the offset of the
+    /// u64 count of saves loaded since the game started (profile <c>gameUiLoadsOffset</c>). Null on a build that was not
+    /// measured; writes then rely on the player list being non-empty only.
+    /// </summary>
+    public uint? GameUiRva { get; init; }
+    public uint? GameUiVtable { get; init; }
+    public int? GameUiLoadsOffset { get; init; }
     /// <summary>The planned-retirement manager: the module slot holding it and its vtable (null when the build was not measured).</summary>
     public uint? RetirementManagerRva { get; init; }
     public uint? RetirementManagerVtable { get; init; }
@@ -97,6 +105,11 @@ public sealed class OffsetProfile
         var root = doc.RootElement;
         var list = root.GetProperty("playerList");
         var player = root.GetProperty("player");
+        uint? gameUiRva = root.TryGetProperty("gameUiRva", out _) ? (uint)Hex(root, "gameUiRva") : null;
+        uint? gameUiVtable = root.TryGetProperty("gameUiVtable", out _) ? (uint)Hex(root, "gameUiVtable") : null;
+        int? gameUiLoads = root.TryGetProperty("gameUiLoadsOffset", out _) ? Hex(root, "gameUiLoadsOffset") : null;
+        if ((gameUiRva is null) != (gameUiVtable is null) || (gameUiRva is null) != (gameUiLoads is null))
+            throw new FormatException("gameUiRva, gameUiVtable and gameUiLoadsOffset must be given together");
         return new OffsetProfile
         {
             Build = root.GetProperty("build").GetString() ?? throw new FormatException("build is missing"),
@@ -109,6 +122,9 @@ public sealed class OffsetProfile
             PeTimestamp = root.TryGetProperty("peTimestamp", out _) ? (uint)Hex(root, "peTimestamp") : null,
             ReadOnly = root.TryGetProperty("readOnly", out var ro) && ro.GetBoolean(),
             DirectGameDateRva = root.TryGetProperty("directGameDateRva", out _) ? (uint)Hex(root, "directGameDateRva") : null,
+            GameUiRva = gameUiRva,
+            GameUiVtable = gameUiVtable,
+            GameUiLoadsOffset = gameUiLoads,
             RetirementManagerRva = root.TryGetProperty("retirementManagerRva", out _) ? (uint)Hex(root, "retirementManagerRva") : null,
             RetirementManagerVtable = root.TryGetProperty("retirementManagerVtable", out _) ? (uint)Hex(root, "retirementManagerVtable") : null,
             NationAppointmentVtable = root.TryGetProperty("nationAppointmentVtable", out _) ? (uint)Hex(root, "nationAppointmentVtable") : null,
@@ -385,6 +401,9 @@ public sealed class OffsetProfile
             if (PeTimestamp is { } timestamp) H("peTimestamp", timestamp);
             if (ReadOnly) w.WriteBoolean("readOnly", true);
             if (DirectGameDateRva is { } directDate) H("directGameDateRva", directDate);
+            if (GameUiRva is { } gameUi) H("gameUiRva", gameUi);
+            if (GameUiVtable is { } gameUiVtable) H("gameUiVtable", gameUiVtable);
+            if (GameUiLoadsOffset is { } gameUiLoads) H("gameUiLoadsOffset", gameUiLoads);
             if (RetirementManagerRva is { } retirementRva) H("retirementManagerRva", retirementRva);
             if (RetirementManagerVtable is { } retirementVtable) H("retirementManagerVtable", retirementVtable);
             if (NationAppointmentVtable is { } appointmentVtable) H("nationAppointmentVtable", appointmentVtable);

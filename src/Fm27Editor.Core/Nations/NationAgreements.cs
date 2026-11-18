@@ -104,6 +104,10 @@ public sealed class NationAgreements(IProcessMemory memory, OffsetProfile profil
                     records.Add(bytes);
                 }
                 if (invalid) continue;
+                // No entry points at a readable object: the vector holds values, not pointers to live records (Game Pass
+                // 27.1.0 keeps packed date pairs such as 0x07E500B5_07E300B6 next to the catalogue). A live catalogue is
+                // readable, so only a partly readable vector stays unknown.
+                if (unreadable && rows.Count == 0) continue;
                 if (unreadable) { if (isChild) unknownChild = true; else unknownTop = true; continue; }
                 candidates.Add((slot, holder, holder + (ulong)at, prefix.AsSpan(at, 24).ToArray(), begin, pointers, rows, records, isChild));
             }

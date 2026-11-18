@@ -111,6 +111,33 @@ public class TransferServiceTests
         }
     }
 
+    [Fact]
+    public void A_completed_transfer_carries_a_sell_on_in_its_offer_terms_not_a_club_clause()
+    {
+        var (_, clubs, mainoo) = Setup();
+        var po = _w.Profile.Proposals!;
+        const ulong root = 0x80000000, offers = 0x81000000;
+        TestWorld.Set64(_w.Memory.Map(TestWorld.ModuleBase + po.ListRootRva, 8), 0, root);
+        var rootBytes = _w.Memory.Map(root, 0x1000);
+        TestWorld.Set64(rootBytes, po.ListOffset, offers);
+        TestWorld.Set64(rootBytes, po.ListOffset + 8, offers);
+        TestWorld.Set64(rootBytes, po.ListOffset + 16, offers + 16);
+        TestWorld.Set64(_w.Memory.Map(offers, 16), 0, 0);
+        ulong next = 0x90000000;
+        ulong Allocate(int size) { ulong at = next; next += 0x10000; _w.Memory.Map(at, size); return at; }
+        var service = new TransferService(_w.Memory, _w.Profile, TestWorld.ModuleBase);
+        var plan = service.Plan(mainoo, clubs, clubs.Single(c => c.Id == 868), 1000);
+        plan = plan with { Seller = plan.Seller with { Teams = plan.Seller.Teams.Select(t => t with { IsFirstTeam = true }).ToArray() } };
+        var terms = new TransferTerms(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 15, false, 0);
+        service.ApplyWithRecord(plan, new(2026, 11, 16), Allocate, terms);
+        ulong offer = Q(offers);
+        ulong address = Q(offer + 0xA8);
+        Assert.Equal(15, _w.Bytes(address + 0xC4, 1)[0]);
+        Assert.All(_w.Bytes(address, 208).Where((_, i) => i != 0xC4), b => Assert.Equal(0, b));
+        // FMRTE writes the sell-on in the offer terms; the buyer's club clause vector is untouched.
+        Assert.Equal(0UL, Q(BuyerClub + (ulong)_w.Profile.Club!.TransferClauses!.Pointer));
+    }
+
     sealed class FaultMemory(FakeMemory inner) : IProcessMemory
     {
         public int FailAt, Calls;

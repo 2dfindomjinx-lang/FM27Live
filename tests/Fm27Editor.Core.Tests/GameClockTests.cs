@@ -66,6 +66,17 @@ public class GameClockTests
         Assert.Null(Read());
     }
 
+    /// <summary>
+    /// While FM is still loading a save (Game Pass 27.1.0, "Loading Game 95%", 18/11/2026) the clock object exists with the right
+    /// vtable but holds day 1 of 1900; the editor planned a future transfer for 31/1/1900 from it. That is "no date", not a date.
+    /// </summary>
+    [Fact]
+    public void Unknown_while_the_clock_still_holds_1_january_1900()
+    {
+        Assert.True(_w.Memory.TryWrite(Obj + 0x7F4, [1, 0, 0x6C, 0x07]));   // day 1, year 1900
+        Assert.Null(Read());
+    }
+
     [Fact]
     public void Two_hop_chain_with_cross_check_still_reads()
     {

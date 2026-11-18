@@ -67,6 +67,31 @@ public sealed class OwnedAgreementRegionTests
         BitConverter.GetBytes(First).CopyTo(memory.Inner.Map(0x500000, 8), 0);
         Assert.Null(reader.TryReadOwnedRegions());
     }
+    /// <summary>
+    /// Game Pass 27.1.0+2505117 (CLI regioncheck, 18/11/2026): the database holder keeps 3-item vectors of packed date pairs
+    /// (first entry 0x07E500B5_07E300B6) and a 12-item vector of int pairs (0x460_00000460) next to the 28-region catalogue at
+    /// +0x540. None of their entries points at a readable object, so they are values, not a competing catalogue.
+    /// </summary>
+    [Fact]
+    public void A_vector_of_values_beside_the_catalogue_does_not_block_it()
+    {
+        var (memory, reader, holder, _, _) = Fixture("27.0.1+2503222-steam", 0x58120B0, 0x4ECD708);
+        Vector(holder, 0x700, 0x500000, 3);
+        var values = memory.Inner.Map(0x500000, 24);
+        foreach (var (at, v) in new[] { (0, 0x07E500B507E300B6UL), (8, 0x07EB00B507EA00B5UL), (16, 0x0000046000000460UL) })
+            BitConverter.GetBytes(v).CopyTo(values, at);
+        Assert.Equal(new[] { 14, 23 }, reader.TryReadOwnedRegions()!.Select(r => r.Id));
+    }
+    [Fact]
+    public void A_partly_readable_region_vector_stays_unknown()
+    {
+        var (memory, reader, holder, _, _) = Fixture("27.0.1+2503222-steam", 0x58120B0, 0x4ECD708);
+        Vector(holder, 0x700, 0x500000, 2);
+        var pointers = memory.Inner.Map(0x500000, 16);
+        BitConverter.GetBytes(First).CopyTo(pointers, 0);
+        BitConverter.GetBytes(0x600000UL).CopyTo(pointers, 8);   // unreadable
+        Assert.Null(reader.TryReadOwnedRegions());
+    }
     [Fact]
     public void Unreadable_candidate_makes_discovery_unknown()
     {

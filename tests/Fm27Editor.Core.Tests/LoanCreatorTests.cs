@@ -143,8 +143,17 @@ public class LoanCreatorTests
         Assert.Equal("00000000", Hex(contract + 0xB4, 4));
 
         // Bytes FMRTE does not touch come from the template contract (marker 0xA1 + offset).
-        foreach (int at in new[] { 0x28, 0x54, 0x58, 0x5C, 0x60, 0xE0, 0xE8, 0xF4, 0xF8 })
+        foreach (int at in new[] { 0x28, 0x58, 0x5C, 0x60, 0xE0, 0xE8, 0xF4, 0xF8 })
             Assert.Equal((byte)(0xA1 + at), _w.Bytes(contract + (ulong)at, 1)[0]);
+        // FMRTE's 27.1.0 loan contract has +0x54 = 0 where its template had 3; the template itself keeps its byte.
+        Assert.Equal("00", Hex(contract + 0x54, 1));
+        Assert.Equal((byte)(0xA1 + 0x54), _w.Bytes(TemplateLoan + 0x54, 1)[0]);
+        // A new loan owns none of the template's optional records. FMRTE's loan contract (18/11/2026) had +0x30
+        // and +0x68 zero; some game loan contracts keep owned heap records there, so sharing them would double free.
+        Assert.Equal("0000000000000000", Hex(contract + 0x30, 8));
+        Assert.Equal("0000000000000000", Hex(contract + 0x68, 8));
+        Assert.Equal((byte)(0xA1 + 0x30), _w.Bytes(TemplateLoan + 0x30, 1)[0]);
+        Assert.Equal(unchecked((byte)(0xA1 + 0x68)), _w.Bytes(TemplateLoan + 0x68, 1)[0]);
 
         Assert.Equal((BorrowTeam, ParentTeam), (Q(TestWorld.Mainoo + PlayerTeam), Q(TestWorld.Mainoo + 0x138)));
         Assert.Equal("4a01ea07", Hex(TestWorld.Mainoo + 0x3A4, 4));

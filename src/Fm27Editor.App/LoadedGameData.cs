@@ -106,7 +106,7 @@ internal sealed class LoadedGameData(GameSession session)
                 data.Stadiums = report.Read("stadiums", "Reading stadiums…", () => session.Stadiums.LoadAll());
             if (session.Profile.Award is not null)
                 data.Awards = report.Read("awards", "Reading awards…", () => session.Awards.LoadAll());
-            if (session.Profile.Officials is not null)
+            if (Fm27Editor.Core.Officials.RefereeDirectory.Supported(session.Profile.Officials))
                 data.Referees = report.Read("referees", "Reading referees…", () => session.ReadReferees());
             data.Cities = report.Read("cities", "Reading cities…", () => session.Cities.LoadAll());
             if (session.Profile.Cities?.Links is not null)

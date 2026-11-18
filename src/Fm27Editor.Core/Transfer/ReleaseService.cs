@@ -146,7 +146,7 @@ public sealed class ReleaseService(IProcessMemory memory, OffsetProfile profile,
             if (contract != 0)
             {
                 int owner = C.Owner ?? throw new InvalidOperationException("No contract owner offset");
-                if (memory.ReadUInt64(contract) != moduleBase + C.ContractVtableRva || memory.ReadUInt64(contract + (ulong)owner) != manager.Address)
+                if (memory.ReadUInt64(contract) != moduleBase + C.ContractVtableRva || memory.ReadUInt64(contract + (ulong)owner) != manager.Address + (ulong)S.JobPersonAnchor)
                     throw new StaleObjectException("Human manager contract is not valid");
                 ulong team = memory.ReadUInt64(contract + (ulong)C.Team);
                 if (team == 0 || memory.ReadUInt64(team) != moduleBase + T.VtableRva) throw new StaleObjectException("Human manager team is not valid");

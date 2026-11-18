@@ -14,6 +14,8 @@ public sealed class StaffOffsets
 {
     public required uint PersonListRootRva { get; init; }
     public required int PersonListOffset { get; init; }
+    public int? PersonListHolderOffset { get; init; }
+    public int? DirectRecordStride { get; init; }
     /// <summary>The root is a begin/end vector of staff-part pointers rather than a person-list holder.</summary>
     public bool DirectStaffVector { get; init; }
     public required IReadOnlyList<StaffKind> Kinds { get; init; }
@@ -82,6 +84,8 @@ public sealed class StaffOffsets
         return new StaffOffsets
         {
             PersonListRootRva = (uint)Hex(e, "personListRootRva"), PersonListOffset = Hex(e, "personListOffset"),
+            PersonListHolderOffset = e.TryGetProperty("personListHolderOffset", out _) ? Hex(e, "personListHolderOffset") : null,
+            DirectRecordStride = e.TryGetProperty("directRecordStride", out _) ? Hex(e, "directRecordStride") : null,
             DirectStaffVector = e.TryGetProperty("directStaffVector", out var direct) && direct.GetBoolean(),
             Kinds = kinds, ManagerAttributes = mgr,
             Id = Hex(e, "id"), FullName = Hex(e, "fullName"), FirstName = Hex(e, "firstName"), LastName = Hex(e, "lastName"),
@@ -120,7 +124,7 @@ public sealed class StaffOffsets
         if (ContractRolling is { } cr) H("contractRolling", cr);
         if (ContractRollingMask is { } crm) H("contractRollingMask", crm);
         if (JobPersonAnchor != 0) H("jobPersonAnchor", JobPersonAnchor);
-        H("personListRootRva", PersonListRootRva); H("personListOffset", PersonListOffset);
+        H("personListRootRva", PersonListRootRva); H("personListOffset", PersonListOffset); if (PersonListHolderOffset is { } ho) H("personListHolderOffset", ho); if (DirectRecordStride is { } rs) H("directRecordStride", rs);
         if (DirectStaffVector) w.WriteBoolean("directStaffVector", true);
         w.WriteStartArray("kinds");
         foreach (var k in Kinds)

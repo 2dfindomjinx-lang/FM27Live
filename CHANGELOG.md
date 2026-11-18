@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+Support for Steam `27.1.0+2505117` has been measured on the live game. Calibration passed `595/595` checks with the
+existing `staff.CityOfBirth` skip; `gamecheck` passed all 72 features with no empty or failing readers.
+
 ## 1.4.0
 
 Checked on Steam `27.0.1+2503222` and Game Pass `27.0.1+2494687`.

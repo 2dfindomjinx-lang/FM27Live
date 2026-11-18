@@ -6,7 +6,7 @@
 | **`Fm27Editor-mac-arm64.dmg`** | **Mac (Apple silicon): the editor app.** |
 | `Fm27Editor.Tools.exe` | Windows command-line tools for advanced users: `players`, `set`, `verify`, and `find-offsets` to support a new game build after an FM27 patch. |
 
-Windows: each exe runs on its own, no install, no .NET needed. Windows 10/11 x64, Football Manager 27 `27.0.1+2503222` (Steam) and `27.0.1+2494687` (Game Pass).
+Windows: each exe runs on its own, no install, no .NET needed. Windows 10/11 x64, Football Manager 27 `27.1.0+2505117` (Steam), `27.0.1+2503222` (Steam) and `27.0.1+2494687` (Game Pass).
 
 Mac: open the dmg and drag FM27 Editor to Applications. macOS 13 or later, Football Manager 27 `27.0.1+2503222` (Steam) and Football Manager Touch `27.0.0+2492889`. The app is not notarised: the first time, right-click it and choose Open. On first connect it asks for your password once, to install the helper that reads the game's memory.
 
@@ -18,7 +18,7 @@ Mac: open the dmg and drag FM27 Editor to Applications. macOS 13 or later, Footb
 | **`Fm27Editor-mac-arm64.dmg`** | **Mac (chip Apple): app editor.** |
 | `Fm27Editor.Tools.exe` | Công cụ dòng lệnh trên Windows cho người dùng nâng cao: `players`, `set`, `verify`, và `find-offsets` để hỗ trợ bản game mới sau khi FM27 có patch. |
 
-Windows: mỗi file exe chạy độc lập, không cần cài đặt, không cần .NET. Windows 10/11 x64, Football Manager 27 `27.0.1+2503222` (Steam) và `27.0.1+2494687` (Game Pass).
+Windows: mỗi file exe chạy độc lập, không cần cài đặt, không cần .NET. Windows 10/11 x64, Football Manager 27 `27.1.0+2505117` (Steam), `27.0.1+2503222` (Steam) và `27.0.1+2494687` (Game Pass).
 
 Mac: mở file dmg rồi kéo FM27 Editor vào Applications. macOS 13 trở lên, Football Manager 27 `27.0.1+2503222` (Steam) và Football Manager Touch `27.0.0+2492889`. App chưa được Apple notarise: lần đầu hãy nhấp chuột phải vào app và chọn Open. Lần kết nối đầu tiên app hỏi mật khẩu một lần để cài helper đọc bộ nhớ game.
 

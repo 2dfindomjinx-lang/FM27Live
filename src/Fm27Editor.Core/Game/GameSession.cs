@@ -19,6 +19,8 @@ public sealed class GameSession : IDisposable
     public GameLoadState LoadState { get; }
     public ulong ModuleBase => Game.ModuleBase;
     public bool CanWrite => (_memory as IRemoteAllocator)?.CanWrite ?? false;
+    public bool HasVerifiedWrites => _memory is VerifiedWriteMemory;
+    public bool CanEdit(VerifiedWrite field) => CanWrite || HasVerifiedWrites && Profile.VerifiedWrites.Contains(field);
 
     public PlayerRepository Players { get; }
     public PlayerWriter Writer { get; }
@@ -35,8 +37,8 @@ public sealed class GameSession : IDisposable
         LoadState.EnsureWritable();
         ulong at;
         if (_memory is WindowsProcessMemory wpm) at = RemoteCrtAllocator.Allocate(wpm, size);
-        else if (_memory is IRemoteAllocator alloc) at = alloc.Allocate(size);
-        else throw new NotSupportedException("This process memory cannot allocate game blocks");
+        else if (_memory is IGameHeapAllocator heap) at = heap.AllocateFromGameHeap(size);
+        else throw new NotSupportedException("This process memory cannot allocate blocks the game can free");
         (_memory as IMemoryWriteObserver)?.OnAllocate?.Invoke(at, size);
         return at;
     }
@@ -607,7 +609,7 @@ public sealed class GameSession : IDisposable
             ModuleBase + (Profile.Nation?.VtableRva ?? throw new InvalidOperationException("No nation vtable")),
             ModuleBase + (Profile.Nation?.Preferences?.TeamVtable ?? throw new InvalidOperationException("No national team vtable")), snapshot, values);
     /// <summary>Referees from the game-wide officials array (found through the clubs anchor).</summary>
-    public Officials.RefereeDirectory Referees => new(_memory, ModuleBase, Game.ModuleEnd - ModuleBase, Profile.Officials);
+    public Officials.RefereeDirectory Referees => new(_memory, ModuleBase, Game.ModuleEnd - ModuleBase, Profile.Officials, Profile.GlobalArrays);
     public IReadOnlyList<Officials.RefereeRecord> ReadReferees() => Referees.ReadAll();
     public void SetReferee(Officials.RefereeRecord referee, Officials.RefereeField field, int value) =>
         new Officials.RefereeWriter(_memory, ModuleBase, Profile.Officials).Set(referee, field, value);
@@ -711,7 +713,7 @@ public sealed class GameSession : IDisposable
                 foreach (var profile in all.OrderBy(p => PreferredRank(p, store)))
                     if (ProfileMatches(memory, game.ModuleBase, game.ModuleSize, profile))
                     {
-                        if (writable && !profile.ReadOnly)
+                        if (writable && (!profile.ReadOnly || profile.VerifiedWrites.Count > 0))
                         {
                             // Close the read-only handle before opening the writable one: on macOS the privileged
                             // helper serves one client socket at a time, so opening a second connection first deadlocks.
@@ -720,6 +722,8 @@ public sealed class GameSession : IDisposable
                             memory = OperatingSystem.IsMacOS()
                                 ? MacMemory.Open(game.ProcessId, true)
                                 : new WindowsProcessMemory(game.ProcessId, true);
+                            if (profile.ReadOnly)
+                                memory = new VerifiedWriteMemory(memory, profile, game.ModuleBase);
                         }
                         return new GameSession(memory, game, profile);
                     }

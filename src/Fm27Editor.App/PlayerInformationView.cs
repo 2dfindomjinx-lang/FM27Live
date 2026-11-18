@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Fm27Editor.Core.Nations;
+using Fm27Editor.Core.Offsets;
 using Fm27Editor.Core.Players;
 
 namespace Fm27Editor.App;
@@ -217,6 +218,7 @@ public sealed partial class MainWindow
                 Value = current,
                 FormatString = descriptor.Field == PlayerField.AskingPrice ? "N0" : "0",
                 ShowButtonSpinner = false,
+                IsReadOnly = !session.CanWrite && !(descriptor.Field == PlayerField.Caps && session.CanEdit(VerifiedWrite.Caps)),
                 HorizontalAlignment = HorizontalAlignment.Stretch,
                 HorizontalContentAlignment = HorizontalAlignment.Right,
             };

@@ -19,6 +19,7 @@ public sealed class KeepPlayingWriter(IProcessMemory memory, OffsetProfile profi
     {
         uint person = reader.PersonId(player);
         if (person == 0) throw new StaleObjectException("Player has no person id");
+        var owner = PersonOwner.Of(player, profile);
         var state = reader.Snapshot();
         var guards = new List<RetirementGuard>
         {
@@ -26,7 +27,7 @@ public sealed class KeepPlayingWriter(IProcessMemory memory, OffsetProfile profi
             new(state.Manager, BitConverter.GetBytes(moduleBase + reader.ManagerVtable), "retirement manager"),
             new(state.Manager + 0x30, state.ListHeader, "retirement list header"),
             new(state.Manager + 0x90, state.IndexHeader, "retirement index header"),
-            new(player.Address + (ulong)WorkPermitTable.PersonIndexFor(profile), BitConverter.GetBytes(person), "player person id"),
+            new(owner.At(WorkPermitTable.PersonIndexFor(profile)), BitConverter.GetBytes(person), "player person id"),
         };
         if (state.Pointers.Length > 0)
         {
@@ -56,7 +57,7 @@ public sealed class KeepPlayingWriter(IProcessMemory memory, OffsetProfile profi
             writes.Add(new(state.ListBegin + (ulong)last * 8, state.Pointers[(last * 8)..], new byte[8], "retirement list last"));
         }
         int traits = profile.PreferredMoves ?? throw new InvalidOperationException("No player traits offset");
-        ulong traitAddress = player.Address + (ulong)traits + 6;
+        ulong traitAddress = owner.At(traits) + 6;
         var before = memory.Read(traitAddress, 1);
         byte after = (byte)((before[0] & ~1) | 2);
         guards.Add(new(traitAddress, before, "retirement traits"));
@@ -67,7 +68,7 @@ public sealed class KeepPlayingWriter(IProcessMemory memory, OffsetProfile profi
         foreach (var field in new[] { PlayerField.RetirementPlanned, PlayerField.RetiringAfterSpellAtCurrentClub })
         {
             if (profile.PlayerFields?.TryGetValue(field, out var o) != true || o!.Path.Count != 1 || o.Mask == 0) continue;
-            ulong at = player.Address + (ulong)o.Path[0];
+            ulong at = owner.At(o.Path[0]);
             var flag = memory.Read(at, 1);
             guards.Add(new(at, flag, field.ToString()));
             if ((flag[0] & o.Mask) != 0) writes.Add(new(at, flag, [(byte)(flag[0] & ~o.Mask)], field.ToString()));

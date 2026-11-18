@@ -102,9 +102,10 @@ public sealed class UnhappinessReader(IProcessMemory memory, OffsetProfile profi
     internal List? Locate(PlayerRecord player)
     {
         if (profile.Contract is not { } c || profile.Unhappiness is not { } o) return null;
+        var owner = PersonOwner.Of(player, profile);
+        if (!owner.IsValid(memory, moduleBase)) return null;
         var q = new byte[8];
-        if (!memory.TryRead(player.Address, q) || BitConverter.ToUInt64(q) is var vt && !profile.PlayerVtableRvas.Any(r => vt == moduleBase + r)) return null;
-        if (!memory.TryRead(player.Address + (ulong)c.PlayerContract, q) || BitConverter.ToUInt64(q) is var contract && contract == 0) return null;
+        if (!memory.TryRead(owner.At(c.PlayerContract), q) || BitConverter.ToUInt64(q) is var contract && contract == 0) return null;
         if (!memory.TryRead(contract, q) || BitConverter.ToUInt64(q) != moduleBase + c.ContractVtableRva) return null;
         if (!memory.TryRead(contract + (ulong)o.Pointer, q) || BitConverter.ToUInt64(q) is var header && header == 0) return null;
         var h = new byte[4];
@@ -152,9 +153,10 @@ public sealed class UnhappinessWriter(IProcessMemory memory, OffsetProfile profi
     public UnhappinessRemovalPlan? PlanRemoveActive(PlayerRecord player, DateOnly gameDate)
     {
         var c = profile.Contract ?? throw new InvalidOperationException("Profile has no contract offsets");
+        var owner = PersonOwner.Of(player, profile);
         if (player.Id is not > 0 || profile.Fields.Id is not { } idOffset ||
             memory.ReadUInt64(player.Address) != moduleBase + player.VtableRva || !profile.PlayerVtableRvas.Contains(player.VtableRva) ||
-            BitConverter.ToInt32(memory.Read(player.Address + (ulong)idOffset, 4)) != player.Id)
+            BitConverter.ToInt32(memory.Read(owner.At(idOffset), 4)) != player.Id)
             throw new StaleObjectException("Player changed since it was read");
         var reader = new UnhappinessReader(memory, profile, moduleBase);
         var list = reader.Locate(player);
@@ -164,7 +166,7 @@ public sealed class UnhappinessWriter(IProcessMemory memory, OffsetProfile profi
         var before = list.SlotBytes();
         var after = (byte[])before.Clone();
         for (int i = 0; i < kept.Length; i++) BitConverter.GetBytes(list.Pointers[kept[i].Index]).CopyTo(after, i * 8);
-        var plan = new UnhappinessRemovalPlan(player, memory.ReadUInt64(player.Address + (ulong)c.PlayerContract),
+        var plan = new UnhappinessRemovalPlan(player, memory.ReadUInt64(owner.At(c.PlayerContract)),
             list.Header, list.Slots, list.Count, kept.Length, before, after);
         GuardPlan(plan);
         return plan;
@@ -247,7 +249,7 @@ public sealed class UnhappinessWriter(IProcessMemory memory, OffsetProfile profi
         ulong headerBlock = allocate(header.Length);
         WriteChecked(headerBlock, header);
         var c = profile.Contract!;
-        ulong slot = memory.ReadUInt64(player.Address + (ulong)c.PlayerContract) + (ulong)o.Pointer;
+        ulong slot = memory.ReadUInt64(PersonOwner.Of(player, profile).At(c.PlayerContract)) + (ulong)o.Pointer;
         if (memory.ReadUInt64(slot) != list.Header || BitConverter.ToInt32(memory.Read(list.Header, 4)) != list.Count ||
             !memory.Read(list.Slots, list.Count * 8).AsSpan().SequenceEqual(list.SlotBytes()))
             throw new StaleObjectException("Unhappiness list changed while adding");
@@ -275,7 +277,7 @@ public sealed class UnhappinessWriter(IProcessMemory memory, OffsetProfile profi
     {
         if (player.Id is not > 0 || profile.Fields.Id is not { } idOffset ||
             memory.ReadUInt64(player.Address) != moduleBase + player.VtableRva || !profile.PlayerVtableRvas.Contains(player.VtableRva) ||
-            BitConverter.ToInt32(memory.Read(player.Address + (ulong)idOffset, 4)) != player.Id)
+            BitConverter.ToInt32(memory.Read(PersonOwner.Of(player, profile).At(idOffset), 4)) != player.Id)
             throw new StaleObjectException("Player changed since it was read");
         var list = new UnhappinessReader(memory, profile, moduleBase).Locate(player)
             ?? throw new InvalidOperationException("The player has no contract with an unhappiness list");
@@ -287,10 +289,11 @@ public sealed class UnhappinessWriter(IProcessMemory memory, OffsetProfile profi
         var c = profile.Contract ?? throw new InvalidOperationException("Profile has no contract offsets");
         var o = profile.Unhappiness ?? throw new InvalidOperationException("Profile has no unhappiness offsets");
         var p = plan.Player;
+        var owner = PersonOwner.Of(p, profile);
         if (p.Id is not > 0 || profile.Fields.Id is not { } idOffset ||
             memory.ReadUInt64(p.Address) != moduleBase + p.VtableRva || !profile.PlayerVtableRvas.Contains(p.VtableRva) ||
-            BitConverter.ToInt32(memory.Read(p.Address + (ulong)idOffset, 4)) != p.Id ||
-            memory.ReadUInt64(p.Address + (ulong)c.PlayerContract) != plan.Contract ||
+            BitConverter.ToInt32(memory.Read(owner.At(idOffset), 4)) != p.Id ||
+            memory.ReadUInt64(owner.At(c.PlayerContract)) != plan.Contract ||
             memory.ReadUInt64(plan.Contract) != moduleBase + c.ContractVtableRva ||
             memory.ReadUInt64(plan.Contract + (ulong)o.Pointer) != plan.Header ||
             BitConverter.ToInt32(memory.Read(plan.Header, 4)) != (plan.CountWritten ? plan.NewCount : plan.OldCount) ||

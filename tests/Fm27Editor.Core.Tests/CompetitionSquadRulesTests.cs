@@ -2,12 +2,190 @@ using System.Text;
 using Fm27Editor.Core.Competitions;
 using Fm27Editor.Core.Game;
 using Fm27Editor.Core.Memory;
+using Fm27Editor.Core.Offsets;
 using Fm27Editor.Core.Players;
 
 namespace Fm27Editor.Core.Tests;
 
 public class CompetitionSquadRulesTests
 {
+    /// <summary>
+    /// Layout measured on the live 27.1.0 macOS game (Premier League, 19/11/2026): runtime rule group behind the holder,
+    /// nation at competition+0x60, rules container at nation+0x110, base dictionary at container+0x578 and node vector at
+    /// container+0x590. EPL held Maximum squad size 25 in the runtime rule and in three serialized copies.
+    /// </summary>
+    sealed class RuntimeRulesFixture
+    {
+        public const ulong Module = 0x160074000;
+        public readonly FakeMemory Memory = new();
+        public readonly OffsetProfile Profile = GameSession.BuiltInProfiles().Single(p => p.Build == "27.1.0+2505117-mac");
+        public const ulong Competition = 0x100000, Holder = 0x101000, Fixture = 0x105000, Maximum = 0x108000, Homegrown = 0x109000;
+        public const ulong Nation = 0x10A000, Container = 0x10B000;
+        ulong _heap = 0x200000;
+        public readonly List<ulong> SerializedMaximum = [];
+
+        public void Put(ulong address, byte[] value) => Assert.True(Memory.TryWrite(address, value));
+        public void Q(ulong address, ulong value) => Put(address, BitConverter.GetBytes(value));
+        public void I(ulong address, int value) => Put(address, BitConverter.GetBytes(value));
+        public int ReadI(ulong address) => BitConverter.ToInt32(Memory.Read(address, 4));
+        ulong Alloc(int size) { ulong at = _heap; _heap += (ulong)((size + 15) & ~15); return at; }
+
+        ulong Vector(IReadOnlyList<ulong> pointers)
+        {
+            ulong header = Alloc(24), items = Alloc(Math.Max(8, pointers.Count * 8));
+            for (int i = 0; i < pointers.Count; i++) Q(items + (ulong)(i * 8), pointers[i]);
+            Q(header, items); Q(header + 8, items + (ulong)(pointers.Count * 8));
+            return header;
+        }
+        void DictionaryAt(ulong header, IReadOnlyList<(string Key, ulong Value)> entries)
+        {
+            ulong items = Alloc(entries.Count * 16);
+            for (int i = 0; i < entries.Count; i++)
+            {
+                Put(items + (ulong)(i * 16), Encoding.ASCII.GetBytes(entries[i].Key));
+                Q(items + (ulong)(i * 16) + 8, entries[i].Value);
+            }
+            Q(header, items); Q(header + 8, items + (ulong)(entries.Count * 16));
+        }
+        ulong Node(params (string Key, ulong Value)[] entries)
+        {
+            ulong node = Alloc(16), header = Alloc(24);
+            DictionaryAt(header, entries);
+            Q(node + 8, header);
+            return node;
+        }
+        ulong IntNode(int value) { ulong node = Alloc(16); I(node + 8, value); return node; }
+
+        /// <summary>A fixture-list source holding this competition (and one other) with the given rule copies.</summary>
+        public IReadOnlyList<(string, ulong)> Source(int competitionId, params (int Code, int Value)[] rules)
+        {
+            var ruleNodes = new List<ulong>();
+            foreach (var (code, value) in rules)
+            {
+                ulong valueNode = IntNode(value);
+                if (code == 0x09) SerializedMaximum.Add(valueNode + 8);
+                ruleNodes.Add(Node(("epyt", IntNode(code)), ("ulav", valueNode)));
+            }
+            ulong rsqs = Alloc(16); Q(rsqs + 8, Vector(ruleNodes));
+            ulong record = Node(("pmoc", Node(("pmoc", IntNode(competitionId)))), ("rsqs", rsqs));
+            ulong other = Node(("pmoc", Node(("pmoc", IntNode(12)))), ("rsqs", Node()));
+            ulong list = Alloc(16); Q(list + 8, Vector([other, record]));
+            return [("eytf", IntNode(1)), ("lrxf", list)];
+        }
+
+        public RuntimeRulesFixture()
+        {
+            const ulong common = 0x102000, groups = 0x103000, groupSlots = 0x104000, rules = 0x106000, ruleSlots = 0x107000;
+            for (ulong address = Competition; address <= Container; address += 0x1000) Memory.Map(address, 0x1000);
+            Memory.Map(0x200000, 0x10000);
+            Q(Competition, Module + 0x566B208);
+            I(Competition + 0xC, 11);
+            Q(Competition + 0xB0, Holder);
+            Q(Holder, Module + 0x5738948);
+            Q(Holder + 0x138, Competition);
+            Put(Holder + 0x49, [6]);
+            Q(Holder + 0x388, common);
+            Q(common + 0x1F0, groups);
+            Q(groups + 0x60, groupSlots);
+            Q(groups + 0x68, groupSlots + 7 * 8);
+            Q(groupSlots + 6 * 8, Fixture);
+            Put(Fixture + 0x120, [6]);
+            Q(Fixture + 0x70, rules);
+            Q(rules, ruleSlots);
+            Q(rules + 8, ruleSlots + 16);
+            Q(ruleSlots, Maximum);
+            Q(ruleSlots + 8, Homegrown);
+            I(Maximum + 0x18, 25);
+            Put(Maximum + 0x1C, [0x09, 0, 0xFF, 0]);
+            I(Homegrown + 0x18, 8);
+            Put(Homegrown + 0x1C, [0x92, 0, 1, 0]);
+        }
+
+        /// <summary>Links the nation object with a base dictionary and two node sources, each holding one EPL copy.</summary>
+        public void LinkNation(int baseValue = 25, int nodeValue = 25)
+        {
+            Q(Competition + 0x60, Nation);
+            Q(Nation, Module + 0x56820C0);
+            Q(Nation + 0x110, Container);
+            Q(Container, Module + 0x5682318);
+            DictionaryAt(Container + 0x578, Source(11, (0x92, 8), (0x09, baseValue)));
+            ulong a = Alloc(16), ah = Alloc(24); DictionaryAt(ah, Source(11, (0x09, nodeValue), (0x92, 8))); Q(a + 8, ah);
+            ulong b = Alloc(16), bh = Alloc(24); DictionaryAt(bh, Source(11, (0x09, 25))); Q(b + 8, bh);
+            ulong c = Alloc(16), ch = Alloc(24); DictionaryAt(ch, [("eytf", IntNode(1))]); Q(c + 8, ch);
+            ulong nodes = Alloc(24);
+            Q(nodes, c); Q(nodes + 8, a); Q(nodes + 16, b);
+            Q(Container + 0x590, nodes);
+            Q(Container + 0x598, nodes + 24);
+        }
+
+        public CompetitionSquadRulesAccess Access => new(Memory, Profile, Module);
+        public static CompetitionRecord Record => new(Competition, 7, 11, "Premier League", null, 0, 0, 0, 0, 0, null, null);
+    }
+
+    [Fact]
+    public void Runtime_fixture_rules_read_the_indexed_group()
+    {
+        var f = new RuntimeRulesFixture();
+        var access = f.Access;
+        var competition = RuntimeRulesFixture.Record;
+
+        Assert.Equal([0x09, 0x92], access.RuleCodes(competition));
+        Assert.Equal(25, access.ReadPrimaryValue(competition, 0x09));
+        Assert.Equal(8, access.ReadHomegrown(competition)!.MaximumSquadSize);
+        Assert.True(access.ReadHomegrown(competition)!.IsMinimum);
+        var snapshot = Assert.IsType<CompetitionSquadRules>(access.Read(competition));
+        Assert.False(snapshot.IsMinimum);
+
+        f.Put(RuntimeRulesFixture.Fixture + 0x120, [5]);
+        Assert.Null(access.Read(competition));
+        f.Put(RuntimeRulesFixture.Fixture + 0x120, [6]);
+        f.Q(RuntimeRulesFixture.Holder + 0x138, RuntimeRulesFixture.Competition + 0x10);
+        Assert.Empty(access.ReadVariants(competition));
+    }
+
+    [Fact]
+    public void Runtime_rule_without_a_nation_object_writes_the_runtime_copy_only()
+    {
+        var f = new RuntimeRulesFixture();
+        var access = f.Access;
+        var snapshot = access.Read(RuntimeRulesFixture.Record)!;
+        Assert.True(snapshot.CanWrite);
+        access.SetMaximumSquadSize(snapshot, 26);
+        Assert.Equal(26, f.ReadI(RuntimeRulesFixture.Maximum + 0x18));
+        Assert.Equal(8, f.ReadI(RuntimeRulesFixture.Homegrown + 0x18));
+    }
+
+    [Fact]
+    public void Runtime_rule_writes_runtime_and_every_serialized_copy()
+    {
+        var f = new RuntimeRulesFixture();
+        f.LinkNation();
+        var access = f.Access;
+        var snapshot = access.Read(RuntimeRulesFixture.Record)!;
+        Assert.Equal(25, snapshot.MaximumSquadSize);
+        Assert.True(snapshot.CanWrite);
+        Assert.Equal(3, f.SerializedMaximum.Count);
+        access.SetMaximumSquadSize(snapshot, 26);
+        Assert.Equal(26, f.ReadI(RuntimeRulesFixture.Maximum + 0x18));
+        Assert.All(f.SerializedMaximum, at => Assert.Equal(26, f.ReadI(at)));
+        Assert.Equal(8, f.ReadI(RuntimeRulesFixture.Homegrown + 0x18));
+        Assert.Equal(26, access.Read(RuntimeRulesFixture.Record)!.MaximumSquadSize);
+    }
+
+    [Fact]
+    public void Runtime_rule_is_read_only_when_a_serialized_copy_disagrees()
+    {
+        var f = new RuntimeRulesFixture();
+        f.LinkNation(nodeValue: 24);
+        var access = f.Access;
+        var snapshot = access.Read(RuntimeRulesFixture.Record)!;
+        Assert.Equal(25, snapshot.MaximumSquadSize);
+        Assert.False(snapshot.CanWrite);
+        int writes = f.Memory.Writes;
+        Assert.Throws<InvalidOperationException>(() => access.SetMaximumSquadSize(snapshot, 26));
+        Assert.Equal(writes, f.Memory.Writes);
+    }
+
     [Fact]
     public void Maximum_squad_writes_three_FMRTE_copies_and_refuses_a_stale_copy()
     {

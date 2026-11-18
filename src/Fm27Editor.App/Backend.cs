@@ -64,7 +64,7 @@ public sealed class EditorBackend : IEditorBackend, IDisposable
             }
             Edits = new EditService(attached.Writer, attached.Players, AcceptFrozenEdit, journal, p => PlayerChangeLabels.For(attached.Profile, p.Address)) { Blocked = () => SaveChanged || !ReferenceEquals(session, attached) };
             State = new(ConnectionStatus.Connected, attached.CanWrite ? attached.Profile.Build :
-                $"{attached.Profile.Build} (read-only)");
+                $"{attached.Profile.Build} ({(attached.HasVerifiedWrites ? "limited editing" : "read-only")})");
         }
         catch (UnsupportedBuildException ex) { State = new(ConnectionStatus.UnsupportedBuild, UserMessage.For(ex)); FlightRecorder.Current?.Log("game", "unsupported build: " + ex.Message); }
         catch (Exception ex) when (ex is not OperationCanceledException) { State = new(ConnectionStatus.Disconnected, UserMessage.For(ex)); FlightRecorder.Current?.Log("game", "not connected: " + ex.Message); }

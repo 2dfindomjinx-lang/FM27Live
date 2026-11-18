@@ -60,6 +60,14 @@ public sealed class FutureTransferVectorSnapshot
         return n;
     }
 
+    /// <summary>Clears one slot without changing the indices or length of the vector.</summary>
+    internal PlannedWrite ClearAt(int index)
+    {
+        if (index < 0 || index >= Count) throw new ArgumentOutOfRangeException(nameof(index));
+        int offset = index * itemSize;
+        return new(begin + (ulong)offset, items.AsSpan(offset, itemSize).ToArray(), new byte[itemSize], "indexed offer slot");
+    }
+
     /// <summary>Prepares a guarded removal: the items after <paramref name="index"/> move down one place (the vacated last slot is cleared) and the end pointer drops.</summary>
     public IReadOnlyList<PlannedWrite> RemoveAt(IProcessMemory memory, int index)
     {

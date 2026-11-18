@@ -20,6 +20,7 @@ internal static class LoanTransferSafety
         int holderOffset = f.CurrentLoanHolder ?? throw new InvalidOperationException("Profile has no loan holder offset");
         int seniorOffset = c.SeniorTeam ?? throw new InvalidOperationException("Profile has no contract senior team offset");
         int personOffset = profile.Relations?.PlayerPerson ?? throw new InvalidOperationException("Profile has no person offset");
+        var owner = PersonOwner.Of(player, profile);
         var guards = new List<PlannedWrite>();
         byte[] Guard(ulong at, int length, string name)
         {
@@ -27,7 +28,7 @@ internal static class LoanTransferSafety
             guards.Add(new(at, bytes, [], name));
             return bytes;
         }
-        ulong holderSlot = player.Address + (ulong)holderOffset;
+        ulong holderSlot = owner.At(holderOffset);
         var holderBytes = Guard(holderSlot, 8, "loan holder");
         ulong holder = BitConverter.ToUInt64(holderBytes);
         if (holder == 0) throw new StaleObjectException("The current loan is missing");
@@ -41,7 +42,7 @@ internal static class LoanTransferSafety
         var readSnapshot = Convert.FromHexString(loanContract.Snapshot);
         if (!loanBytes.AsSpan(0, readSnapshot.Length).SequenceEqual(readSnapshot))
             throw new StaleObjectException("The loan contract changed while planning");
-        if (BitConverter.ToUInt64(loanBytes, LoanCreator.ContractPerson) != player.Address + (ulong)personOffset)
+        if (BitConverter.ToUInt64(loanBytes, LoanCreator.ContractPerson) != owner.At(personOffset))
             throw new StaleObjectException("The loan contract belongs to another player");
         // A price agreed in the loan is not a completed purchase. Moving the player does not charge the borrower.
         if (BitConverter.ToInt32(loanBytes, LoanEditor.BuyBackFee) != -1 ||
@@ -52,7 +53,7 @@ internal static class LoanTransferSafety
         if (loanBytes.AsSpan(clauseOffset, 24).IndexOfAnyExcept((byte)0) >= 0)
             throw new InvalidOperationException("Transfers of loans with contract clauses have not been verified");
 
-        var playingTeam = Guard(player.Address + (ulong)t.PlayerTeam, 8, "playing team");
+        var playingTeam = Guard(owner.At(t.PlayerTeam), 8, "playing team");
         var employer = Guard(contractAddress + (ulong)c.Team, 8, "contract team");
         var senior = Guard(contractAddress + (ulong)seniorOffset, 8, "contract senior team");
         ulong borrowingTeam = BitConverter.ToUInt64(playingTeam);

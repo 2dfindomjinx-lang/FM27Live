@@ -104,7 +104,7 @@ public sealed partial class MainWindow
                     : session.Proposals.Read(player).Where(p => TransferProposalReader.ShownByFmrte(p.Status)).ToList();
                 IReadOnlyDictionary<int, OfferContract> contracts = session.Profile.FutureTransfers is null
                     ? new Dictionary<int, OfferContract>() : session.FutureTransfers.OfferContracts(player);
-                var deal = session.TransferDeals.FindForPlayer(player.Address + (ulong)personOffset, candidates);
+                var deal = session.TransferDeals.FindForPlayer(session.Owner(player).At(personOffset), candidates);
                 Avalonia.Threading.Dispatcher.UIThread.Post(() =>
                 {
                     if (generation != currentGeneration || !ReferenceEquals(backend.Data, data)) return;
@@ -406,19 +406,7 @@ public sealed partial class MainWindow
     /// True when the player's offer-id list holds an id. Reads only the list header: resolving the offers means scanning
     /// the game's heap (about ten seconds), which must not happen while the tab rail is being built.
     /// </summary>
-    bool HasOfferIds(PlayerRecord player)
-    {
-        var session = backend.Session;
-        if (session.Profile.Proposals is not { } p) return false;
-        Span<byte> ptr = stackalloc byte[8];
-        if (!session.Memory.TryRead(player.Address + (ulong)p.PlayerIds, ptr)) return false;
-        ulong header = BitConverter.ToUInt64(ptr);
-        if (header == 0 || !session.Memory.TryRead(header, ptr)) return false;
-        ulong begin = BitConverter.ToUInt64(ptr);
-        if (!session.Memory.TryRead(header + 8, ptr)) return false;
-        ulong end = BitConverter.ToUInt64(ptr);
-        return begin != 0 && end >= begin + 4 && (end - begin) % 4 == 0 && (end - begin) / 4 <= 100;
-    }
+    bool HasOfferIds(PlayerRecord player) => backend.Session.Proposals.HasOfferIds(player);
 
     /// <summary>The Transfer Proposals tab shows when the player's offer list has any id, or a live deal was already found.</summary>
     bool HasTransferProposals(PlayerRecord player)
@@ -426,7 +414,7 @@ public sealed partial class MainWindow
         var session = backend.Session;
         try { if (HasOfferIds(player)) return true; } catch { }
         if (session.Profile.Relations is not { } relations || backend.Data is not { DealIndexLoaded: true } data) return false;
-        try { return session.TransferDeals.FindForPlayer(player.Address + (ulong)relations.PlayerPerson, data.TransferDealCandidates(session)) is not null; }
+        try { return session.TransferDeals.FindForPlayer(session.Owner(player).At(relations.PlayerPerson), data.TransferDealCandidates(session)) is not null; }
         catch { return false; }
     }
     bool HasFutureTransfer(PlayerRecord player)

@@ -1316,8 +1316,7 @@ public sealed partial class MainWindow : IClubPanels
             {
                 try
                 {
-                    Func<int, ulong>? allocator = session.Memory is Fm27Editor.Core.Memory.IRemoteAllocator alloc ? alloc.Allocate : null;
-                    backend.Edits.Execute("Club", club.DisplayName, "Vision: Duplicate", () => session.ClubVisionWriter.Duplicate(teamAddr, entry, allocator));
+                    backend.Edits.Execute("Club", club.DisplayName, "Vision: Duplicate", () => session.ClubVisionWriter.Duplicate(teamAddr, entry, session.AllocateGameBlock));
                     drafts.Clear();
                     RenderClubEditor();
                     status.Text = Loc.S("Row added. Continue in FM to see updates.");
@@ -1480,9 +1479,8 @@ public sealed partial class MainWindow : IClubPanels
 
             try
             {
-                Func<int, ulong>? allocator = session.Memory is Fm27Editor.Core.Memory.IRemoteAllocator alloc ? alloc.Allocate : null;
                 backend.Edits.Execute("Club", (selectedClub?.DisplayName ?? "Club"), "Vision: Add", () =>
-                    session.ClubVisionWriter.Create(teamAddr, template, typeCode, imp, tgt, start, end, allocator, targetIndex, kind));
+                    session.ClubVisionWriter.Create(teamAddr, template, typeCode, imp, tgt, start, end, session.AllocateGameBlock, targetIndex, kind));
                 RenderClubEditor();
                 status.Text = Loc.S("Objective added. Continue in FM to see updates.");
                 dialog.Close();

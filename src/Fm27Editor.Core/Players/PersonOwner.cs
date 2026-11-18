@@ -12,8 +12,10 @@ namespace Fm27Editor.Core.Players;
 /// </summary>
 public sealed record PersonOwner(ulong Address, int Shift, IReadOnlyList<uint> Vtables, string Name)
 {
+    PlayerInsertion? Insertion { get; init; }
+
     /// <summary>Where a list profiled at player + <paramref name="playerOffset"/> is for this owner.</summary>
-    public ulong At(int playerOffset) => Address + (ulong)(playerOffset - Shift);
+    public ulong At(int playerOffset) => Address + (ulong)((Insertion?.Translate(playerOffset) ?? playerOffset) - Shift);
 
     public bool IsValid(IProcessMemory memory, ulong moduleBase)
     {
@@ -23,7 +25,17 @@ public sealed record PersonOwner(ulong Address, int Shift, IReadOnlyList<uint> V
         return Vtables.Any(v => vt == moduleBase + v);
     }
 
-    public static PersonOwner Of(PlayerRecord player, OffsetProfile profile) => new(player.Address, 0, profile.PlayerVtableRvas, player.DisplayName);
+    public static PersonOwner Of(PlayerRecord player, OffsetProfile profile)
+    {
+        if (profile.PlayerInsertions.Count == 0)
+            return new(player.Address, 0, profile.PlayerVtableRvas, player.DisplayName);
+
+        // A subtype-specific address is valid only while the vtable still matches the player's snapshot.
+        return new(player.Address, 0, profile.PlayerVtableRvas.Contains(player.VtableRva) ? [player.VtableRva] : [], player.DisplayName)
+        {
+            Insertion = profile.PlayerInsertions.TryGetValue(player.VtableRva, out var insertion) ? insertion : null,
+        };
+    }
 
     public static PersonOwner Of(Staff.StaffRecord staff, OffsetProfile profile)
     {

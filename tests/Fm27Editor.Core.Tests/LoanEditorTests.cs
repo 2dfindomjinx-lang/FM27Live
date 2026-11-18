@@ -157,6 +157,48 @@ public class LoanEditorTests
     }
 
     [Fact]
+    public void Playing_fee_edit_matches_the_captured_four_byte_write()
+    {
+        Assert.True(_w.Memory.TryWrite(Loan + 0xCC, Convert.FromHexString("00000000FFFFFFFF")));
+        byte[] expected = _w.Bytes(Loan, 0xD4);
+        var limited = new FeeOnlyMemory(_w.Memory);
+        var editor = new LoanEditor(limited, _profile, TestWorld.ModuleBase);
+
+        editor.SetTerms(editor.Read(Player())!, new LoanTermsEdit(MonthlyFee: 12345));
+
+        Convert.FromHexString("39300000").CopyTo(expected, 0xCC);
+        Assert.Equal(expected, _w.Bytes(Loan, 0xD4));
+        Assert.Equal(1, limited.Writes);
+    }
+
+    [Fact]
+    public void SetTerms_restores_prior_fields_if_a_later_write_is_partial()
+    {
+        var fault = new WriteFaultMemory(_w.Memory);
+        var editor = new LoanEditor(fault, _profile, TestWorld.ModuleBase);
+        var loan = editor.Read(Player())!;
+        fault.Reset(2);
+
+        Assert.Throws<MemoryAccessException>(() => editor.SetTerms(loan, new LoanTermsEdit(Wage: 12584, MonthlyFee: 12345)));
+
+        Assert.Equal(Convert.FromHexString(loan.Snapshot), _w.Bytes(Loan, 0xD4));
+        Assert.Equal(4, fault.Calls);
+    }
+
+    sealed class FeeOnlyMemory(IProcessMemory memory) : IProcessMemory
+    {
+        public int Writes { get; private set; }
+        public bool TryRead(ulong address, Span<byte> buffer) => memory.TryRead(address, buffer);
+        public bool TryWrite(ulong address, ReadOnlySpan<byte> data)
+        {
+            Assert.Equal(Loan + 0xCC, address);
+            Assert.Equal(4, data.Length);
+            Writes++;
+            return memory.TryWrite(address, data);
+        }
+    }
+
+    [Fact]
     public void SetTerms_refuses_a_changed_contract_and_writes_nothing()
     {
         var editor = Editor();

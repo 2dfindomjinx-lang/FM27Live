@@ -20,15 +20,18 @@ public sealed class FutureTransferRemover(IProcessMemory memory, OffsetProfile p
     {
         var po = profile.Proposals ?? throw new InvalidOperationException("Missing proposal offsets");
         var fo = profile.FutureTransfers ?? throw new InvalidOperationException("Missing future-transfer offsets");
+        var owner = PersonOwner.Of(player, profile);
         var guards = new List<PlannedWrite>();
         byte[] Guard(ulong at, int len, string name) { var b = memory.Read(at, len); guards.Add(new(at, b, [], name)); return b; }
         ulong Pointer(ulong at, string name) => BitConverter.ToUInt64(Guard(at, 8, name));
 
         ulong playerVtable = Pointer(player.Address, "player vtable");
-        if (!profile.PlayerVtableRvas.Any(x => playerVtable == moduleBase + x)) throw new StaleObjectException("Player vtable changed");
+        if (!owner.Vtables.Any(x => playerVtable == moduleBase + x)) throw new StaleObjectException("Player vtable changed");
         ulong root = Pointer(moduleBase + po.ListRootRva, "offer root");
         if (root == 0) throw new StaleObjectException("Offer root missing");
-        Guard(root, 8, "offer root vtable");
+        ulong rootVtable = Pointer(root, "offer root vtable");
+        if (po.ListIsIndexed && rootVtable != moduleBase + po.ManagerVtable!.Value)
+            throw new StaleObjectException("Offer manager vtable changed");
 
         ulong offer = transfer.Offer.Address, date = transfer.DateAddress;
         int id = transfer.Offer.Id;
@@ -37,8 +40,8 @@ public sealed class FutureTransferRemover(IProcessMemory memory, OffsetProfile p
 
         var offers = FutureTransferVectorSnapshot.Capture(memory, root + (ulong)po.ListOffset, 8, MaxOffers);
         var dates = FutureTransferVectorSnapshot.Capture(memory, root + (ulong)fo.DateVector, 8, MaxOffers);
-        ulong idsHolder = Pointer(player.Address + (ulong)po.PlayerIds, "player offers holder");
-        ulong linksHolder = Pointer(player.Address + (ulong)fo.PlayerOffers, "player contracts holder");
+        ulong idsHolder = Pointer(owner.At(po.PlayerIds), "player offers holder");
+        ulong linksHolder = Pointer(owner.At(fo.PlayerOffers), "player contracts holder");
         if (idsHolder == 0 || linksHolder == 0) throw new InvalidOperationException("The player has no offers to remove");
         var ids = FutureTransferVectorSnapshot.Capture(memory, idsHolder, 4, MaxPlayerOffers);
         var links = FutureTransferVectorSnapshot.Capture(memory, linksHolder, 8, MaxPlayerOffers);
@@ -55,7 +58,13 @@ public sealed class FutureTransferRemover(IProcessMemory memory, OffsetProfile p
             if (v.CountOf(test) != 1) throw new StaleObjectException($"The transfer is not in the {name} exactly once");
 
         var writes = new List<PlannedWrite>();
-        writes.AddRange(offers.RemoveAt(memory, offers.IndexOf(IsOffer)));
+        int offerIndex = offers.IndexOf(IsOffer);
+        if (po.ListIsIndexed)
+        {
+            if (offerIndex != id) throw new StaleObjectException("The offer is not at its indexed slot");
+            writes.Add(offers.ClearAt(offerIndex));
+        }
+        else writes.AddRange(offers.RemoveAt(memory, offerIndex));
         writes.AddRange(dates.RemoveAt(memory, dates.IndexOf(IsDate)));
         writes.AddRange(ids.RemoveAt(memory, ids.IndexOf(IsId)));
         writes.AddRange(links.RemoveAt(memory, links.IndexOf(IsLink)));

@@ -60,8 +60,9 @@ public sealed class FutureTransferReader(IProcessMemory memory, OffsetProfile pr
     public IReadOnlyDictionary<int, OfferContract> OfferContracts(PlayerRecord player)
     {
         var map = new Dictionary<int, OfferContract>();
-        if (profile.FutureTransfers is not { } o || !IsPlayer(player.Address)) return map;
-        if (!Q(player.Address + (ulong)o.PlayerOffers, out ulong holder) || holder == 0) return map;
+        var owner = PersonOwner.Of(player, profile);
+        if (profile.FutureTransfers is not { } o || !owner.IsValid(memory, moduleBase)) return map;
+        if (!Q(owner.At(o.PlayerOffers), out ulong holder) || holder == 0) return map;
         if (!Q(holder, out ulong begin) || !Q(holder + 8, out ulong end) || begin == 0 || end < begin || (end - begin) % 8 != 0 || (end - begin) / 8 > MaxRecords) return map;
         for (ulong p = begin; p < end; p += 8)
         {
@@ -89,7 +90,7 @@ public sealed class FutureTransferReader(IProcessMemory memory, OffsetProfile pr
     {
         var result = new List<FutureTransfer>();
         if (profile.FutureTransfers is not { } o || profile.Proposals is not { } p || profile.Relations is not { } r) return result;
-        ulong person = player.Address + (ulong)r.PlayerPerson;
+        ulong person = PersonOwner.Of(player, profile).At(r.PlayerPerson);
         if (!Q(moduleBase + p.ListRootRva, out ulong root) || root == 0) return result;
         if (!Q(root + (ulong)o.DateVector, out ulong begin) || !Q(root + (ulong)o.DateVector + 8, out ulong end) || begin == 0 || end < begin || (end - begin) / 8 > MaxDates) return result;
         var raw = memory.Read(begin, (int)(end - begin));
@@ -117,7 +118,7 @@ public sealed class FutureTransferReader(IProcessMemory memory, OffsetProfile pr
         if (!Q(root + (ulong)o.DateVector, out ulong begin) || !Q(root + (ulong)o.DateVector + 8, out ulong end) || begin == 0 || end < begin || (end - begin) / 8 > MaxDates) return result;
         if (!Q(root + (ulong)p.ListOffset, out ulong offersBegin) || !Q(root + (ulong)p.ListOffset + 8, out ulong offersEnd) || offersEnd < offersBegin) return result;
         var byPerson = new Dictionary<ulong, PlayerRecord>();
-        foreach (var player in players) byPerson.TryAdd(player.Address + (ulong)r.PlayerPerson, player);
+        foreach (var player in players) byPerson.TryAdd(PersonOwner.Of(player, profile).At(r.PlayerPerson), player);
         var offers = new TransferProposalReader(memory, profile, moduleBase);
         var raw = memory.Read(begin, (int)(end - begin));
         var rec = new byte[o.DateOfferId + 4];
@@ -140,8 +141,6 @@ public sealed class FutureTransferReader(IProcessMemory memory, OffsetProfile pr
         var d = new DateOnly(year, 1, 1).AddDays(day - 1);
         return d.Year == year ? d : null;
     }
-
-    bool IsPlayer(ulong address) => Q(address, out ulong vt) && profile.PlayerVtableRvas.Any(r => vt == moduleBase + r);
 
     bool Q(ulong address, out ulong value)
     {

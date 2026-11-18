@@ -61,12 +61,13 @@ public sealed class LoanEditor(IProcessMemory memory, OffsetProfile profile, ulo
     public ActiveLoan? Read(PlayerRecord player)
     {
         if (profile.FutureTransfers is not { } f || f.CurrentLoanHolder is not { } holderOffset) return null;
-        if (!IsPlayer(player.Address) || !Q(player.Address + (ulong)C.PlayerContract, out var contract) || contract == 0)
+        var owner = PersonOwner.Of(player, profile);
+        if (!owner.IsValid(memory, moduleBase) || !Q(owner.At(C.PlayerContract), out var contract))
             return null;
         if (!Q(contract, out var contractVtable) || contractVtable != moduleBase + C.ContractVtableRva) return null;
         if (!Q(contract + (ulong)C.Team, out var parent)) return null;
-        if (!Q(player.Address + (ulong)T.PlayerTeam, out var borrowing) || borrowing == 0 || borrowing == parent) return null;
-        ulong slot = player.Address + (ulong)holderOffset;
+        if (!Q(owner.At(T.PlayerTeam), out var borrowing) || borrowing == parent) return null;
+        ulong slot = owner.At(holderOffset);
         if (!Q(slot, out var holder) || holder == 0) return null;
         if (!Q(holder, out var loan) || loan == 0) return null;
         if (!Q(loan, out var loanVtable) || loanVtable != moduleBase + f.LoanContractVtable) return null;
@@ -82,8 +83,8 @@ public sealed class LoanEditor(IProcessMemory memory, OffsetProfile profile, ulo
     }
 
     /// <summary>
-    /// Writes the edited terms in one go. The loan contract must still hold every byte <paramref name="loan"/> was read
-    /// with, and the player must still point at the same contract and holder; otherwise nothing is written.
+    /// Applies only the changed terms as one guarded transaction. The loan contract must still hold every byte
+    /// <paramref name="loan"/> was read with, and the player must still point at the same contract and holder.
     /// </summary>
     public void SetTerms(ActiveLoan loan, LoanTermsEdit edit)
     {
@@ -96,24 +97,31 @@ public sealed class LoanEditor(IProcessMemory memory, OffsetProfile profile, ulo
 
         var before = Convert.FromHexString(loan.Snapshot);
         if (before.Length != SnapshotSize) throw new InvalidOperationException("The loan snapshot has the wrong size");
-        if (!memory.Read(loan.LoanContractAddress, SnapshotSize).AsSpan().SequenceEqual(before))
-            throw new StaleObjectException("The loan contract changed since it was read");
+        var writes = new List<PlannedWrite>();
+        void Add(int offset, byte[] value, string field)
+        {
+            var expected = before.AsSpan(offset, value.Length);
+            if (!expected.SequenceEqual(value))
+                writes.Add(new(loan.LoanContractAddress + (ulong)offset, expected.ToArray(), value, field));
+        }
+        void AddDate(int offset, DateOnly value, string field)
+        {
+            var bytes = before.AsSpan(offset, 4).ToArray();
+            PutDate(bytes, 0, value);
+            Add(offset, bytes, field);
+        }
+
+        if (edit.Wage is { } w) Add(f.Wage, BitConverter.GetBytes(w), "loan wage");
+        if (edit.Started is { } s) AddDate(f.Started, s, "loan start date");
+        if (edit.Expires is { } e) AddDate(f.Expires, e, "loan expiry date");
+        if (edit.Signed is { } g) AddDate(SignedDate, g, "loan signing date");
+        if (edit.AgreedPrice is { } ap) Add(AgreedPrice, BitConverter.GetBytes(ap), "loan agreed price");
+        if (edit.BuyBackFee is { } bb) Add(BuyBackFee, BitConverter.GetBytes(bb), "loan buy-back fee");
+        if (edit.MonthlyFee is { } mf) Add(PlayingMonthlyFee, BitConverter.GetBytes(mf), "loan playing monthly fee");
+        if (edit.UnusedMonthlyFee is { } uf) Add(UnusedMonthlyFee, BitConverter.GetBytes(uf), "loan unused monthly fee");
+
         VerifyPointers(loan);
-
-        var after = (byte[])before.Clone();
-        if (edit.Wage is { } w) BitConverter.GetBytes(w).CopyTo(after, f.Wage);
-        if (edit.Started is { } s) PutDate(after, f.Started, s);
-        if (edit.Expires is { } e) PutDate(after, f.Expires, e);
-        if (edit.Signed is { } g) PutDate(after, SignedDate, g);
-        if (edit.AgreedPrice is { } ap) BitConverter.GetBytes(ap).CopyTo(after, AgreedPrice);
-        if (edit.BuyBackFee is { } bb) BitConverter.GetBytes(bb).CopyTo(after, BuyBackFee);
-        if (edit.MonthlyFee is { } mf) BitConverter.GetBytes(mf).CopyTo(after, PlayingMonthlyFee);
-        if (edit.UnusedMonthlyFee is { } uf) BitConverter.GetBytes(uf).CopyTo(after, UnusedMonthlyFee);
-
-        if (after.AsSpan().SequenceEqual(before)) return;
-        if (!memory.TryWrite(loan.LoanContractAddress, after) ||
-            !memory.Read(loan.LoanContractAddress, SnapshotSize).AsSpan().SequenceEqual(after))
-            throw new MemoryAccessException($"Could not write the loan contract at 0x{loan.LoanContractAddress:X}");
+        FutureTransferTransaction.Apply(memory, [new(loan.LoanContractAddress, before, [], "loan contract")], writes);
     }
 
     /// <summary>
@@ -124,16 +132,18 @@ public sealed class LoanEditor(IProcessMemory memory, OffsetProfile profile, ulo
     public LoanRecallPlan PlanRecall(PlayerRecord player)
     {
         if (profile.FutureTransfers is not { CurrentLoanHolder: { } holderOffset }) throw new InvalidOperationException("Profile has no current loan offset");
-        if (!IsPlayer(player.Address)) throw new StaleObjectException($"0x{player.Address:X} is no longer a player object");
-        if (!Q(player.Address + (ulong)C.PlayerContract, out var contract) || contract == 0 ||
+        var owner = PersonOwner.Of(player, profile);
+        if (!owner.IsValid(memory, moduleBase)) throw new StaleObjectException($"0x{player.Address:X} is no longer a player object");
+        if (!Q(owner.At(C.PlayerContract), out var contract) ||
             !Q(contract, out var contractVtable) || contractVtable != moduleBase + C.ContractVtableRva)
             throw new StaleObjectException("The player's contract is missing or is no longer a contract object");
         if (!Q(contract + (ulong)C.Team, out var parent) || !IsTeam(parent))
             throw new StaleObjectException("The contract team is missing or is no longer a team object");
-        if (!Q(player.Address + (ulong)T.PlayerTeam, out var borrowing) || !IsTeam(borrowing))
+        ulong playingSlot = owner.At(T.PlayerTeam);
+        if (!Q(playingSlot, out var borrowing) || !IsTeam(borrowing))
             throw new StaleObjectException("The playing team is missing or is no longer a team object");
         if (borrowing == parent) throw new InvalidOperationException("The player already plays for his contract team");
-        ulong slot = player.Address + (ulong)holderOffset;
+        ulong slot = owner.At(holderOffset);
         if (!Q(slot, out var holder) || holder == 0) throw new InvalidOperationException("The player has no active loan");
 
         var writes = new List<PlannedWrite>();
@@ -164,7 +174,7 @@ public sealed class LoanEditor(IProcessMemory memory, OffsetProfile profile, ulo
             }
         }
 
-        writes.Add(new PlannedWrite(player.Address + (ulong)T.PlayerTeam, memory.Read(player.Address + (ulong)T.PlayerTeam, 8),
+        writes.Add(new PlannedWrite(playingSlot, memory.Read(playingSlot, 8),
             BitConverter.GetBytes(parent), "playing team"));
         writes.Add(new PlannedWrite(slot, memory.Read(slot, 8), BitConverter.GetBytes(0UL), "loan holder"));
         return new LoanRecallPlan(player, parent, borrowing, index, borrowEnd, writes, newSquad);
@@ -176,7 +186,8 @@ public sealed class LoanEditor(IProcessMemory memory, OffsetProfile profile, ulo
     /// </summary>
     public void ApplyRecall(LoanRecallPlan plan, Func<int, ulong>? allocate = null)
     {
-        if (!IsPlayer(plan.Player.Address)) throw new StaleObjectException("The player object changed since the plan was made");
+        if (!PersonOwner.Of(plan.Player, profile).IsValid(memory, moduleBase))
+            throw new StaleObjectException("The player object changed since the plan was made");
         foreach (var w in plan.Writes)
             if (!memory.Read(w.Address, w.Expected.Length).AsSpan().SequenceEqual(w.Expected))
                 throw new StaleObjectException($"{w.What} changed since the plan was made; nothing written");
@@ -199,10 +210,12 @@ public sealed class LoanEditor(IProcessMemory memory, OffsetProfile profile, ulo
 
     void VerifyPointers(ActiveLoan loan)
     {
-        if (!IsPlayer(loan.Player.Address)) throw new StaleObjectException("The player object changed since the loan was read");
-        if (!Q(loan.Player.Address + (ulong)C.PlayerContract, out var contract) || contract != loan.ContractAddress)
+        var owner = PersonOwner.Of(loan.Player, profile);
+        if (!owner.IsValid(memory, moduleBase)) throw new StaleObjectException("The player object changed since the loan was read");
+        if (!Q(owner.At(C.PlayerContract), out var contract) || contract != loan.ContractAddress)
             throw new StaleObjectException("The player's contract changed since the loan was read");
-        if (!Q(loan.HolderSlot, out var holder) || holder != loan.Holder)
+        if (profile.FutureTransfers?.CurrentLoanHolder is not { } holderOffset || loan.HolderSlot != owner.At(holderOffset) ||
+            !Q(loan.HolderSlot, out var holder) || holder != loan.Holder)
             throw new StaleObjectException("The loan holder changed since the loan was read");
         if (!Q(loan.Holder, out var target) || target != loan.LoanContractAddress)
             throw new StaleObjectException("The loan contract pointer changed since the loan was read");
@@ -228,7 +241,6 @@ public sealed class LoanEditor(IProcessMemory memory, OffsetProfile profile, ulo
         BitConverter.GetBytes((short)d.Year).CopyTo(b, at + 2);
     }
 
-    bool IsPlayer(ulong address) => Q(address, out var vt) && profile.PlayerVtableRvas.Any(r => vt == moduleBase + r);
     bool IsTeam(ulong team) => Q(team, out var vt) && vt == moduleBase + T.VtableRva;
 
     bool Q(ulong address, out ulong value)

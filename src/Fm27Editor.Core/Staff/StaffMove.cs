@@ -7,14 +7,21 @@ using Fm27Editor.Core.Transfer;
 namespace Fm27Editor.Core.Staff;
 
 public sealed record StaffMoveGuard(ulong Address, byte[] Bytes, string What);
+/// <summary>A full destination department that moves to a fresh game-heap buffer when the plan is applied.</summary>
+public sealed record StaffDepartmentGrowth(ulong Header, ulong Item, string Name);
 public sealed record StaffMovePlan(StaffRecord Staff, ClubEntry From, ClubEntry To, ulong Contract, ulong DestinationTeam,
     IReadOnlyList<string> Departments, IReadOnlyList<StaffMoveGuard> Guards, IReadOnlyList<PlannedWrite> Writes)
 {
     public byte? NewJob { get; init; }
     public int? NewWage { get; init; }
+    public IReadOnlyList<StaffDepartmentGrowth> Growth { get; init; } = [];
 }
 
-/// <summary>Moves an ordinary staff member between club department vectors without allocating game memory.</summary>
+/// <summary>
+/// Moves an ordinary staff member between club department vectors. A full destination grows into the allocator spare
+/// the profile's <c>staffAllocationClasses</c> prove empty; without those classes (macOS, where every department vector is
+/// exactly full) it moves to a fresh buffer from <c>allocate</c>, which must be the game's own heap.
+/// </summary>
 public sealed class StaffMoveService(IProcessMemory memory, OffsetProfile profile, ulong moduleBase)
 {
     ContractOffsets C => profile.Contract ?? throw new InvalidOperationException("No contract offsets");
@@ -30,6 +37,7 @@ public sealed class StaffMoveService(IProcessMemory memory, OffsetProfile profil
         if (from.Address == to.Address) throw new InvalidOperationException("Staff already belongs to that club");
         var guards = new List<StaffMoveGuard>();
         var writes = new List<PlannedWrite>();
+        var growth = new List<StaffDepartmentGrowth>();
         byte[] Capture(ulong address, int length, string what)
         {
             var bytes = memory.Read(address, length);
@@ -123,6 +131,11 @@ public sealed class StaffMoveService(IProcessMemory memory, OffsetProfile profil
             int at = departments.Single(d => d.Item1 == name).Item2 ?? throw new InvalidOperationException("Missing staff department offset");
             var destination = ReadVector(to.Address + (ulong)at, "destination " + name);
             if (destination.Pointers().Contains(staff.StaffAddress)) throw new InvalidOperationException("Destination already contains this staff member");
+            if (destination.End == destination.Capacity && K.StaffAllocationClasses is null)
+            {
+                growth.Add(new(destination.Header, staff.StaffAddress, name));
+                continue;
+            }
             if (destination.End == destination.Capacity)
             {
                 var classes = K.StaffAllocationClasses;
@@ -177,10 +190,29 @@ public sealed class StaffMoveService(IProcessMemory memory, OffsetProfile profil
                 if (!old.AsSpan().SequenceEqual(value)) writes.Add(new(contract + (ulong)offset, old, value, "contract date"));
             }
         }
-        return new(staff, from, to, contract, destinationTeam, targets, guards, writes) { NewJob = newJob, NewWage = newWage };
+        return new(staff, from, to, contract, destinationTeam, targets, guards, writes) { NewJob = newJob, NewWage = newWage, Growth = growth };
     }
 
-    public void Apply(StaffMovePlan plan) => Change(plan, undo: false);
+    /// <summary>Applies the plan and returns the plan as written; pass that one to <see cref="Undo"/>. A plan with
+    /// <see cref="StaffMovePlan.Growth"/> needs <paramref name="allocate"/> (the game's heap) for the new department buffer.</summary>
+    public StaffMovePlan Apply(StaffMovePlan plan, Func<int, ulong>? allocate = null)
+    {
+        if (plan.Growth.Count > 0)
+        {
+            if (allocate is null) throw new InvalidOperationException($"Destination {plan.Growth[0].Name} department is full");
+            var grown = new List<PlannedWrite>();
+            foreach (var g in plan.Growth)
+            {
+                var w = FutureTransferVectorSnapshot.Capture(memory, g.Header, 8, 1024).Append(memory, BitConverter.GetBytes(g.Item), allocate);
+                grown.Add(w[0] with { What = "destination " + g.Name + " new buffer" });
+                grown.Add(w[1] with { What = "destination " + g.Name + " header" });
+            }
+            plan = plan with { Writes = [.. grown, .. plan.Writes], Growth = [] };
+        }
+        Change(plan, undo: false);
+        return plan;
+    }
+
     public void Undo(StaffMovePlan plan) => Change(plan, undo: true);
 
     void Change(StaffMovePlan plan, bool undo)

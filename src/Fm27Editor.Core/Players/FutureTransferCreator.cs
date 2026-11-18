@@ -34,20 +34,21 @@ public sealed class FutureTransferCreator(IProcessMemory memory, OffsetProfile p
         var co = profile.Contract ?? throw new InvalidOperationException("Missing contract offsets");
         var to = profile.Team ?? throw new InvalidOperationException("Missing team offsets");
         var rel = profile.Relations ?? throw new InvalidOperationException("Missing person offsets");
+        var owner = PersonOwner.Of(player, profile);
         var guards = new List<PlannedWrite>();
         byte[] Guard(ulong at, int len, string name) { var b = memory.Read(at, len); guards.Add(new(at, b, [], name)); return b; }
         ulong Pointer(ulong at, string name) => BitConverter.ToUInt64(Guard(at, 8, name));
         ulong playerVtable = Pointer(player.Address, "player vtable");
-        if (!profile.PlayerVtableRvas.Any(x => playerVtable == moduleBase + x)) throw new StaleObjectException("Player vtable changed");
+        if (!owner.Vtables.Any(x => playerVtable == moduleBase + x)) throw new StaleObjectException("Player vtable changed");
         if (Pointer(buyer, "buying team vtable") != moduleBase + to.VtableRva) throw new StaleObjectException("Invalid buying team");
-        ulong contract = Pointer(player.Address + (ulong)co.PlayerContract, "current contract pointer");
+        ulong contract = Pointer(owner.At(co.PlayerContract), "current contract pointer");
         byte[] source;
         ulong seller;
         if (contract == 0)
         {
             if (freeAgentWage is not { } wage) throw new InvalidOperationException("Enter the weekly wage for the new contract");
             if (wage < 0) throw new ArgumentOutOfRangeException(nameof(freeAgentWage), "Wage cannot be negative");
-            source = FreeAgentContract(moduleBase + co.ContractVtableRva, player.Address + (ulong)rel.PlayerPerson, wage);
+            source = FreeAgentContract(moduleBase + co.ContractVtableRva, owner.At(rel.PlayerPerson), wage);
             seller = 0;
         }
         else
@@ -57,11 +58,11 @@ public sealed class FutureTransferCreator(IProcessMemory memory, OffsetProfile p
             seller = BitConverter.ToUInt64(source, co.Team);
             if (seller == 0 || Pointer(seller, "selling team vtable") != moduleBase + to.VtableRva || seller == buyer)
                 throw new InvalidOperationException("Invalid selling team or destination");
-            if (BitConverter.ToUInt64(source, 8) != player.Address + (ulong)rel.PlayerPerson)
+            if (BitConverter.ToUInt64(source, 8) != owner.At(rel.PlayerPerson))
                 throw new StaleObjectException("Contract belongs to a different person");
         }
         LoanRecallPlan? recall = null;
-        if (fo.CurrentLoanHolder is { } loan && Pointer(player.Address + (ulong)loan, "loan holder") != 0)
+        if (fo.CurrentLoanHolder is { } loan && Pointer(owner.At(loan), "loan holder") != 0)
         {
             if (contract == 0) throw new StaleObjectException("The loaned player has no parent contract");
             var safety = LoanTransferSafety.Capture(memory, profile, moduleBase, player, contract, seller, buyer);
@@ -72,7 +73,9 @@ public sealed class FutureTransferCreator(IProcessMemory memory, OffsetProfile p
         }
         ulong root = Pointer(moduleBase + po.ListRootRva, "offer root");
         if (root == 0) throw new StaleObjectException("Offer root missing");
-        Guard(root, 8, "offer root vtable");
+        ulong rootVtable = Pointer(root, "offer root vtable");
+        if (po.ListIsIndexed && rootVtable != moduleBase + po.ManagerVtable!.Value)
+            throw new StaleObjectException("Offer manager vtable changed");
         int serial = BitConverter.ToInt32(Guard(root + (ulong)po.OfferSerial, 4, "offer serial"));
         if (serial < 0 || serial == int.MaxValue) throw new StaleObjectException("Invalid offer serial");
         var offers = FutureTransferVectorSnapshot.Capture(memory, root + (ulong)po.ListOffset, 8, MaxOffers);
@@ -85,8 +88,8 @@ public sealed class FutureTransferCreator(IProcessMemory memory, OffsetProfile p
             if (address != 0 && BitConverter.ToInt32(Guard(address + (ulong)po.Id, 4, "existing offer ID")) == id)
                 throw new StaleObjectException("Next offer ID is already in use");
         }
-        ulong ids = Pointer(player.Address + (ulong)po.PlayerIds, "player offers holder");
-        ulong links = Pointer(player.Address + (ulong)fo.PlayerOffers, "player contracts holder");
+        ulong ids = Pointer(owner.At(po.PlayerIds), "player offers holder");
+        ulong links = Pointer(owner.At(fo.PlayerOffers), "player contracts holder");
         var playerIds = ids == 0 ? null : FutureTransferVectorSnapshot.Capture(memory, ids, 4, MaxPlayerOffers);
         var playerContracts = links == 0 ? null : FutureTransferVectorSnapshot.Capture(memory, links, 8, MaxPlayerOffers);
         var proposals = new TransferProposalReader(memory, profile, moduleBase).Read(player);
@@ -122,6 +125,7 @@ public sealed class FutureTransferCreator(IProcessMemory memory, OffsetProfile p
     public int Apply(Plan plan, Func<int, ulong> allocate)
     {
         var po = profile.Proposals!; var fo = profile.FutureTransfers!; var rel = profile.Relations!;
+        var owner = PersonOwner.Of(plan.Player, profile);
         var guards = new List<PlannedWrite>(plan.Guards);
         foreach (var v in new[] { plan.Terms, plan.ExtraTerms, plan.Offers, plan.Dates, plan.PlayerIds, plan.PlayerContracts })
             if (v is not null) { v.Validate(memory); guards.AddRange(v.Guards); }
@@ -141,7 +145,7 @@ public sealed class FutureTransferCreator(IProcessMemory memory, OffsetProfile p
             termPtr, plan.Terms.Items.Length, extraPtr, plan.ExtraTerms.Items.Length);
         ulong contractPtr = Fresh(contract, "future contract");
         ulong link = Fresh(FutureTransferRecordTemplate.ContractLink(contractPtr, plan.Id), "contract link");
-        ulong person = plan.Player.Address + (ulong)rel.PlayerPerson;
+        ulong person = owner.At(rel.PlayerPerson);
         ulong date = Fresh(FutureTransferRecordTemplate.TransferDate(person, plan.Date, plan.Id), "future transfer date");
         var offerTerms = plan.OfferTerms ?? new TransferTerms(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, false, 0);
         var termRecords = TransferTermsLayout.Records(offerTerms);
@@ -166,8 +170,8 @@ public sealed class FutureTransferCreator(IProcessMemory memory, OffsetProfile p
         }
         Append(plan.Offers, BitConverter.GetBytes(offer));
         Append(plan.Dates, BitConverter.GetBytes(date));
-        PlayerVector(plan.IdHolder, plan.PlayerIds, plan.Player.Address + (ulong)po.PlayerIds, BitConverter.GetBytes(plan.Id));
-        PlayerVector(plan.ContractHolder, plan.PlayerContracts, plan.Player.Address + (ulong)fo.PlayerOffers, BitConverter.GetBytes(link));
+        PlayerVector(plan.IdHolder, plan.PlayerIds, owner.At(po.PlayerIds), BitConverter.GetBytes(plan.Id));
+        PlayerVector(plan.ContractHolder, plan.PlayerContracts, owner.At(fo.PlayerOffers), BitConverter.GetBytes(link));
         publish.Add(new(plan.Root + (ulong)po.OfferSerial, BitConverter.GetBytes(plan.Serial), BitConverter.GetBytes(plan.Serial + 1), "offer serial"));
         if (po.ChangedFlag is { } cf) publish.Add(new(plan.Root + (ulong)cf, memory.Read(plan.Root + (ulong)cf, 1), [1], "offer changed flag"));
         // IGE's Coulibaly capture recalled the player immediately while creating the future offer.

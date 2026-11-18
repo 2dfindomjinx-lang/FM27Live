@@ -77,11 +77,12 @@ public sealed class GoldenGenerationWriter(IProcessMemory memory, OffsetProfile 
     GoldenGenerationValues Read(PlayerRecord player)
     {
         var fields = profile.Fields;
+        var owner = PersonOwner.Of(player, profile);
         return new(
-            BitConverter.ToInt16(memory.Read(player.Address + (ulong)fields.PotentialAbility, 2)),
-            BitConverter.ToInt16(memory.Read(player.Address + (ulong)fields.CurrentAbility, 2)),
-            memory.Read(player.Address + (ulong)profile.Personality[PersonalityAttribute.Professionalism], 1)[0],
-            memory.Read(player.Address + (ulong)profile.Personality[PersonalityAttribute.Ambition], 1)[0]);
+            BitConverter.ToInt16(memory.Read(owner.At(fields.PotentialAbility), 2)),
+            BitConverter.ToInt16(memory.Read(owner.At(fields.CurrentAbility), 2)),
+            memory.Read(owner.At(profile.Personality[PersonalityAttribute.Professionalism]), 1)[0],
+            memory.Read(owner.At(profile.Personality[PersonalityAttribute.Ambition]), 1)[0]);
     }
 
     void Guard(GoldenGenerationPlan plan, GoldenGenerationValues expected)
@@ -94,9 +95,9 @@ public sealed class GoldenGenerationWriter(IProcessMemory memory, OffsetProfile 
 
     void RequirePlayer(PlayerRecord player)
     {
+        var owner = PersonOwner.Of(player, profile);
         if (player.Id is not > 0 || profile.Fields.Id is not { } id
-            || !profile.PlayerVtableRvas.Any(rva => memory.ReadUInt64(player.Address) == moduleBase + rva)
-            || BitConverter.ToInt32(memory.Read(player.Address + (ulong)id, 4)) != player.Id)
+            || !owner.IsValid(memory, moduleBase) || BitConverter.ToInt32(memory.Read(owner.At(id), 4)) != player.Id)
             throw new StaleObjectException($"0x{player.Address:X} is no longer this player object");
     }
 
@@ -111,7 +112,7 @@ public sealed class GoldenGenerationWriter(IProcessMemory memory, OffsetProfile 
 
     void Write(PlayerRecord player, int offset, byte[] value)
     {
-        ulong at = player.Address + (ulong)offset;
+        ulong at = PersonOwner.Of(player, profile).At(offset);
         if (!memory.TryWrite(at, value) || !memory.Read(at, value.Length).AsSpan().SequenceEqual(value))
             throw new MemoryAccessException($"Could not write 0x{at:X}");
     }

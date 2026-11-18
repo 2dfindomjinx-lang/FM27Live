@@ -35,29 +35,79 @@ public sealed class CompetitionPrizeMoneyAccess(IProcessMemory memory, OffsetPro
         }
         Span<byte> identity = stackalloc byte[4];
         if (!Q(competition.Address, out ulong vt) || vt != moduleBase + c.VtableRva ||
-            !memory.TryRead(competition.Address + (ulong)id, identity) || BitConverter.ToInt32(identity) != competition.Id ||
-            !Q(competition.Address + (ulong)p.Holder, out ulong holder) || holder == 0 ||
-            !Q(holder, out ulong holderVt) || holderVt != moduleBase + p.HolderVtableRva ||
-            !Q(holder + (ulong)p.Stages, out ulong begin) || !Q(holder + (ulong)p.Stages + 8, out ulong end) ||
-            begin == 0 || end < begin || end - begin == 0 || (end - begin) % 8 != 0 || end - begin > 2048) return null;
-        ulong stage = 0, group = 0;
-        for (ulong slot = begin; slot < end; slot += 8)
+            !memory.TryRead(competition.Address + (ulong)id, identity) || BitConverter.ToInt32(identity) != competition.Id) return null;
+        ulong holder = 0, begin = 0, end = 0, stage = 0, group = 0;
+        bool Select(ulong candidate)
         {
-            if (!Q(slot, out ulong candidate) || candidate == 0 || !Q(candidate, out ulong candidateVt)) return null;
-            if (candidateVt != moduleBase + p.StageVtableRva) continue;
+            if (!Q(candidate, out ulong candidateVt)) return false;
+            bool known = false;
+            if (candidateVt == moduleBase + p.StageVtableRva) known = true;
+            else if (p.StageVtables.Count > 0)
+                foreach (uint v in p.StageVtables) if (candidateVt == moduleBase + v) { known = true; break; }
+            if (!known) return true;
             if (!Q(candidate + (ulong)p.StageOwner, out ulong owner) || owner != competition.Address ||
-                !Q(candidate + (ulong)p.StagePrize, out ulong candidateGroup)) return null;
-            if (candidateGroup == 0) continue;
-            if (!Q(candidateGroup, out ulong groupVt) || groupVt != moduleBase + p.PrizeVtableRva) return null;
-            if (stage != 0) return null;
+                !Q(candidate + (ulong)p.StagePrize, out ulong candidateGroup)) return false;
+            if (candidateGroup == 0) return true;
+            if (!Q(candidateGroup, out ulong groupVt) || groupVt != moduleBase + p.PrizeVtableRva) return false;
+            if (stage != 0) return false;
             stage = candidate;
             group = candidateGroup;
+            return true;
+        }
+        if (Q(competition.Address + (ulong)p.Holder, out holder) && holder != 0 &&
+            Q(holder, out ulong holderVt) && holderVt == moduleBase + p.HolderVtableRva &&
+            Q(holder + (ulong)p.Stages, out begin) && Q(holder + (ulong)p.Stages + 8, out end) &&
+            begin != 0 && end >= begin && end - begin != 0 && (end - begin) % 8 == 0 && end - begin <= 2048)
+        {
+            for (ulong slot = begin; slot < end; slot += 8)
+            {
+                if (!Q(slot, out ulong candidate) || candidate == 0) return null;
+                if (!Select(candidate)) return null;
+            }
+        }
+        else holder = begin = end = 0;
+        if (stage == 0 && p.StageVtables.Count > 0)
+        {
+            // Builds without a working holder chain (Mac 27.1.0 keeps no stage vector on the competition):
+            // discover the competition's stages by back-pointer instead, preferring the one that pays.
+            var valid = new List<(ulong Stage, ulong Group)>();
+            foreach (ulong candidate in new CompetitionStageDiscovery(memory, profile, moduleBase).StagesFor(competition.Address))
+            {
+                if (!Q(candidate, out ulong candidateVt)) return null;
+                bool known = candidateVt == moduleBase + p.StageVtableRva;
+                if (!known && p.StageVtables.Count > 0)
+                    foreach (uint v in p.StageVtables) if (candidateVt == moduleBase + v) { known = true; break; }
+                if (!known) continue;
+                if (!Q(candidate + (ulong)p.StageOwner, out ulong owner) || owner != competition.Address ||
+                    !Q(candidate + (ulong)p.StagePrize, out ulong candidateGroup)) return null;
+                if (candidateGroup == 0) continue;
+                if (!Q(candidateGroup, out ulong groupVt) || groupVt != moduleBase + p.PrizeVtableRva) return null;
+                valid.Add((candidate, candidateGroup));
+            }
+            var withPrizes = valid.Where(v => GroupHasPrizes(v.Group, p)).ToList();
+            var pick = withPrizes.Count == 1 ? withPrizes[0] : valid.Count == 1 ? valid[0] : ((ulong Stage, ulong Group)?)null;
+            if (pick is not { } chosen) return null;
+            stage = chosen.Stage;
+            group = chosen.Group;
         }
         if (stage == 0) return null;
         Span<byte> win = stackalloc byte[4]; Span<byte> draw = stackalloc byte[4]; Span<byte> defeat = stackalloc byte[4];
         if (!memory.TryRead(group + (ulong)p.PerWin, win) || !memory.TryRead(group + (ulong)p.PerDraw, draw) ||
             !memory.TryRead(group + (ulong)p.PerDefeat, defeat)) return null;
         return new(competition, holder, begin, end, stage, group, BitConverter.ToInt32(win), BitConverter.ToInt32(draw), BitConverter.ToInt32(defeat));
+    }
+
+    bool GroupHasPrizes(ulong group, CompetitionPrizeOffsets p)
+    {
+        if (group == 0) return false;
+        var amounts = new byte[12];
+        if (memory.TryRead(group + (ulong)p.PerWin, amounts) &&
+            (BitConverter.ToInt32(amounts) | BitConverter.ToInt32(amounts, 4) | BitConverter.ToInt32(amounts, 8)) != 0)
+            return true;
+        var header = new byte[24];
+        if (!memory.TryRead(group + (ulong)p.Classification, header)) return false;
+        ulong begin = BitConverter.ToUInt64(header), end = BitConverter.ToUInt64(header, 8);
+        return begin != 0 && end > begin && (end - begin) % 4 == 0 && (end - begin) / 4 is > 0 and <= 64;
     }
 
     public void Set(CompetitionPrizeMoney snapshot, CompetitionPrizeField field, int value)

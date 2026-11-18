@@ -2,6 +2,7 @@ using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
+using Fm27Editor.Core.Offsets;
 using Fm27Editor.Core.Players;
 
 namespace Fm27Editor.App;
@@ -12,6 +13,7 @@ public sealed partial class MainWindow
     Control LoanEditorPanel(PlayerRecord player, ActiveLoan loan, string borrowingClub)
     {
         var terms = loan.Terms;
+        var session = backend.Session;
         var panel = new StackPanel { Spacing = 10, Margin = new Thickness(0, 6), MaxWidth = 880, HorizontalAlignment = HorizontalAlignment.Left };
         var form = new UiKit.TwoColumnFormBuilder();
         var fields = new List<(TextBox Box, string Original)>();
@@ -20,12 +22,13 @@ public sealed partial class MainWindow
         string Day(DateOnly? d) => DateSetting.Format(d);
         string Money(int v) => v < 0 ? "" : v.ToString(Inv);
 
-        TextBox Field(string original, bool right, bool date = false)
+        TextBox Field(string original, bool right, bool date = false, bool verifiedFee = false)
         {
             var box = date
                 ? new DateBox { Text = original, Width = 140, HorizontalContentAlignment = HorizontalAlignment.Right }
                 : new TextBox { Text = original, Width = 140, HorizontalContentAlignment = right ? HorizontalAlignment.Right : HorizontalAlignment.Left };
-            box.TextChanged += (_, _) => save.IsEnabled = fields.Any(f => (f.Box.Text ?? "") != f.Original);
+            box.IsReadOnly = !(session.CanWrite || verifiedFee && session.CanEdit(VerifiedWrite.LoanPlayingMonthlyFee));
+            box.TextChanged += (_, _) => save.IsVisible = save.IsEnabled = fields.Any(f => (f.Box.Text ?? "") != f.Original);
             fields.Add((box, original));
             return box;
         }
@@ -41,7 +44,7 @@ public sealed partial class MainWindow
         form.AddRow(0, "Expires", expires);
         var price = Field(Money(terms.AgreedPrice), true);
         var buyBack = Field(Money(terms.BuyBackFee), true);
-        var monthly = Field(Money(terms.MonthlyFee), true);
+        var monthly = Field(Money(terms.MonthlyFee), true, verifiedFee: true);
         var unused = Field(Money(terms.UnusedMonthlyFee), true);
         form.AddRow(1, "Agreed Price", price);
         form.AddRow(1, "Buy Back Fee", buyBack);
@@ -81,7 +84,7 @@ public sealed partial class MainWindow
         };
 
         string parent = backend.Session.TransferDeals.TeamName(loan.ParentTeam) ?? Loc.S("contract club");
-        var recall = new Button { Content = Loc.F("Recall to {0}", parent) };
+        var recall = new Button { Content = Loc.F("Recall to {0}", parent), IsEnabled = session.CanWrite };
         recall.Click += (_, _) =>
         {
             try

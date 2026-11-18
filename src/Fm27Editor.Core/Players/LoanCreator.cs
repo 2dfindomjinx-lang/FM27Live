@@ -68,7 +68,8 @@ public sealed class LoanCreator(IProcessMemory memory, OffsetProfile profile, ul
         int slot = F.CurrentLoanHolder!.Value;
         foreach (var p in players)
         {
-            if (!Q(p.Address + (ulong)slot, out var holder) || !Q(holder, out var contract)) continue;
+            var owner = PersonOwner.Of(p, profile);
+            if (!owner.IsValid(memory, moduleBase) || !Q(owner.At(slot), out var holder) || !Q(holder, out var contract)) continue;
             if (!Q(contract, out var vtable) || vtable != moduleBase + F.LoanContractVtable) continue;
             if (first == 0) first = contract;
             if (Q(contract + ContractTeam, out var team) && team == borrowingTeam) return (contract, true);

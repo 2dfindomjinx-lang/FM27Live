@@ -23,6 +23,10 @@ public sealed record GlobalArrays(ulong ClubsBegin, ulong ClubsEnd, ulong StaffB
 }
 
 /// <summary>Finds the clubs-array anchor and the arrays derived from it; read only.</summary>
+/// <summary>Profile <c>globalArrays</c>: the module slot holding the clubs array begin/end pointers, for builds
+/// whose code the x86-64 anchor signature does not match (ARM64 Mac). Null when the build was not measured.</summary>
+public sealed record GlobalArrayOffsets(uint ClubsSlotRva);
+
 public static class GlobalArrayFinder
 {
     /// <summary>call rdi; mov rbx,[rip+d]; mov r14,[rip+d]; cmp rbx,r14 — the pair of array slots FM Studio reads.</summary>
@@ -50,16 +54,41 @@ public static class GlobalArrayFinder
         return null;
     }
 
-    /// <summary>Reads the begin/end vector at each derived slot; null counts stay zero.</summary>
-    public static GlobalArrays? Read(IProcessMemory memory, ulong moduleBase, ulong moduleSize)
+    /// <summary>The clubs-array start slot: the profile's measured slot when the build has one, else the
+    /// x86-64 code-signature anchor (which never matches on ARM64 Mac).</summary>
+    public static ulong? StartSlot(IProcessMemory memory, ulong moduleBase, ulong moduleSize, uint? clubsSlotRva = null)
     {
-        if (FindClubsSlots(memory, moduleBase, moduleSize) is not { } slots) return null;
+        if (clubsSlotRva is { } rva)
+        {
+            if (!TryReadSlot(memory, moduleBase + rva, out ulong begin, out ulong end) || begin == 0) return null;
+            return moduleBase + rva;
+        }
+        return FindClubsSlots(memory, moduleBase, moduleSize)?.StartSlot;
+    }
+
+    /// <summary>Reads the begin/end vector at each derived slot; null counts stay zero.</summary>
+    public static GlobalArrays? Read(IProcessMemory memory, ulong moduleBase, ulong moduleSize, uint? clubsSlotRva = null) =>
+        StartSlot(memory, moduleBase, moduleSize, clubsSlotRva) is { } start ? ReadAt(memory, start) : null;
+
+    static bool TryReadSlot(IProcessMemory memory, ulong slot, out ulong begin, out ulong end)
+    {
+        var b = new byte[16];
+        begin = 0; end = 0;
+        if (!memory.TryRead(slot, b)) return false;
+        begin = BitConverter.ToUInt64(b);
+        end = BitConverter.ToUInt64(b, 8);
+        return begin != 0 && end >= begin && (end - begin) % 8 == 0 && (end - begin) / 8 <= 1_000_000;
+    }
+
+    /// <summary>Reads the begin/end vector at each derived slot; null counts stay zero.</summary>
+    public static GlobalArrays ReadAt(IProcessMemory memory, ulong clubsStartSlot)
+    {
         ulong Q(ulong at)
         {
             Span<byte> b = stackalloc byte[8];
             return memory.TryRead(at, b) ? BitConverter.ToUInt64(b) : 0;
         }
-        ulong clubs = slots.StartSlot;
+        ulong clubs = clubsStartSlot;
         return new(ClubsBegin: Q(clubs), ClubsEnd: Q(clubs + 8),
             StaffBegin: Q(clubs - 368), StaffEnd: Q(clubs - 360),
             RefereesBegin: Q(clubs - 320), RefereesEnd: Q(clubs - 312),

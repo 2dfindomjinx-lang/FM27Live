@@ -65,19 +65,17 @@ public sealed class StaffRepository(IProcessMemory memory, OffsetProfile profile
     IReadOnlyList<StaffRecord> LoadAllCore()
     {
         var s = S;
-        ulong root = s.PersonListHolderOffset is not null || !s.DirectStaffVector ? memory.ReadUInt64(moduleBase + s.PersonListRootRva) : moduleBase + s.PersonListRootRva;
-        ulong vector = s.PersonListHolderOffset is { } holderOffset ? root + (ulong)holderOffset : root + (ulong)s.PersonListOffset;
-        ulong begin = memory.ReadUInt64(vector), end = memory.ReadUInt64(vector + 8);
+        ulong root = s.DirectStaffVector ? moduleBase + s.PersonListRootRva : memory.ReadUInt64(moduleBase + s.PersonListRootRva);
+        ulong begin = memory.ReadUInt64(root + (ulong)s.PersonListOffset), end = memory.ReadUInt64(root + (ulong)s.PersonListOffset + 8);
         if (root == 0 || begin == 0 || end < begin || (end - begin) % 8 != 0 || (end - begin) / 8 > MaxPersons)
             throw new MemoryAccessException($"Person list looks invalid (begin 0x{begin:X}, end 0x{end:X}); is a save loaded?");
         var raw = memory.Read(begin, (int)(end - begin));
         var reader = new PlayerReader(memory, profile) { ModuleBase = moduleBase };
         var result = new List<StaffRecord>();
         Span<byte> vtable = stackalloc byte[8];
-        int stride = s.DirectRecordStride ?? 8;
-        for (int i = 0; i + 8 <= raw.Length; i += stride)
+        for (int i = 0; i < raw.Length; i += 8)
         {
-            ulong entry = s.DirectRecordStride is not null ? begin + (ulong)i : BitConverter.ToUInt64(raw, i);
+            ulong entry = BitConverter.ToUInt64(raw, i);
             if (entry == 0 || !memory.TryRead(entry, vtable)) continue;
             ulong vt = BitConverter.ToUInt64(vtable);
             StaffKind? kind;

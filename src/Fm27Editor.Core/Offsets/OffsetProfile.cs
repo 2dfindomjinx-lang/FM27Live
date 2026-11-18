@@ -5,6 +5,8 @@ using Fm27Editor.Core.Players;
 
 namespace Fm27Editor.Core.Offsets;
 
+public enum VerifiedWrite { Passing, Caps, LoanPlayingMonthlyFee }
+
 /// <summary>
 /// Everything that changes between game builds: static RVAs inside game_plugin.dll and
 /// field offsets inside game objects. One JSON file per build, see offsets/*.json.
@@ -29,9 +31,9 @@ public sealed class OffsetProfile
     public bool IsArm64 => Architecture is "arm64";
     public uint? ImageSize { get; init; }
     public uint? PeTimestamp { get; init; }
-    /// <summary>Experimental layouts must never open the game with write access.</summary>
+    /// <summary>Disables general writes. Explicitly verified fields may use the restricted write path.</summary>
     public bool ReadOnly { get; init; }
-    /// <summary>Individually verified attributes writable even when the rest of the profile is read-only.</summary>
+    public IReadOnlyList<VerifiedWrite> VerifiedWrites { get; init; } = [];
 
     public required uint PlayerListRootRva { get; init; }
     public required int PlayerListBeginOffset { get; init; }
@@ -39,6 +41,10 @@ public sealed class OffsetProfile
     public required IReadOnlyList<uint> PlayerVtableRvas { get; init; }
 
     public required int PlayerObjectSize { get; init; }
+    public IReadOnlyDictionary<uint, PlayerInsertion> PlayerInsertions { get; init; } = new Dictionary<uint, PlayerInsertion>();
+
+    public int PlayerOffset(uint vtable, int canonicalOffset) =>
+        PlayerInsertions.TryGetValue(vtable, out var insertion) ? insertion.Translate(canonicalOffset) : canonicalOffset;
     public required int AttributeScale { get; init; }
     public required IReadOnlyDictionary<PlayerAttribute, int> Attributes { get; init; }
     public required IReadOnlyDictionary<PlayerPosition, int> Positions { get; init; }
@@ -90,6 +96,9 @@ public sealed class OffsetProfile
     public CallUpOffsets? CallUps { get; init; }
     /// <summary>Profile <c>youthCandidates</c>: the pre-intake candidate manager and record offsets (null when the build was not measured).</summary>
     public Clubs.YouthCandidateOffsets? YouthCandidates { get; init; }
+    /// <summary>Profile <c>globalArrays</c>: the measured clubs-array slot for builds whose code the x86-64
+    /// anchor signature does not match (ARM64 Mac). Null when the build was not measured.</summary>
+    public Game.GlobalArrayOffsets? GlobalArrays { get; init; }
     /// <summary>Player offset of the 8-byte preferred-moves bit field (profile <c>player.preferredMoves</c>).</summary>
     public int? PreferredMoves { get; init; }
     /// <summary>Profile <c>stadium</c>.</summary>
@@ -110,6 +119,18 @@ public sealed class OffsetProfile
         int? gameUiLoads = root.TryGetProperty("gameUiLoadsOffset", out _) ? Hex(root, "gameUiLoadsOffset") : null;
         if ((gameUiRva is null) != (gameUiVtable is null) || (gameUiRva is null) != (gameUiLoads is null))
             throw new FormatException("gameUiRva, gameUiVtable and gameUiLoadsOffset must be given together");
+        var vtables = root.GetProperty("playerVtables").EnumerateArray().Select(v => (uint)ParseHex(v.GetString())).ToArray();
+        int objectSize = Hex(player, "objectSize");
+        var insertions = new Dictionary<uint, PlayerInsertion>();
+        if (player.TryGetProperty("subtypeInsertions", out var layouts))
+            foreach (var layout in layouts.EnumerateArray())
+            {
+                uint vt = (uint)Hex(layout, "vtable");
+                var insertion = new PlayerInsertion(Hex(layout, "at"), Hex(layout, "length"));
+                if (!vtables.Contains(vt) || insertion.At < sizeof(ulong) || insertion.At >= objectSize ||
+                    insertion.Length <= 0 || insertion.Length > int.MaxValue - objectSize || !insertions.TryAdd(vt, insertion))
+                    throw new FormatException("Invalid player subtype insertion");
+            }
         return new OffsetProfile
         {
             Build = root.GetProperty("build").GetString() ?? throw new FormatException("build is missing"),
@@ -121,6 +142,9 @@ public sealed class OffsetProfile
             ImageSize = root.TryGetProperty("imageSize", out _) ? (uint)Hex(root, "imageSize") : null,
             PeTimestamp = root.TryGetProperty("peTimestamp", out _) ? (uint)Hex(root, "peTimestamp") : null,
             ReadOnly = root.TryGetProperty("readOnly", out var ro) && ro.GetBoolean(),
+            VerifiedWrites = root.TryGetProperty("verifiedWrites", out var verifiedWrites)
+                ? verifiedWrites.EnumerateArray().Select(value => Enum.Parse<VerifiedWrite>(value.GetString()!)).ToArray()
+                : [],
             DirectGameDateRva = root.TryGetProperty("directGameDateRva", out _) ? (uint)Hex(root, "directGameDateRva") : null,
             GameUiRva = gameUiRva,
             GameUiVtable = gameUiVtable,
@@ -140,8 +164,9 @@ public sealed class OffsetProfile
             PlayerListRootRva = (uint)Hex(list, "rootRva"),
             PlayerListBeginOffset = Hex(list, "beginOffset"),
             PlayerListEndOffset = Hex(list, "endOffset"),
-            PlayerVtableRvas = root.GetProperty("playerVtables").EnumerateArray().Select(v => (uint)ParseHex(v.GetString())).ToArray(),
-            PlayerObjectSize = Hex(player, "objectSize"),
+            PlayerVtableRvas = vtables,
+            PlayerObjectSize = objectSize,
+            PlayerInsertions = insertions,
             AttributeScale = player.GetProperty("attributeScale").GetInt32(),
             Attributes = EnumMap<PlayerAttribute>(player.GetProperty("attributes")),
             Positions = EnumMap<PlayerPosition>(player.GetProperty("positions")),
@@ -160,6 +185,8 @@ public sealed class OffsetProfile
             FutureTransfers = player.TryGetProperty("futureTransfers", out var ft) ? FutureTransferOffsets.Load(ft) : null,
             CallUps = player.TryGetProperty("callUps", out var cu) ? CallUpOffsets.Load(cu) : null,
             YouthCandidates = root.TryGetProperty("youthCandidates", out var yc) ? Clubs.YouthCandidateOffsets.Load(yc) : null,
+            GlobalArrays = root.TryGetProperty("globalArrays", out var ga) && ga.TryGetProperty("clubsSlotRva", out _)
+                ? new Game.GlobalArrayOffsets((uint)Hex(ga, "clubsSlotRva")) : null,
             PreferredMoves = player.TryGetProperty("preferredMoves", out _) ? Hex(player, "preferredMoves") : null,
             Stadium = root.TryGetProperty("stadium", out var sd)
                 ? Fm27Editor.Core.Stadiums.StadiumOffsets.Load(sd, e => FieldMap<Stadiums.StadiumField>(e, rootRequired: false)) : null,
@@ -326,10 +353,22 @@ public sealed class OffsetProfile
                 LowestOfficialCategory = OptHex(comp, "lowestOfficialCategory"),
                 Flags = OptHex(comp, "flags"),
                 SquadRulesContainerVtableRva = (uint?)OptHex(comp, "squadRulesContainerVtable"),
+                SquadRulesRuntime = comp.TryGetProperty("squadRulesRuntime", out var rules) ? new CompetitionSquadRulesRuntimeOffsets(
+                    Hex(rules, "holder"), (uint)Hex(rules, "holderVtable"), Hex(rules, "holderCompetition"),
+                    Hex(rules, "holderIndex"), Hex(rules, "holderCommon"), Hex(rules, "commonGroups"),
+                    Hex(rules, "groupsVector"), Hex(rules, "groupIndex"), Hex(rules, "groupRules"),
+                    OptHex(rules, "detail"), OptHex(rules, "serializedContainer"), OptHex(rules, "serializedBase"),
+                    OptHex(rules, "serializedNodes")) : null,
                 PrizeMoney = comp.TryGetProperty("prizeMoney", out var prizeOffsets) ? new CompetitionPrizeOffsets(
                     Hex(prizeOffsets, "holder"), Hex(prizeOffsets, "stages"), Hex(prizeOffsets, "stageOwner"), Hex(prizeOffsets, "stagePrize"),
                     Hex(prizeOffsets, "perWin"), Hex(prizeOffsets, "perDraw"), Hex(prizeOffsets, "perDefeat"), Hex(prizeOffsets, "classification"),
-                    (uint)Hex(prizeOffsets, "holderVtable"), (uint)Hex(prizeOffsets, "stageVtable"), (uint)Hex(prizeOffsets, "prizeVtable")) : null,
+                    (uint)Hex(prizeOffsets, "holderVtable"), (uint)Hex(prizeOffsets, "stageVtable"), (uint)Hex(prizeOffsets, "prizeVtable"))
+                {
+                    StageVtables = prizeOffsets.TryGetProperty("stageVtables", out var stageVtables)
+                        ? stageVtables.EnumerateArray().Select(v => (uint)Convert.ToInt32(v.GetString() is { } txt && txt.StartsWith("0x") ? txt[2..]
+                            : throw new FormatException("competition.prizeMoney.stageVtables: expected hex"), 16)).ToArray()
+                        : [],
+                } : null,
             } : null,
             Award = root.TryGetProperty("award", out var aw) ? new AwardOffsets
             {
@@ -400,6 +439,12 @@ public sealed class OffsetProfile
             if (ImageSize is { } imageSize) H("imageSize", imageSize);
             if (PeTimestamp is { } timestamp) H("peTimestamp", timestamp);
             if (ReadOnly) w.WriteBoolean("readOnly", true);
+            if (VerifiedWrites.Count > 0)
+            {
+                w.WriteStartArray("verifiedWrites");
+                foreach (var field in VerifiedWrites) w.WriteStringValue(field.ToString());
+                w.WriteEndArray();
+            }
             if (DirectGameDateRva is { } directDate) H("directGameDateRva", directDate);
             if (GameUiRva is { } gameUi) H("gameUiRva", gameUi);
             if (GameUiVtable is { } gameUiVtable) H("gameUiVtable", gameUiVtable);
@@ -418,6 +463,12 @@ public sealed class OffsetProfile
                 if (forceAccept.TransferOffersRva is { } transferOffers) H("transferOffersRva", transferOffers);
                 w.WriteEndObject();
             }
+            if (GlobalArrays is { } globalArrays)
+            {
+                w.WriteStartObject("globalArrays");
+                H("clubsSlotRva", globalArrays.ClubsSlotRva);
+                w.WriteEndObject();
+            }
             w.WriteStartObject("playerList");
             H("rootRva", PlayerListRootRva); H("beginOffset", PlayerListBeginOffset); H("endOffset", PlayerListEndOffset);
             w.WriteEndObject();
@@ -426,6 +477,17 @@ public sealed class OffsetProfile
             w.WriteEndArray();
             w.WriteStartObject("player");
             H("objectSize", PlayerObjectSize);
+            if (PlayerInsertions.Count > 0)
+            {
+                w.WriteStartArray("subtypeInsertions");
+                foreach (var (vt, insertion) in PlayerInsertions.OrderBy(kv => kv.Key))
+                {
+                    w.WriteStartObject();
+                    H("vtable", vt); H("at", insertion.At); H("length", insertion.Length);
+                    w.WriteEndObject();
+                }
+                w.WriteEndArray();
+            }
             w.WriteNumber("attributeScale", AttributeScale);
             Map("attributes", Attributes);
             Map("positions", Positions);
@@ -661,9 +723,28 @@ public sealed class OffsetProfile
                     H("holder", prize.Holder); H("stages", prize.Stages); H("stageOwner", prize.StageOwner); H("stagePrize", prize.StagePrize);
                     H("perWin", prize.PerWin); H("perDraw", prize.PerDraw); H("perDefeat", prize.PerDefeat); H("classification", prize.Classification);
                     H("holderVtable", prize.HolderVtableRva); H("stageVtable", prize.StageVtableRva); H("prizeVtable", prize.PrizeVtableRva);
+                    if (prize.StageVtables.Count > 0)
+                    {
+                        w.WriteStartArray("stageVtables");
+                        foreach (uint vtable in prize.StageVtables) w.WriteStringValue($"0x{vtable:X}");
+                        w.WriteEndArray();
+                    }
                     w.WriteEndObject();
                 }
                 if (comp.SquadRulesContainerVtableRva is { } squadRulesVtable) H("squadRulesContainerVtable", squadRulesVtable);
+                if (comp.SquadRulesRuntime is { } rules)
+                {
+                    w.WriteStartObject("squadRulesRuntime");
+                    H("holder", rules.Holder); H("holderVtable", rules.HolderVtableRva);
+                    H("holderCompetition", rules.HolderCompetition); H("holderIndex", rules.HolderIndex);
+                    H("holderCommon", rules.HolderCommon); H("commonGroups", rules.CommonGroups);
+                    H("groupsVector", rules.GroupsVector); H("groupIndex", rules.GroupIndex); H("groupRules", rules.GroupRules);
+                    if (rules.Detail is { } rd) H("detail", rd);
+                    if (rules.SerializedContainer is { } rsc) H("serializedContainer", rsc);
+                    if (rules.SerializedBase is { } rsb) H("serializedBase", rsb);
+                    if (rules.SerializedNodes is { } rsn) H("serializedNodes", rsn);
+                    w.WriteEndObject();
+                }
                 w.WriteEndObject();
             }
             if (Award is { } aw)
@@ -704,6 +785,11 @@ public sealed class OffsetProfile
         if (s is null || !s.StartsWith("0x", StringComparison.OrdinalIgnoreCase)) throw new FormatException($"Expected hex string, got '{s}'");
         return int.Parse(s.AsSpan(2), NumberStyles.HexNumber, CultureInfo.InvariantCulture);
     }
+}
+
+public readonly record struct PlayerInsertion(int At, int Length)
+{
+    public int Translate(int canonicalOffset) => canonicalOffset >= At ? checked(canonicalOffset + Length) : canonicalOffset;
 }
 
 public sealed class PlayerFieldOffsets

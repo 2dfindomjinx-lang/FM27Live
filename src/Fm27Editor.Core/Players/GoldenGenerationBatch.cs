@@ -228,8 +228,9 @@ public sealed class GoldenGenerationBatch(PlayerWriter writer, OffsetProfile pro
         var byAddress = new Dictionary<ulong, ChangeLabel>();
         foreach (var entry in plan)
         {
-            if (entry.CaAfter != entry.CaBefore) byAddress[entry.Player.Address + (ulong)profile.Fields.CurrentAbility] = new("Current Ability");
-            if (entry.PaAfter != entry.PaBefore) byAddress[entry.Player.Address + (ulong)profile.Fields.PotentialAbility] = new("Potential Ability");
+            var owner = PersonOwner.Of(entry.Player, profile);
+            if (entry.CaAfter != entry.CaBefore) byAddress[owner.At(profile.Fields.CurrentAbility)] = new("Current Ability");
+            if (entry.PaAfter != entry.PaBefore) byAddress[owner.At(profile.Fields.PotentialAbility)] = new("Potential Ability");
         }
         return (address, _) => byAddress.GetValueOrDefault(address);
     }

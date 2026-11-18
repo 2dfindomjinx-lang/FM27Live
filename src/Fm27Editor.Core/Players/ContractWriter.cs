@@ -58,7 +58,7 @@ public sealed class ContractWriter(IProcessMemory memory, OffsetProfile profile,
         int I32(int o) => BitConverter.ToInt32(memory.Read(a + (ulong)o, 4));
         byte U8(int o) => memory.Read(a + (ulong)o, 1)[0];
         DateOnly? Date(int? o) => o is { } x ? ToDate(I16(x) & DayMask, I16(x + 2)) : null;
-        DateOnly? PlayerDate(int? o) => o is { } x && memory.Read(player.Address + (ulong)x, 4) is var r
+        DateOnly? PlayerDate(int? o) => o is { } x && memory.Read(PlayerFieldAddress(player, x), 4) is var r
             ? ToDate(BitConverter.ToInt16(r) & DayMask, BitConverter.ToInt16(r, 2)) : null;
         return new ContractDetails(
             a, info.Wage, Date(c.ExpiryDate), Date(c.JoinedDate), Date(c.Started), PlayerDate(c.PlayerJoinedClub),
@@ -167,9 +167,10 @@ public sealed class ContractWriter(IProcessMemory memory, OffsetProfile profile,
     public void SetJoinedClub(PlayerRecord player, ContractDetails s, DateOnly date)
     {
         Require(player, s);
-        if (!profile.PlayerVtableRvas.Any(r => memory.ReadUInt64(player.Address) == moduleBase + r))
+        if (!profile.PlayerVtableRvas.Contains(player.VtableRva) || memory.ReadUInt64(player.Address) != moduleBase + player.VtableRva)
             throw new StaleObjectException($"0x{player.Address:X} is no longer a player object");
-        WriteDate(player.Address + (ulong)(C.PlayerJoinedClub ?? throw new InvalidOperationException("Profile has no joined club offset")), s.JoinedClub, date);
+        int joinedClub = C.PlayerJoinedClub ?? throw new InvalidOperationException("Profile has no joined club offset");
+        WriteDate(PlayerFieldAddress(player, joinedClub), s.JoinedClub, date);
     }
 
     /// <summary><paramref name="expected"/> null means the field held "no date" when it was read.</summary>
@@ -356,12 +357,15 @@ public sealed class ContractWriter(IProcessMemory memory, OffsetProfile profile,
         if (Require(player).Address != s.Address) throw new StaleObjectException("The player's contract changed since it was read");
     }
 
+    ulong PlayerFieldAddress(PlayerRecord player, int offset) =>
+        checked(player.Address + (ulong)profile.PlayerOffset(player.VtableRva, offset));
+
     ContractInfo Require(PlayerRecord player)
     {
         if (profile.Fields.Id is { } idOffset && player.Id is > 0 &&
             (memory.ReadUInt64(player.Address) != moduleBase + player.VtableRva ||
              !profile.PlayerVtableRvas.Contains(player.VtableRva) ||
-             BitConverter.ToInt32(memory.Read(player.Address + (ulong)idOffset, 4)) != player.Id))
+             BitConverter.ToInt32(memory.Read(PlayerFieldAddress(player, idOffset), 4)) != player.Id))
             throw new StaleObjectException("Player identity changed since it was read");
         if (futureContract != 0)
         {
@@ -372,7 +376,7 @@ public sealed class ContractWriter(IProcessMemory memory, OffsetProfile profile,
             return new ContractInfo(futureContract, BitConverter.ToInt32(memory.Read(futureContract + (ulong)C.Wage, 4)), null, null, player.Club);
         }
         var contract = player.Contract ?? throw new StaleObjectException($"0x{player.Address:X} has no contract");
-        if (memory.ReadUInt64(player.Address + (ulong)C.PlayerContract) != contract.Address)
+        if (memory.ReadUInt64(PlayerFieldAddress(player, C.PlayerContract)) != contract.Address)
             throw new StaleObjectException("The player's contract changed since it was read");
         if (memory.ReadUInt64(contract.Address) != moduleBase + C.ContractVtableRva)
             throw new StaleObjectException($"0x{contract.Address:X} is no longer a contract object");

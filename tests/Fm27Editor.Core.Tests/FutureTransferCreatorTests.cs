@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using Fm27Editor.Core.Memory;
 using Fm27Editor.Core.Offsets;
 using Fm27Editor.Core.Players;
@@ -9,12 +10,25 @@ public class FutureTransferCreatorTests
     const ulong Module = 0x7FF000000000, Player = 0x10000000, Contract = 0x20000000,
         Seller = 0x30000000, Buyer = 0x30001000, Root = 0x40000000;
     readonly FakeMemory memory = new();
-    readonly OffsetProfile profile = OffsetProfile.LoadFile(Path.Combine(AppContext.BaseDirectory, "offsets", "27.0.0+2493426-gamepass.json"));
+    readonly OffsetProfile profile;
     readonly PlayerRecord player;
     ulong next = 0x50000000;
 
-    public FutureTransferCreatorTests()
+    public FutureTransferCreatorTests() : this(indexed: false) { }
+
+    FutureTransferCreatorTests(bool indexed)
     {
+        var path = Path.Combine(AppContext.BaseDirectory, "offsets", "27.0.0+2493426-gamepass.json");
+        var json = JsonNode.Parse(File.ReadAllText(path))!;
+        if (indexed)
+        {
+            var proposals = json["player"]!["proposals"]!;
+            proposals["managerRva"] = (string?)proposals["listRootRva"];
+            proposals["managerVtable"] = "0x345000";
+            proposals["offerVector"] = (string?)proposals["listOffset"];
+            proposals["changedFlag"] = null;
+        }
+        profile = OffsetProfile.Load(json.ToJsonString());
         var p = memory.Map(Player, 0x400);
         BitConverter.GetBytes(Module + profile.PlayerVtableRvas[0]).CopyTo(p, 0);
         BitConverter.GetBytes(Contract).CopyTo(p, profile.Contract!.PlayerContract);
@@ -27,7 +41,8 @@ public class FutureTransferCreatorTests
         BitConverter.GetBytes(Module + profile.Team.VtableRva).CopyTo(buyer, 0);
         var rootPointer = memory.Map(Module + profile.Proposals!.ListRootRva, 8);
         BitConverter.GetBytes(Root).CopyTo(rootPointer, 0);
-        var root = memory.Map(Root, 0x800); root[0] = 1;
+        var root = memory.Map(Root, 0x800);
+        TestWorld.Set64(root, 0, indexed ? Module + 0x345000 : 1UL);
         BitConverter.GetBytes(100).CopyTo(root, 0x7D4);
         player = new PlayerRecord { Address = Player, VtableRva = profile.PlayerVtableRvas[0], Id = 123,
             CurrentAbility = 100, PotentialAbility = 120, HomeReputation = 1, CurrentReputation = 1,
@@ -126,6 +141,35 @@ public class FutureTransferCreatorTests
         Assert.Equal(1, memory.Read(Root + 0x50, 1)[0]);                          // the offer list is flagged changed
         var again = Create();                                                      // the player can be given a transfer again
         Assert.Equal(new DateOnly(2027, 1, 1), again.Date);
+    }
+
+    [Fact]
+    public void RemovingFromAnIdIndexedListPreservesOtherOfferIndices()
+    {
+        new FutureTransferCreatorTests(indexed: true).CheckIndexedRemoval();
+    }
+
+    void CheckIndexedRemoval()
+    {
+        var transfer = Create();
+        var offers = Root + (ulong)profile.Proposals!.ListOffset;
+        ulong newBegin = Allocate(24);
+        ulong otherOffer = Allocate(0x100);
+        Assert.True(memory.TryWrite(otherOffer, BitConverter.GetBytes(Module + profile.Proposals.TransferVtable)));
+        Assert.True(memory.TryWrite(otherOffer + (ulong)profile.Proposals.Id, BitConverter.GetBytes(2)));
+        Assert.True(memory.TryWrite(newBegin, BitConverter.GetBytes(transfer.Offer.Address)));
+        Assert.True(memory.TryWrite(newBegin + 16, BitConverter.GetBytes(otherOffer)));
+        byte[] header = [.. BitConverter.GetBytes(newBegin), .. BitConverter.GetBytes(newBegin + 24), .. BitConverter.GetBytes(newBegin + 24)];
+        Assert.True(memory.TryWrite(offers, header));
+
+        var remover = new FutureTransferRemover(memory, profile, Module);
+        remover.Apply(remover.Prepare(player, transfer));
+
+        Assert.Equal(header, memory.Read(offers, 24));
+        Assert.Equal(0UL, memory.ReadUInt64(newBegin));
+        Assert.Equal(0UL, memory.ReadUInt64(newBegin + 8));
+        Assert.Equal(otherOffer, memory.ReadUInt64(newBegin + 16));
+        Assert.Empty(Transfers());
     }
 
     [Fact]

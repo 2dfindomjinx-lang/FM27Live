@@ -11,6 +11,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
+using Fm27Editor.Core.Offsets;
 using Fm27Editor.Core.Players;
 using Fm27Editor.Core.Settings;
 
@@ -1778,7 +1779,9 @@ public sealed partial class MainWindow : Window
             Margin = new Thickness(0, 2, 6, 2),
             IsVisible = resolvedLabel.Length > 0,
         };
-        if (field.Write is null)
+        var session = backend.Session;
+        if (field.Write is null || !(session.CanWrite ||
+            field.Id == nameof(PlayerAttribute.Passing) && session.CanEdit(VerifiedWrite.Passing)))
         {
             var value = new TextBlock
             {

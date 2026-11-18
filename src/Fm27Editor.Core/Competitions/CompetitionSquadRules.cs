@@ -5,8 +5,7 @@ using Fm27Editor.Core.Players;
 
 namespace Fm27Editor.Core.Competitions;
 
-/// <summary>Snapshot of the copies FMRTE edits for a squad rule: three for a competition with a nation object,
-/// one for a competition without it (UEFA Champions League, measured 5/11/2026).</summary>
+/// <summary>A squad rule and the memory copies validated for editing, when available.</summary>
 public sealed class CompetitionSquadRules
 {
     public CompetitionRecord Competition { get; }
@@ -15,6 +14,7 @@ public sealed class CompetitionSquadRules
     public bool? IsMinimum { get; }
     /// <summary>Competition ids whose rule record holds the same value object (FMRTE's "Also Applies To").</summary>
     public IReadOnlyList<int> AlsoAppliesTo { get; }
+    public bool CanWrite => Addresses.Length > 0;
     internal ulong[] Addresses { get; }
     internal int[] Sizes { get; }
     internal IReadOnlyDictionary<(ulong Address, int Length), byte[]> Reads { get; }
@@ -53,6 +53,11 @@ public sealed class CompetitionSquadRulesAccess(IProcessMemory memory, OffsetPro
         public string Key(ulong address) => Convert.ToHexString(Bytes(address, 4));
         /// <summary>Rule records keep a direction flag at +0x1E: 1 means a minimum, 0xFF a maximum.</summary>
         public bool? Minimum(ulong rule) => U16(rule + 0x1E) switch { 1 => true, 0x00FF => false, _ => null };
+        public CompetitionRuleVariant Variant(ulong rule)
+        {
+            string condition = Key(rule);
+            return new(U16(rule + 0x1C), I(rule + 0x18), Minimum(rule), condition == "00000000" ? "" : condition);
+        }
         public ulong[] Vector(ulong header, int stride = 8)
         {
             var h = Bytes(header, 16);
@@ -76,13 +81,17 @@ public sealed class CompetitionSquadRulesAccess(IProcessMemory memory, OffsetPro
         public Dictionary<string, ulong> Node(ulong node) => Dictionary(Q(node + 8));
     }
 
-    public CompetitionSquadRules? Read(CompetitionRecord competition, IReadOnlyList<CompetitionRecord>? peers = null) => ReadRule(competition, 9, null, peers) ?? ReadFallbackMaximum(competition);
+    public CompetitionSquadRules? Read(CompetitionRecord competition, IReadOnlyList<CompetitionRecord>? peers = null) =>
+        ReadRule(competition, 9, null, peers) ??
+        (profile.Competition?.SquadRulesRuntime is null ? ReadFallbackMaximum(competition) : null);
     /// <summary>
     /// Every rule code present in the competition's rule group, without assuming a fixed list of leagues.
     /// Returns an empty list when the holder/group cannot be resolved.
     /// </summary>
     public IReadOnlyList<int> RuleCodes(CompetitionRecord competition)
     {
+        if (profile.Competition?.SquadRulesRuntime is not null)
+            return ReadVariants(competition).Select(variant => variant.Code).Distinct().OrderBy(code => code).ToArray();
         if (profile.Competition?.PrizeMoney is not { } prize || profile.Competition.Id is not { } idOffset ||
             profile.Competition.SquadRulesContainerVtableRva is null) return [];
         try
@@ -105,6 +114,8 @@ public sealed class CompetitionSquadRulesAccess(IProcessMemory memory, OffsetPro
     /// <summary>Reads the primary value for a code even when the multi-copy snapshot cannot be validated for writing.</summary>
     public int? ReadPrimaryValue(CompetitionRecord competition, int ruleCode)
     {
+        if (profile.Competition?.SquadRulesRuntime is not null)
+            return ReadRule(competition, ruleCode)?.MaximumSquadSize;
         if (profile.Competition?.PrizeMoney is not { } prize || profile.Competition.Id is not { } idOffset ||
             profile.Competition.SquadRulesContainerVtableRva is null) return null;
         try
@@ -129,6 +140,8 @@ public sealed class CompetitionSquadRulesAccess(IProcessMemory memory, OffsetPro
     /// <summary>Every rule record in the group, including same-code conditional variants. Empty when the group is unavailable.</summary>
     public IReadOnlyList<CompetitionRuleVariant> ReadVariants(CompetitionRecord competition)
     {
+        if (profile.Competition?.SquadRulesRuntime is { } runtime)
+            return ReadRuntimeVariants(competition, profile.Competition, runtime);
         if (profile.Competition?.PrizeMoney is not { } prize || profile.Competition.Id is not { } idOffset ||
             profile.Competition.SquadRulesContainerVtableRva is null) return [];
         try
@@ -143,11 +156,129 @@ public sealed class CompetitionSquadRulesAccess(IProcessMemory memory, OffsetPro
             if (groups == 0) return [];
             var group = r.Pointers(groups + 0x60).Where(p => r.B(p + 0x120) == index).ToArray();
             if (group.Length != 1) return [];
-            return r.Pointers(r.Q(group[0] + 0x70)).Select(p => new CompetitionRuleVariant(
-                (int)r.U16(p + 0x1C), r.I(p + 0x18), r.Minimum(p),
-                r.Key(p) == "00000000" ? "" : r.Key(p))).ToArray();
+            return r.Pointers(r.Q(group[0] + 0x70)).Select(r.Variant).ToArray();
         }
         catch (Exception ex) when (ex is MemoryAccessException or InvalidOperationException or OverflowException or ArgumentException) { return []; }
+    }
+
+    IReadOnlyList<CompetitionRuleVariant> ReadRuntimeVariants(CompetitionRecord competition, CompetitionOffsets c,
+        CompetitionSquadRulesRuntimeOffsets o)
+    {
+        try
+        {
+            var r = new Reader(memory);
+            return RuntimeGroup(r, competition, c, o) is { } g ? g.Rules.Select(r.Variant).Where(variant => variant.Code > 0).ToArray() : [];
+        }
+        catch (Exception ex) when (ex is MemoryAccessException or InvalidOperationException or OverflowException or ArgumentException) { return []; }
+    }
+
+    /// <summary>The runtime rule group of a competition: holder validated by vtable and back-pointer, group selected by the
+    /// holder's index and checked against the group's own index.</summary>
+    (ulong[] Rules, ulong Common, int Index)? RuntimeGroup(Reader r, CompetitionRecord competition, CompetitionOffsets c,
+        CompetitionSquadRulesRuntimeOffsets o)
+    {
+        if (c.Id is not { } idOffset) return null;
+        if (r.Q(competition.Address) != moduleBase + c.VtableRva ||
+            r.I(competition.Address + (ulong)idOffset) != competition.Id) return null;
+        ulong holder = r.Q(competition.Address + (ulong)o.Holder);
+        if (holder == 0 || r.Q(holder) != moduleBase + o.HolderVtableRva ||
+            r.Q(holder + (ulong)o.HolderCompetition) != competition.Address) return null;
+        ulong common = r.Q(holder + (ulong)o.HolderCommon);
+        if (common == 0) return null;
+        ulong groups = r.Q(common + (ulong)o.CommonGroups);
+        if (groups == 0) return null;
+        int index = unchecked((sbyte)r.B(holder + (ulong)o.HolderIndex));
+        if (index < 0) return null;
+        var slots = r.Vector(groups + (ulong)o.GroupsVector);
+        if (index >= slots.Length) return null;
+        ulong group = r.Q(slots[index]);
+        if (group == 0 || r.B(group + (ulong)o.GroupIndex) != index) return null;
+        ulong rules = r.Q(group + (ulong)o.GroupRules);
+        if (rules == 0) return null;
+        return (r.Pointers(rules), common, index);
+    }
+
+    /// <summary>
+    /// Runtime rule plus its nation-side serialized copies. Each source's <c>lrxf</c> list is searched for the record whose
+    /// <c>pmoc</c> identity is this competition; its <c>rsqs</c> entry with the code is a copy. Writable only when each
+    /// source holds at most one copy and every copy holds the runtime value (EPL: three copies; some nations keep two).
+    /// </summary>
+    CompetitionSquadRules? ReadRuntimeRule(CompetitionRecord competition, int ruleCode, CompetitionOffsets c,
+        CompetitionSquadRulesRuntimeOffsets o, Action<string>? trace, IReadOnlyList<CompetitionRecord>? peers)
+    {
+        CompetitionSquadRules? Fail(string reason) { trace?.Invoke(reason); return null; }
+        try
+        {
+            var r = new Reader(memory);
+            if (RuntimeGroup(r, competition, c, o) is not { } g) return Fail("runtime group unavailable");
+            var primary = g.Rules.Where(p => r.U16(p + 0x1C) == ruleCode).ToArray();
+            if (primary.Length != 1) return Fail($"runtime rule code 0x{ruleCode:X} matches {primary.Length}");
+            ulong primaryValue = primary[0] + 0x18;
+            int amount = r.I(primaryValue);
+            bool? isMinimum = r.Minimum(primary[0]);
+            var shared = RuntimeSharedGroup(peers, competition, o, g.Common, g.Index).OrderBy(id => id).ToList();
+            var readOnly = new CompetitionSquadRules(competition, amount, [], new Dictionary<(ulong, int), byte[]>(), isMinimum: isMinimum);
+            if (!o.HasSerialized || profile.Nation is not { ContainerVtable: { } containerVtable } nation) return readOnly;
+
+            ulong detail = r.Q(competition.Address + (ulong)o.Detail!.Value);
+            if (detail == 0)
+                return new(competition, amount, [primaryValue], r.Reads, [4], shared, isMinimum);
+            if (r.Q(detail) != moduleBase + nation.VtableRva) return Fail("detail is not a nation");
+            ulong root = r.Q(detail + (ulong)o.SerializedContainer!.Value);
+            if (root == 0 || r.Q(root) != moduleBase + containerVtable) return Fail("rules container vtable mismatch");
+
+            var sources = new List<Dictionary<string, ulong>> { r.Dictionary(root + (ulong)o.SerializedBase!.Value) };
+            sources.AddRange(r.Pointers(root + (ulong)o.SerializedNodes!.Value).Select(r.Node));
+            var copies = new List<ulong>();
+            foreach (var source in sources)
+            {
+                if (!source.TryGetValue("lrxf", out ulong list)) continue;
+                var records = r.Pointers(r.Q(list + 8)).Select(r.Node).Where(record =>
+                    record.TryGetValue("pmoc", out ulong compNode) && r.Node(compNode).TryGetValue("pmoc", out ulong valueNode) &&
+                    r.I(valueNode + 8) == competition.Id).ToArray();
+                if (records.Length > 1) return Fail("competition appears twice in one fixture list");
+                if (records.Length == 0 || !records[0].TryGetValue("rsqs", out ulong rulesNode)) continue;
+                int found = 0;
+                foreach (ulong rule in r.Pointers(r.Q(rulesNode + 8)))
+                {
+                    var fields = r.Node(rule);
+                    if (fields.TryGetValue("epyt", out ulong type) && fields.TryGetValue("ulav", out ulong value) && r.I(type + 8) == ruleCode)
+                    { copies.Add(value + 8); found++; }
+                }
+                if (found > 1) { trace?.Invoke("a source holds the code more than once; read-only"); return readOnly; }
+            }
+            trace?.Invoke($"serialized copies {copies.Count}, values {string.Join(",", copies.Select(a => r.I(a)))}");
+            if (copies.Count == 0) return new(competition, amount, [primaryValue], r.Reads, [4], shared, isMinimum);
+            var addresses = new[] { primaryValue }.Concat(copies).ToArray();
+            if (addresses.Distinct().Count() != addresses.Length || copies.Any(a => r.I(a) != amount))
+            {
+                trace?.Invoke("serialized copies do not match the runtime rule; read-only");
+                return readOnly;
+            }
+            return new(competition, amount, addresses, r.Reads, alsoAppliesTo: shared, isMinimum: isMinimum);
+        }
+        catch (Exception ex) when (ex is MemoryAccessException or InvalidOperationException or OverflowException or ArgumentException)
+        { return Fail($"exception: {ex.Message}"); }
+    }
+
+    HashSet<int> RuntimeSharedGroup(IReadOnlyList<CompetitionRecord>? peers, CompetitionRecord self,
+        CompetitionSquadRulesRuntimeOffsets o, ulong common, int index)
+    {
+        var result = new HashSet<int>();
+        if (peers is null) return result;
+        foreach (var peer in peers)
+        {
+            if (peer.Address == self.Address) continue;
+            try
+            {
+                ulong holder = memory.ReadUInt64(peer.Address + (ulong)o.Holder);
+                if (holder == 0 || memory.ReadUInt64(holder) != moduleBase + o.HolderVtableRva) continue;
+                if (memory.ReadUInt64(holder + (ulong)o.HolderCommon) != common) continue;
+                if (unchecked((sbyte)memory.Read(holder + (ulong)o.HolderIndex, 1)[0]) == index) result.Add(peer.Id);
+            }
+            catch (MemoryAccessException) { }
+        }
+        return result;
     }
 
     CompetitionSquadRules? ReadFallbackMaximum(CompetitionRecord competition)
@@ -243,6 +374,8 @@ public sealed class CompetitionSquadRulesAccess(IProcessMemory memory, OffsetPro
         IReadOnlyList<CompetitionRecord>? peers = null)
     {
         CompetitionSquadRules? Fail(string reason) { trace?.Invoke(reason); return null; }
+        if (profile.Competition?.SquadRulesRuntime is { } runtime)
+            return ReadRuntimeRule(competition, ruleCode, profile.Competition, runtime, trace, peers);
         if (profile.Competition?.PrizeMoney is not { } prize || profile.Competition.Id is not { } idOffset ||
             profile.Competition.SquadRulesContainerVtableRva is not { } containerVtable || profile.Nation is not { } nation) return Fail("profile lacks rules offsets");
         try
@@ -354,6 +487,7 @@ public sealed class CompetitionSquadRulesAccess(IProcessMemory memory, OffsetPro
 
     public void SetMany(IReadOnlyList<(CompetitionSquadRules Snapshot, int Value)> edits)
     {
+        if (edits.Any(edit => !edit.Snapshot.CanWrite)) throw new InvalidOperationException("Squad rule is read-only");
         if (edits.Any(edit => edit.Value < 0)) throw new ArgumentOutOfRangeException(nameof(edits));
         if (edits.Any(edit => edit.Snapshot.Sizes.Contains(1) && edit.Value > byte.MaxValue)) throw new ArgumentOutOfRangeException(nameof(edits));
         if (edits.SelectMany(edit => edit.Snapshot.Addresses).GroupBy(address => address).Any(group => group.Count() != 1))

@@ -26,7 +26,8 @@ public sealed class PlayerRepository(IProcessMemory memory, OffsetProfile profil
             if (p == 0 || !memory.TryRead(p, obj)) continue;
             ulong vt = BitConverter.ToUInt64(obj);
             if (!vtables.Contains(vt)) continue;
-            result.Add(reader.Decode(p, obj, (uint)(vt - moduleBase)));
+            uint rva = (uint)(vt - moduleBase);
+            if (ReadSubtypeTail(p, rva, obj)) result.Add(reader.Decode(p, obj, rva));
         }
         return result;
     }
@@ -38,8 +39,15 @@ public sealed class PlayerRepository(IProcessMemory memory, OffsetProfile profil
         if (!memory.TryRead(address, obj)) return null;
         ulong vt = BitConverter.ToUInt64(obj);
         if (!profile.PlayerVtableRvas.Any(v => moduleBase + v == vt)) return null;
-        return new PlayerReader(memory, profile) { ModuleBase = moduleBase }.Decode(address, obj, (uint)(vt - moduleBase));
+        uint rva = (uint)(vt - moduleBase);
+        if (!ReadSubtypeTail(address, rva, obj)) return null;
+        return new PlayerReader(memory, profile) { ModuleBase = moduleBase }.Decode(address, obj, rva);
     }
+
+    // Decode in canonical field order, without reading beyond the shorter record type.
+    bool ReadSubtypeTail(ulong address, uint rva, Span<byte> obj) =>
+        !profile.PlayerInsertions.TryGetValue(rva, out var insertion) ||
+        memory.TryRead(checked(address + (ulong)insertion.At + (ulong)insertion.Length), obj[insertion.At..]);
 
     ulong[] ReadPointerArray()
     {

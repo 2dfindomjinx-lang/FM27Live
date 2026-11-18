@@ -57,6 +57,7 @@ public static class CompetitionRulePresets
             if (!present.Contains(code)) { skipped.Add(new(code, "competition has no such rule")); continue; }
             var snapshot = access.ReadRule(competition, code, null, peers);
             if (snapshot is null) { skipped.Add(new(code, "no single validated value")); continue; }
+            if (!snapshot.CanWrite) { skipped.Add(new(code, "rule is read-only")); continue; }
             if (snapshot.IsMinimum == true) { skipped.Add(new(code, "minimum-type rules are never raised")); continue; }
             if (snapshot.Sizes.Contains(1) && lift > byte.MaxValue) { skipped.Add(new(code, "lift value does not fit the stored size")); continue; }
             if (snapshot.MaximumSquadSize >= lift) { skipped.Add(new(code, "already at or above the squad maximum")); continue; }

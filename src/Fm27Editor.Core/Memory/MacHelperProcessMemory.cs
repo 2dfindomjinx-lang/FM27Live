@@ -38,7 +38,7 @@ using Fm27Editor.Core.Presets;
 
 namespace Fm27Editor.Core.Memory;
 
-public sealed class MacHelperProcessMemory : IMacMemory, IMemoryRegions, IRemoteAllocator, IMemoryWriteObserver, IWriteGate, ICodePatchHost, IScatterReadMemory, IDisposable
+public sealed class MacHelperProcessMemory : IMacMemory, IMemoryRegions, IRemoteAllocator, IGameHeapAllocator, IMemoryWriteObserver, IWriteGate, ICodePatchHost, IScatterReadMemory, IDisposable
 {
     private const string SocketPath = "/var/run/fm27editor.sock";
 
@@ -68,6 +68,7 @@ public sealed class MacHelperProcessMemory : IMacMemory, IMemoryRegions, IRemote
         Pause = 11,
         Resume = 12,
         ReadMany = 13,
+        RemoteCalloc = 14,
     }
 
     private readonly object _gate = new();
@@ -415,6 +416,29 @@ public sealed class MacHelperProcessMemory : IMacMemory, IMemoryRegions, IRemote
             bool ok = ReadInt32(response, 0) == 0;
             if (ok && listener is not null && before is not null) listener(address, before, data.ToArray());
             return ok;
+        }
+    }
+
+    /// <summary>calloc(1, bytes) inside the game through the helper's RemoteCalloc op.</summary>
+    public ulong AllocateFromGameHeap(int bytes)
+    {
+        lock (_gate)
+        {
+            if (_socket == null || _disposed) throw new MemoryAccessException("The process is no longer attached");
+            if (!CanWrite) throw new InvalidOperationException("Process was opened read-only");
+            if (bytes <= 0) throw new ArgumentOutOfRangeException(nameof(bytes));
+
+            var payload = new byte[9];
+            payload[0] = (byte)Op.RemoteCalloc;
+            WriteInt32(payload, 1, _handle);
+            WriteUInt32(payload, 5, (uint)bytes);
+
+            var response = Exchange(payload);
+            if (ReadInt32(response, 0) != 0)
+                throw new MemoryAccessException($"Game heap allocation of {bytes} bytes failed: {ReadMessage(response)}");
+            ulong address = ReadUInt64(response, 4);
+            OnAllocate?.Invoke(address, bytes);
+            return address;
         }
     }
 

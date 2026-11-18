@@ -121,8 +121,9 @@ public sealed partial class MainWindow
             if (plan is not { } selectedPlan) return;
             try
             {
-                backend.Edits.Execute("Staff", selectedPlan.Staff.DisplayName, "Move", () => service.Apply(selectedPlan));
-                staffMoveUndo.Push(selectedPlan);
+                StaffMovePlan applied = selectedPlan;
+                backend.Edits.Execute("Staff", selectedPlan.Staff.DisplayName, "Move", () => applied = service.Apply(selectedPlan, session.AllocateGameBlock));
+                staffMoveUndo.Push(applied);
                 clubCache = null;
                 UpdateStaff(staff);
                 status.Text = Loc.F("Moved {0} to {1}. Continue in FM to see updates.", selectedPlan.Staff.DisplayName, selectedPlan.To.DisplayName);

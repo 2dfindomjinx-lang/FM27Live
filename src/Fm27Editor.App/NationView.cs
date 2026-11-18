@@ -862,7 +862,7 @@ internal sealed class NationScreen(IScreenHost host)
                 var source = agreements.Read(addition.SourceNation, addition.Source.Vector, continentList).FirstOrDefault(x => x.Address == addition.Source.Address);
                 if (source is null || !source.Snapshot.AsSpan().SequenceEqual(expected))
                     throw new StaleObjectException("Agreement source changed since it was selected for duplication");
-                var allocate = session.Memory is IRemoteAllocator alloc ? alloc.Allocate : (Func<int, ulong>?)null;
+                Func<int, ulong> allocate = session.AllocateGameBlock;
                 NationAgreementRow? added;
                 if (addition.EmptyHeader is { } empty)
                 {

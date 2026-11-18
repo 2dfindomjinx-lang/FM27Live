@@ -16,9 +16,10 @@ public sealed class PreferredMovesAccess(IProcessMemory memory, OffsetProfile pr
     public ulong? Read(PlayerRecord player)
     {
         if (profile.PreferredMoves is not { } at) return null;
-        var b = new byte[8];
-        if (!memory.TryRead(player.Address, b) || !profile.PlayerVtableRvas.Any(r => BitConverter.ToUInt64(b) == moduleBase + r)) return null;
-        return memory.TryRead(player.Address + (ulong)at, b) ? BitConverter.ToUInt64(b) : null;
+        var owner = PersonOwner.Of(player, profile);
+        if (!owner.IsValid(memory, moduleBase)) return null;
+        Span<byte> b = stackalloc byte[8];
+        return memory.TryRead(owner.At(at), b) ? BitConverter.ToUInt64(b) : null;
     }
 
     /// <summary>Writes <paramref name="moves"/> (bits 0–60 only) if RAM still holds <paramref name="current"/>; other bits are kept.</summary>
@@ -28,7 +29,7 @@ public sealed class PreferredMovesAccess(IProcessMemory memory, OffsetProfile pr
         int at = profile.PreferredMoves ?? throw new InvalidOperationException("Profile has no preferred moves offset");
         if (Read(player) != current) throw new StaleObjectException("Preferred moves changed since they were read");
         var next = BitConverter.GetBytes((current & ~Editable) | moves);
-        ulong address = player.Address + (ulong)at;
+        ulong address = PersonOwner.Of(player, profile).At(at);
         if (!memory.TryWrite(address, next) || !memory.Read(address, 8).AsSpan().SequenceEqual(next))
             throw new MemoryAccessException("Could not write preferred moves");
     }

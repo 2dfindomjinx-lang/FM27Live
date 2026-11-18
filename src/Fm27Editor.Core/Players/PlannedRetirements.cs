@@ -77,12 +77,13 @@ public sealed class PlannedRetirements(IProcessMemory memory, OffsetProfile prof
 
     public uint PersonId(PlayerRecord player)
     {
+        var owner = PersonOwner.Of(player, profile);
         if (player.Id is not > 0 || profile.Fields.Id is not { } offset ||
             memory.ReadUInt64(player.Address) != moduleBase + player.VtableRva ||
             !profile.PlayerVtableRvas.Contains(player.VtableRva) ||
-            BitConverter.ToInt32(memory.Read(player.Address + (ulong)offset, 4)) != player.Id)
+            BitConverter.ToInt32(memory.Read(owner.At(offset), 4)) != player.Id)
             throw new StaleObjectException("Player changed since it was read");
-        return BitConverter.ToUInt32(memory.Read(player.Address + (ulong)WorkPermitTable.PersonIndexFor(profile), 4));
+        return BitConverter.ToUInt32(memory.Read(owner.At(WorkPermitTable.PersonIndexFor(profile)), 4));
     }
 
     static (ulong Begin, int Count) Header(byte[] bytes, int width)

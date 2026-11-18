@@ -285,7 +285,8 @@ internal sealed class CompetitionScreen(IScreenHost host)
         var positionFields = classification?.Amounts.Select((value, index) => Field(draft.Positions?.GetValueOrDefault(index + 1) ?? value.ToString(Inv), 132, true)).ToArray() ?? [];
         var classificationEnabled = classification is null ? null : new CheckBox { IsChecked = draft.ClassificationEnabled ?? (classification.Amounts.Count > 0) };
         var commonRuleFields = new List<(int Code, string Label, CompetitionSquadRules? Snapshot, TextBox Box)>();
-        if (session.Profile.Competition?.SquadRulesContainerVtableRva is not null)
+        if (session.Profile.Competition is { } offsets &&
+            (offsets.SquadRulesContainerVtableRva is not null || offsets.SquadRulesRuntime is not null))
         {
             var ruleCodes = session.CompetitionSquadRules.RuleCodes(c).ToArray();
             if (ruleCodes.Length == 0) ruleCodes = CommonRuleLabels.Keys.ToArray();
@@ -298,10 +299,10 @@ internal sealed class CompetitionScreen(IScreenHost host)
                 else
                 {
                     snapshot = session.CompetitionSquadRules.ReadRule(c, code, null, peers);
-                    if (snapshot is not null) state.CommonRules[code] = snapshot; else state.CommonRules.Remove(code);
+                    if (snapshot is { CanWrite: true }) state.CommonRules[code] = snapshot; else state.CommonRules.Remove(code);
                 }
                 string label = RuleLabel(code, snapshot?.IsMinimum);
-                if (snapshot is not null)
+                if (snapshot is { CanWrite: true })
                 {
                     commonRuleFields.Add((code, label, snapshot, Field(draft.CommonRules?.GetValueOrDefault(code) ?? snapshot.MaximumSquadSize.ToString(Inv), 116, true)));
                     continue;
@@ -316,7 +317,7 @@ internal sealed class CompetitionScreen(IScreenHost host)
                         if (variant.Condition.Length > 0) variantLabel += " — " + ConditionLabel(variant.Condition);
                         var variantBox = Field(variant.Value.ToString(Inv), 116, true);
                         variantBox.IsReadOnly = true;
-                        ToolTip.SetTip(variantBox, Loc.S(variant.Condition.Length > 0
+                        ToolTip.SetTip(variantBox, Loc.S(snapshot is { CanWrite: false } ? "Read-only" : variant.Condition.Length > 0
                             ? "Read-only: conditional variant; the game keeps more than one value for this rule."
                             : "Read-only: the game has no single validated value for this rule."));
                         commonRuleFields.Add((code, variantLabel, null, variantBox));
@@ -333,7 +334,7 @@ internal sealed class CompetitionScreen(IScreenHost host)
             // A competition with no explicit maximum rule can still carry one in the fallback structure. Keep the old
             // "Maximum squad size" field for those, rather than silently dropping it from the generic list.
             if (commonRuleFields.All(item => item.Code != 0x09) &&
-                session.CompetitionSquadRules.Read(c, peers) is { } fallbackMaximum)
+                session.CompetitionSquadRules.Read(c, peers) is { CanWrite: true } fallbackMaximum)
             {
                 state.CommonRules[0x09] = fallbackMaximum;
                 commonRuleFields.Add((0x09, RuleLabel(0x09, false), fallbackMaximum,

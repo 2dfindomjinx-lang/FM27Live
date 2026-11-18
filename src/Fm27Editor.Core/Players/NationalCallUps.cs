@@ -10,7 +10,7 @@ namespace Fm27Editor.Core.Players;
 /// football object (<c>[nation+0x108]</c>) and +<see cref="Squad"/> the squad vector of player pointers. FMRTE 27 swapping
 /// Bruno Fernandes with Fábio Vieira (2/11/2026) rewrote only Bruno's slot in Portugal's squad, with Vieira's pointer.
 /// </summary>
-public sealed record CallUpOffsets(uint ListRva, uint Vtable, int Nation, int Squad)
+public sealed record CallUpOffsets(uint ListRva, uint Vtable, int Nation, int Squad, uint? ContainerVtable = null, int? ContainerNation = null)
 {
     static readonly string[] Keys = ["listRva", "vtable", "nation", "squad"];
 
@@ -18,7 +18,13 @@ public sealed record CallUpOffsets(uint ListRva, uint Vtable, int Nation, int Sq
     {
         long[] v = Keys.Select(key => Convert.ToInt64(e.GetProperty(key).GetString() is { } s && s.StartsWith("0x")
             ? s[2..] : throw new FormatException($"player.callUps.{key}: expected hex"), 16)).ToArray();
-        return new((uint)v[0], (uint)v[1], (int)v[2], (int)v[3]);
+        uint? containerVtable = e.TryGetProperty("containerVtable", out var cv) && cv.GetString() is { } cvs && cvs.StartsWith("0x")
+            ? Convert.ToUInt32(cvs[2..], 16) : null;
+        int? containerNation = e.TryGetProperty("containerNation", out var cn) && cn.GetString() is { } cns && cns.StartsWith("0x")
+            ? Convert.ToInt32(cns[2..], 16) : null;
+        if (containerVtable is null != containerNation is null)
+            throw new FormatException("player.callUps: containerVtable and containerNation must be set together");
+        return new((uint)v[0], (uint)v[1], (int)v[2], (int)v[3], containerVtable, containerNation);
     }
 
     internal void Write(Utf8JsonWriter w)
@@ -26,6 +32,8 @@ public sealed record CallUpOffsets(uint ListRva, uint Vtable, int Nation, int Sq
         long[] v = [ListRva, Vtable, Nation, Squad];
         w.WriteStartObject("callUps");
         for (int i = 0; i < Keys.Length; i++) w.WriteString(Keys[i], $"0x{v[i]:X}");
+        if (ContainerVtable is { } cvt) w.WriteString("containerVtable", $"0x{cvt:X}");
+        if (ContainerNation is { } cn) w.WriteString("containerNation", $"0x{cn:X}");
         w.WriteEndObject();
     }
 }
@@ -76,10 +84,15 @@ public sealed class NationalCallUpReader(IProcessMemory memory, OffsetProfile pr
             ulong sb = BitConverter.ToUInt64(head, o.Squad), se = BitConverter.ToUInt64(head, o.Squad + 8);
             if (sb == 0 || se <= sb || (se - sb) % 8 != 0 || (se - sb) / 8 > MaxSquad) continue;
             var squad = memory.Read(sb, (int)(se - sb));
+            ulong teamNation = BitConverter.ToUInt64(head, o.Nation);
+            if (o.ContainerVtable is { } cvt && o.ContainerNation is { } cno
+                && Q(teamNation, out ulong containerVt) && containerVt == moduleBase + cvt
+                && Q(teamNation + (ulong)cno, out ulong nation) && nation != 0)
+                teamNation = nation;
             for (int k = 0; k < squad.Length; k += 8)
             {
                 ulong p = BitConverter.ToUInt64(squad, k);
-                if (p != 0) map.TryAdd(p, new(team, BitConverter.ToUInt64(head, o.Nation), sb + (ulong)k, p));
+                if (p != 0) map.TryAdd(p, new(team, teamNation, sb + (ulong)k, p));
             }
         }
         return map;

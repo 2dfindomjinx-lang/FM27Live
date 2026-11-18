@@ -351,7 +351,7 @@ public sealed class WorkPermitTable(IProcessMemory memory, OffsetProfile profile
     {
         ulong at = Locate();
         ulong b = memory.ReadUInt64(at), e = memory.ReadUInt64(at + 8);
-        uint person = BitConverter.ToUInt32(memory.Read(player.Address + (ulong)PersonIndex, 4));
+        uint person = ReadPersonIndex(player);
         var pointers = memory.Read(b, (int)(e - b));
         var result = new List<WorkPermitGrant>();
         // The table is kept sorted by person index (the game's own order; Add inserts in place), so the player's records are
@@ -394,7 +394,7 @@ public sealed class WorkPermitTable(IProcessMemory memory, OffsetProfile profile
         RequirePlayer(player);
         ulong at = Locate();
         ulong b = memory.ReadUInt64(at), e = memory.ReadUInt64(at + 8), c = memory.ReadUInt64(at + 16);
-        uint person = BitConverter.ToUInt32(memory.Read(player.Address + (ulong)PersonIndex, 4));
+        uint person = ReadPersonIndex(player);
         var pointers = memory.Read(b, (int)(e - b));
         int position = FirstAbove(pointers, person);
         var record = new byte[RecordSize];
@@ -438,7 +438,7 @@ public sealed class WorkPermitTable(IProcessMemory memory, OffsetProfile profile
         for (int i = 0; i < pointers.Length; i += 8) if (BitConverter.ToUInt64(pointers, i) == grant.Record) { index = i / 8; break; }
         if (index < 0) throw new StaleObjectException("The work permit is no longer in the table");
         var record = memory.Read(grant.Record, RecordSize);
-        if (BitConverter.ToUInt32(record, 8) != BitConverter.ToUInt32(memory.Read(player.Address + (ulong)PersonIndex, 4)))
+        if (BitConverter.ToUInt32(record, 8) != ReadPersonIndex(player))
             throw new StaleObjectException("The work permit belongs to another player");
         if (grant.Snapshot.Length != RecordSize * 2 || !record.AsSpan().SequenceEqual(Convert.FromHexString(grant.Snapshot)))
             throw new StaleObjectException("The work permit changed since it was read");
@@ -458,7 +458,7 @@ public sealed class WorkPermitTable(IProcessMemory memory, OffsetProfile profile
         RequireMember(grant.Record);
         var record = memory.Read(grant.Record, RecordSize);
         if (BitConverter.ToUInt16(record, 0x16) != 1 || BitConverter.ToUInt64(record) != grant.Nation ||
-            BitConverter.ToUInt32(record, 8) != BitConverter.ToUInt32(memory.Read(player.Address + (ulong)PersonIndex, 4)))
+            BitConverter.ToUInt32(record, 8) != ReadPersonIndex(player))
             throw new StaleObjectException("The work permit changed since it was read");
         ulong main = Locate(), review = main + 0x60;
         ulong b = memory.ReadUInt64(review), e = memory.ReadUInt64(review + 8);
@@ -481,7 +481,7 @@ public sealed class WorkPermitTable(IProcessMemory memory, OffsetProfile profile
         RequireMember(grant.Record);
         var record = memory.Read(grant.Record, RecordSize);
         if (grant.Snapshot.Length != RecordSize * 2 || !record.AsSpan().SequenceEqual(Convert.FromHexString(grant.Snapshot)) ||
-            BitConverter.ToUInt32(record, 8) != BitConverter.ToUInt32(memory.Read(player.Address + (ulong)PersonIndex, 4)))
+            BitConverter.ToUInt32(record, 8) != ReadPersonIndex(player))
             throw new StaleObjectException("The work permit changed since it was read");
         Put(grant.Record + 0x10, BitConverter.GetBytes((ushort)year));
     }
@@ -498,9 +498,12 @@ public sealed class WorkPermitTable(IProcessMemory memory, OffsetProfile profile
         throw new StaleObjectException("The work permit is no longer in the table");
     }
 
+    uint ReadPersonIndex(PlayerRecord player) =>
+        BitConverter.ToUInt32(memory.Read(PersonOwner.Of(player, profile).At(PersonIndex), 4));
+
     void SetFlag(PlayerRecord player, bool on)
     {
-        ulong at = player.Address + (ulong)Flags;
+        ulong at = PersonOwner.Of(player, profile).At(Flags);
         byte current = memory.Read(at, 1)[0];
         byte next = (byte)(on ? current | HasPermitBit : current & ~HasPermitBit);
         if (next != current) Put(at, [next]);
@@ -508,7 +511,7 @@ public sealed class WorkPermitTable(IProcessMemory memory, OffsetProfile profile
 
     void RequirePlayer(PlayerRecord player)
     {
-        if (!profile.PlayerVtableRvas.Any(r => memory.ReadUInt64(player.Address) == moduleBase + r))
+        if (!PersonOwner.Of(player, profile).IsValid(memory, moduleBase))
             throw new StaleObjectException($"{player.DisplayName} changed since it was read");
     }
 

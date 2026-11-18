@@ -20,6 +20,9 @@ public sealed record ProposalOffsets(uint ListRootRva, int ListOffset, int Perso
     uint? ManagerRva = null, uint? ManagerVtable = null, int OfferVector = 0x20,
     int OfferSerial = 0x7D4, int? ChangedFlag = 0x50)
 {
+    /// <summary>The primary list is the manager's ID-indexed vector rather than a separate compact list.</summary>
+    internal bool ListIsIndexed => ManagerVtable is not null && ManagerRva == ListRootRva && OfferVector == ListOffset;
+
     static readonly string[] Keys = ["listRootRva", "listOffset", "person", "buyer", "seller", "value", "id", "status", "playerIds",
         "transferVtable", "loanVtable", "trialVtable", "bClubMoveVtable"];
 
@@ -76,7 +79,7 @@ public sealed class TransferProposalReader(IProcessMemory memory, OffsetProfile 
         var vector = OfferVector(o);
         if (vector.Valid && vector.Count == 0) return [];
         var persons = new Dictionary<ulong, (string Name, int? Id)>();
-        foreach (var player in players) persons.TryAdd(player.Address + (ulong)rel.PlayerPerson, (player.DisplayName, player.Id));
+        foreach (var player in players) persons.TryAdd(PersonOwner.Of(player, profile).At(rel.PlayerPerson), (player.DisplayName, player.Id));
         foreach (var person in staff) persons.TryAdd(person.Address, (person.DisplayName, person.Id));
         // New builds point offer.person at the player's database object instead of the person part,
         // so match those offers back through the players' own id lists.
@@ -104,9 +107,8 @@ public sealed class TransferProposalReader(IProcessMemory memory, OffsetProfile 
         var result = new Dictionary<int, (string Name, int? Id)>();
         foreach (var player in players)
         {
-            if (!Q(player.Address + (ulong)o.PlayerIds, out ulong header) || header == 0) continue;
-            if (!Q(header, out ulong begin) || !Q(header + 8, out ulong end) || begin == 0 || end < begin || (end - begin) % 4 != 0 || (end - begin) / 4 > MaxIds) continue;
-            var ids = memory.Read(begin, (int)(end - begin));
+            if (OfferIdRange(player, o) is not { } range) continue;
+            var ids = memory.Read(range.Begin, range.Length);
             for (int i = 0; i + 4 <= ids.Length; i += 4)
                 result.TryAdd(BitConverter.ToInt32(ids, i), (player.DisplayName, player.Id));
         }
@@ -139,11 +141,8 @@ public sealed class TransferProposalReader(IProcessMemory memory, OffsetProfile 
     /// <summary>The offers the player's id list names, in that order; all statuses.</summary>
     public IReadOnlyList<TransferProposal> Read(PlayerRecord player)
     {
-        if (profile.Proposals is not { } o || !Q(player.Address, out ulong vt) || !profile.PlayerVtableRvas.Any(r => vt == moduleBase + r)) return [];
-        if (!Q(player.Address + (ulong)o.PlayerIds, out ulong header) || header == 0) return [];
-        if (!Q(header, out ulong begin) || !Q(header + 8, out ulong end) || begin == 0 || end < begin || (end - begin) % 4 != 0 || (end - begin) / 4 > MaxIds) return [];
-        var ids = memory.Read(begin, (int)(end - begin));
-        if (ids.Length == 0) return [];
+        if (profile.Proposals is not { } o || OfferIdRange(player, o) is not { } range) return [];
+        var ids = memory.Read(range.Begin, range.Length);
         if (OfferVector(o) is (true, var offersBegin, var offersCount))
         {
             var direct = new List<TransferProposal>();
@@ -163,6 +162,20 @@ public sealed class TransferProposalReader(IProcessMemory memory, OffsetProfile 
         for (int i = 0; i < ids.Length; i += 4)
             if (offers.TryGetValue(BitConverter.ToInt32(ids, i), out ulong offer) && ReadOffer(offer) is { } p) result.Add(p);
         return result;
+    }
+
+    /// <summary>Checks the player's offer ID vector without loading or scanning the global offers.</summary>
+    public bool HasOfferIds(PlayerRecord player) =>
+        profile.Proposals is { } o && OfferIdRange(player, o) is not null;
+
+    (ulong Begin, int Length)? OfferIdRange(PlayerRecord player, ProposalOffsets o)
+    {
+        var owner = PersonOwner.Of(player, profile);
+        if (!owner.IsValid(memory, moduleBase) || !Q(owner.At(o.PlayerIds), out ulong header) || header == 0 ||
+            !Q(header, out ulong begin) || !Q(header + 8, out ulong end) || begin == 0 || end <= begin ||
+            (end - begin) % 4 != 0 || (end - begin) / 4 > MaxIds)
+            return null;
+        return (begin, (int)(end - begin));
     }
 
     public TransferProposal? ReadOffer(ulong offer)

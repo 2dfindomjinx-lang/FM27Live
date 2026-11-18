@@ -1,3 +1,4 @@
+using Fm27Editor.Core.Game;
 using Fm27Editor.Core.Memory;
 using Fm27Editor.Core.Offsets;
 using Fm27Editor.Core.Players;
@@ -10,6 +11,40 @@ namespace Fm27Editor.Core.Tests;
 /// </summary>
 public class ContractWriterTests
 {
+    [Fact]
+    public void Player_staff_contract_uses_shifted_identity_pointer_and_joined_date()
+    {
+        var profile = GameSession.BuiltInProfiles().Single(profile => profile.Build == "27.1.0+2505117-mac");
+        var memory = new FakeMemory();
+        const ulong playerAddress = 0x200000, contractAddress = 0x300000;
+        var playerBytes = memory.Map(playerAddress, 0x4A0);
+        var contractBytes = memory.Map(contractAddress, 0xC8);
+        TestWorld.Set64(playerBytes, 0, TestWorld.ModuleBase + 0x565B3B8);
+        TestWorld.Set64(playerBytes, 0x3E8, contractAddress);
+        TestWorld.Set16(playerBytes, 0x45C, 0x20B6); // 1 July 2025, day 182 with a date flag
+        TestWorld.Set16(playerBytes, 0x45E, 2025);
+        BitConverter.GetBytes(45678).CopyTo(playerBytes, 0x48C);
+        TestWorld.Set64(contractBytes, 0, TestWorld.ModuleBase + 0x56781E8);
+        BitConverter.GetBytes(400).CopyTo(contractBytes, 0x20);
+
+        var player = new PlayerRepository(memory, profile, TestWorld.ModuleBase).Reload(playerAddress)!;
+        var writer = new ContractWriter(memory, profile, TestWorld.ModuleBase);
+        var details = Assert.IsType<ContractDetails>(writer.Read(player));
+        Assert.Equal(45678, player.Id);
+        Assert.Equal(contractAddress, details.Address);
+        Assert.Equal(400, details.Wage);
+        Assert.Equal(new DateOnly(2025, 7, 1), details.JoinedClub);
+
+        writer.SetJoinedClub(player, details, new DateOnly(2025, 7, 2));
+        Assert.Equal(new byte[] { 0xB7, 0x20, 0xE9, 0x07 }, memory.Read(playerAddress + 0x45C, 4));
+        Assert.Equal(new byte[4], memory.Read(playerAddress + 0x364, 4));
+
+        Assert.True(memory.TryWrite(playerAddress + 0x48C, BitConverter.GetBytes(45679)));
+        int writes = memory.Writes;
+        Assert.Throws<StaleObjectException>(() => writer.SetWage(player, 500));
+        Assert.Equal(writes, memory.Writes);
+    }
+
     [Theory]
     [InlineData(32, -500, -1)]
     [InlineData(3, -1, 32000)]

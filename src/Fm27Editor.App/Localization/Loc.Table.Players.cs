@@ -316,8 +316,7 @@ public static partial class Loc
         m["Save the promise edits first"] = "Hãy lưu chỉnh sửa lời hứa trước";
         m["Promises: enter dates like {0}"] = "Lời hứa: nhập ngày dạng {0}";
         m["Saved promises. Continue in FM to see updates."] = "Đã lưu lời hứa. Nhấn Continue trong FM để thấy cập nhật.";
-        m["Added a promise. Its record lives outside the game's allocator; keep a backup of the save. Continue in FM to see updates."] =
-            "Đã thêm lời hứa. Bản ghi nằm ngoài bộ cấp phát của game; hãy sao lưu file save. Nhấn Continue trong FM để thấy cập nhật.";
+        m["Added a promise. Continue in FM to see updates."] = "Đã thêm lời hứa. Nhấn Continue trong FM để thấy cập nhật.";
         m["Removed the promise. Continue in FM to see updates."] = "Đã xóa lời hứa. Nhấn Continue trong FM để thấy cập nhật.";
         m["Unknown promise type"] = "Loại lời hứa không xác định";
         m["A promise needs a manager and a club"] = "Lời hứa cần có HLV trưởng và CLB";

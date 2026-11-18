@@ -14,16 +14,18 @@ public sealed class CurrentLoanReader(IProcessMemory memory, OffsetProfile profi
     public CurrentLoanInspection Read(PlayerRecord player)
     {
         var missing = new CurrentLoanInspection(CurrentLoanStatus.Unavailable, null, 0);
+        var owner = PersonOwner.Of(player, profile);
         if (profile.FutureTransfers is not { CurrentLoanHolder: { } offset } ||
-            !Q(player.Address, out var vt) || !profile.PlayerVtableRvas.Any(x => vt == moduleBase + x) ||
-            !Q(player.Address + (ulong)offset, out var holder)) return missing;
+            !owner.IsValid(memory, moduleBase)) return missing;
+        ulong slot = owner.At(offset);
+        if (!Q(slot, out var holder)) return missing;
         if (holder == 0) return new(CurrentLoanStatus.Absent, null, 0);
         if (!Q(holder, out var address) || address == 0) return missing;
         var contract = new FutureTransferReader(memory, profile, moduleBase).ReadContract(address, 0);
         var bytes = new byte[0xD4];
         if (contract is not { Loan: true } || !Q(address + 0x10, out var team) || team == 0 ||
             !memory.TryRead(address, bytes) || !bytes.AsSpan(0, Convert.FromHexString(contract.Snapshot).Length).SequenceEqual(Convert.FromHexString(contract.Snapshot)) ||
-            !Q(player.Address + (ulong)offset, out var holderAfter) || holderAfter != holder ||
+            !Q(slot, out var holderAfter) || holderAfter != holder ||
             !Q(holder, out var addressAfter) || addressAfter != address) return missing;
         int agreed = BitConverter.ToInt32(bytes, 0xC0), buyBack = BitConverter.ToInt32(bytes, 0xC8);
         return new(CurrentLoanStatus.Present, contract, team, new(agreed, buyBack,

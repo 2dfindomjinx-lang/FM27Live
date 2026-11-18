@@ -92,9 +92,9 @@ public sealed class PlayerWriter(IProcessMemory memory, OffsetProfile profile, u
         if (!profile.PlayerVtableRvas.Any(v => moduleBase + v == vt) || vt != moduleBase + player.VtableRva)
             throw new StaleObjectException($"0x{player.Address:X} is no longer a player object");
         if (profile.Fields.Id is { } idOffset && player.Id is > 0 &&
-            BitConverter.ToInt32(memory.Read(player.Address + (ulong)idOffset, 4)) != player.Id)
+            BitConverter.ToInt32(memory.Read(player.Address + (ulong)profile.PlayerOffset(player.VtableRva, idOffset), 4)) != player.Id)
             throw new StaleObjectException($"Player identity at 0x{player.Address:X} changed");
-        ulong address = player.Address + (ulong)offset;
+        ulong address = checked(player.Address + (ulong)profile.PlayerOffset(player.VtableRva, offset));
         var current = memory.Read(address, expected.Length);
         if (!current.AsSpan().SequenceEqual(expected))
             throw new StaleObjectException($"Value at 0x{address:X} changed since it was read");

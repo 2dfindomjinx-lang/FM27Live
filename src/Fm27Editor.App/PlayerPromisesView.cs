@@ -166,8 +166,8 @@ public sealed partial class MainWindow
             if (manager == 0 || team == 0) { status.Text = Loc.F("{0} has no club manager to make the promise", player.DisplayName); return; }
             if (session.ReadGameDate() is not { } today) { status.Text = Loc.S("The game date could not be read"); return; }
             var values = new PromiseValues(1, today, today.AddDays(91), -1, 0);
-            Change(() => store.Add(owner, manager, team, values, ((Fm27Editor.Core.Memory.IRemoteAllocator)session.Memory).Allocate),
-                Loc.S("Added a promise. Its record lives outside the game's allocator; keep a backup of the save. Continue in FM to see updates."));
+            Change(() => store.Add(owner, manager, team, values, session.AllocateGameBlock),
+                Loc.S("Added a promise. Continue in FM to see updates."));
         };
         panel.Children.Add(add);
 
@@ -210,7 +210,7 @@ public sealed partial class MainWindow
     }
 
     static ulong PersonAddressOf(Fm27Editor.Core.Game.GameSession session, PlayerRecord player) =>
-        player.Address + (ulong)WorkPermitTable.PersonPartFor(session.Profile);
+        session.Owner(player).At(WorkPermitTable.PersonPartFor(session.Profile));
 
     static string Day(DateOnly? d) => DateSetting.Format(d);
 

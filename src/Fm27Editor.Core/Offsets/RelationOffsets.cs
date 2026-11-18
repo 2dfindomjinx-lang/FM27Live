@@ -275,11 +275,30 @@ public sealed class CompetitionOffsets
     /// <summary>Prize Money path and vtables verified against FMRTE on this build.</summary>
     public CompetitionPrizeOffsets? PrizeMoney { get; init; }
     public uint? SquadRulesContainerVtableRva { get; init; }
+    public CompetitionSquadRulesRuntimeOffsets? SquadRulesRuntime { get; init; }
+}
+
+/// <summary>Read-only fixture rules selected by the index on the runtime competition holder.</summary>
+/// <remarks>The optional <c>serialized*</c> keys locate the nation-side copies the game also keeps of each rule:
+/// competition + <see cref="Detail"/> is the nation, nation + <see cref="SerializedContainer"/> the rules container, whose
+/// dictionary at <see cref="SerializedBase"/> and node vector at <see cref="SerializedNodes"/> hold <c>lrxf</c> fixture lists.
+/// A rule is writable only when every source that lists the competition holds exactly one copy and every copy equals the runtime value.</remarks>
+public sealed record CompetitionSquadRulesRuntimeOffsets(int Holder, uint HolderVtableRva, int HolderCompetition,
+    int HolderIndex, int HolderCommon, int CommonGroups, int GroupsVector, int GroupIndex, int GroupRules,
+    int? Detail = null, int? SerializedContainer = null, int? SerializedBase = null, int? SerializedNodes = null)
+{
+    public bool HasSerialized => Detail is not null && SerializedContainer is not null && SerializedBase is not null &&
+        SerializedNodes is not null;
 }
 
 public sealed record CompetitionPrizeOffsets(int Holder, int Stages, int StageOwner, int StagePrize,
     int PerWin, int PerDraw, int PerDefeat, int Classification,
-    uint HolderVtableRva, uint StageVtableRva, uint PrizeVtableRva);
+    uint HolderVtableRva, uint StageVtableRva, uint PrizeVtableRva)
+{
+    /// <summary>Stage classes to heap-scan when the holder chain is unavailable (Mac 27.1.0 keeps no stage vector
+    /// on the competition). Empty means the holder vector is the only source.</summary>
+    public IReadOnlyList<uint> StageVtables { get; init; } = [];
+}
 
 /// <summary>
 /// Award object (FMRTE 27's Award page): game-wide pointer vector at [module + ListRootRva] + ListOffset (263 on 3/11/2026).

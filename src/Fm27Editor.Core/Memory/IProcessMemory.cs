@@ -39,6 +39,16 @@ public interface IRemoteAllocator
     ulong Allocate(int bytes);
 }
 
+/// <summary>
+/// Optional capability: zeroed memory from the game's own heap (<c>calloc</c> inside the process), for records and
+/// vector buffers the game will later <c>free</c>. A block from <see cref="IRemoteAllocator"/> is a raw VM region and
+/// makes the game abort when it frees it (macOS: "pointer being freed was not allocated", 19/11/2026).
+/// </summary>
+public interface IGameHeapAllocator
+{
+    ulong AllocateFromGameHeap(int bytes);
+}
+
 /// <summary>Optional capability: tells a listener about writes and fresh blocks, so an edit history can follow them.</summary>
 public interface IMemoryWriteObserver
 {

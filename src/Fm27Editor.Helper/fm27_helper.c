@@ -28,8 +28,14 @@
  *  11 Pause(handle:i32)                     -> token:u32
  *  12 Resume(handle:i32)
  *  13 ReadMany(handle:i32, count:u32, [addr:u64, len:u32]) -> count:u32, [status:i32, len:u32, data]
+ *  14 RemoteCalloc(handle:i32, bytes:u32)   -> addr:u64
+ *     calloc(1, bytes) inside the target, so the game can later free() the block with its own allocator.
+ *     A raw Mach thread runs a small stub that starts a pthread (pthread_create_from_mach_thread); the pthread
+ *     calls calloc and stores the result. calloc and pthread_create_from_mach_thread are resolved here and used at
+ *     the same address in the target (one dyld shared cache per boot); their first bytes are compared first.
  */
 
+#include <dlfcn.h>
 #include <errno.h>
 #include <launch.h>
 #include <mach/mach.h>
@@ -79,7 +85,8 @@ enum
     OP_DYLD_INFO = 10,
     OP_PAUSE = 11,
     OP_RESUME = 12,
-    OP_READ_MANY = 13
+    OP_READ_MANY = 13,
+    OP_REMOTE_CALLOC = 14
 };
 
 typedef struct
@@ -98,6 +105,9 @@ typedef struct
     int paused;
     thread_act_array_t threads;
     mach_msg_type_number_t thread_count;
+    uint64_t calloc_data;      /* read/write block: function pointers, arguments, result and flags */
+    uint64_t calloc_code;      /* read/execute copy of k_calloc_stub */
+    uint64_t calloc_stack_top; /* top of the Mach thread's stack */
 } task_slot;
 
 typedef struct
@@ -839,6 +849,167 @@ static void op_allocate(int fd, reader *r)
     free(out.data);
 }
 
+/* ------------------------------------------------------------ remote calloc */
+
+/* Assembled with clang -arch arm64 from:
+ *   entry (x0 = data): mov x19,x0; add x0,x19,#0x30; mov x1,#0; adr x2,worker; mov x3,x19; ldr x8,[x19,#8]; blr x8;
+ *                      add x9,x19,#0x2C; mov w8,#1; stlr w8,[x9]; 1: wfe; b 1b
+ *   worker (x0 = data): stp x29,x30,[sp,#-32]!; mov x29,sp; str x19,[sp,#16]; mov x19,x0; ldr x0,[x19,#0x10];
+ *                      ldr x1,[x19,#0x18]; ldr x8,[x19]; blr x8; str x0,[x19,#0x20]; add x9,x19,#0x28; mov w8,#1;
+ *                      stlr w8,[x9]; ldr x19,[sp,#16]; ldp x29,x30,[sp],#32; mov x0,#0; ret
+ * Data: +0 calloc, +8 pthread_create_from_mach_thread, +0x10 nmemb, +0x18 size, +0x20 result,
+ *       +0x28 worker done, +0x2C creator done, +0x30 pthread_t. */
+static const uint32_t k_calloc_stub[] = {
+    0xAA0003F3, 0x9100C260, 0xD2800001, 0x10000122, 0xAA1303E3, 0xF9400668, 0xD63F0100, 0x9100B269,
+    0x52800028, 0x889FFD28, 0xD503205F, 0x17FFFFFF, 0xA9BE7BFD, 0x910003FD, 0xF9000BF3, 0xAA0003F3,
+    0xF9400A60, 0xF9400E61, 0xF9400268, 0xD63F0100, 0xF9001260, 0x9100A269, 0x52800028, 0x889FFD28,
+    0xF9400BF3, 0xA8C27BFD, 0xD2800000, 0xD65F03C0};
+
+#define CALLOC_PAGE 0x4000ULL
+#define CALLOC_STACK 0x40000ULL
+#define CALLOC_TIMEOUT_MS 3000
+
+static int same_code(task_t task, const void *local, char *error, size_t error_len, const char *name)
+{
+    uint8_t remote[32];
+    mach_vm_size_t got = 0;
+    kern_return_t kr = mach_vm_read_overwrite(task, (mach_vm_address_t)(uintptr_t)local, sizeof remote,
+                                              (mach_vm_address_t)(uintptr_t)remote, &got);
+    if (kr != KERN_SUCCESS || got != sizeof remote || memcmp(remote, local, sizeof remote) != 0)
+    {
+        snprintf(error, error_len, "%s is not at the same address in the target (kern_return_t %d)", name, (int)kr);
+        return 0;
+    }
+    return 1;
+}
+
+static int ensure_calloc_cave(task_slot *s, char *error, size_t error_len)
+{
+    if (s->calloc_code != 0)
+        return 1;
+    void *calloc_fn = dlsym(RTLD_DEFAULT, "calloc");
+    void *create_fn = dlsym(RTLD_DEFAULT, "pthread_create_from_mach_thread");
+    if (calloc_fn == NULL || create_fn == NULL)
+    {
+        snprintf(error, error_len, "calloc or pthread_create_from_mach_thread not found");
+        return 0;
+    }
+    if (!same_code(s->task, calloc_fn, error, error_len, "calloc") ||
+        !same_code(s->task, create_fn, error, error_len, "pthread_create_from_mach_thread"))
+        return 0;
+
+    mach_vm_address_t data = 0, code = 0, stack = 0;
+    kern_return_t kr = mach_vm_allocate(s->task, &data, CALLOC_PAGE, VM_FLAGS_ANYWHERE);
+    if (kr == KERN_SUCCESS) kr = mach_vm_allocate(s->task, &code, CALLOC_PAGE, VM_FLAGS_ANYWHERE);
+    if (kr == KERN_SUCCESS) kr = mach_vm_allocate(s->task, &stack, CALLOC_STACK, VM_FLAGS_ANYWHERE);
+    if (kr == KERN_SUCCESS)
+        kr = mach_vm_write(s->task, code, (vm_offset_t)k_calloc_stub, (mach_msg_type_number_t)sizeof k_calloc_stub);
+    if (kr == KERN_SUCCESS)
+        kr = mach_vm_protect(s->task, code, CALLOC_PAGE, FALSE, VM_PROT_READ | VM_PROT_EXECUTE);
+    uint64_t pointers[2] = {(uint64_t)(uintptr_t)calloc_fn, (uint64_t)(uintptr_t)create_fn};
+    if (kr == KERN_SUCCESS)
+        kr = mach_vm_write(s->task, data, (vm_offset_t)pointers, (mach_msg_type_number_t)sizeof pointers);
+    if (kr != KERN_SUCCESS)
+    {
+        if (data) mach_vm_deallocate(s->task, data, CALLOC_PAGE);
+        if (code) mach_vm_deallocate(s->task, code, CALLOC_PAGE);
+        if (stack) mach_vm_deallocate(s->task, stack, CALLOC_STACK);
+        snprintf(error, error_len, "remote calloc setup failed with kern_return_t %d", (int)kr);
+        return 0;
+    }
+    s->calloc_data = data;
+    s->calloc_code = code;
+    s->calloc_stack_top = (stack + CALLOC_STACK - 0x100) & ~0xFULL;
+    return 1;
+}
+
+static int remote_calloc(task_slot *s, uint32_t bytes, uint64_t *result, char *error, size_t error_len)
+{
+    if (s->paused)
+    {
+        snprintf(error, error_len, "the game is paused; calloc could wait on a suspended thread's lock");
+        return 0;
+    }
+    if (!ensure_calloc_cave(s, error, error_len))
+        return 0;
+    uint64_t args[6] = {1, bytes, 0, 0, 0, 0}; /* nmemb, size, result, flags, pthread_t */
+    kern_return_t kr = mach_vm_write(s->task, s->calloc_data + 0x10, (vm_offset_t)args, (mach_msg_type_number_t)sizeof args);
+    if (kr != KERN_SUCCESS)
+    {
+        snprintf(error, error_len, "remote calloc arguments: kern_return_t %d", (int)kr);
+        return 0;
+    }
+    arm_thread_state64_t state;
+    memset(&state, 0, sizeof state);
+    state.__x[0] = s->calloc_data;
+    state.__sp = s->calloc_stack_top;
+    state.__pc = s->calloc_code;
+    thread_act_t thread = MACH_PORT_NULL;
+    kr = thread_create_running(s->task, ARM_THREAD_STATE64, (thread_state_t)&state, ARM_THREAD_STATE64_COUNT, &thread);
+    if (kr != KERN_SUCCESS)
+    {
+        snprintf(error, error_len, "thread_create_running failed with kern_return_t %d", (int)kr);
+        return 0;
+    }
+    uint64_t block[3] = {0};
+    int done = 0;
+    for (int waited = 0; waited < CALLOC_TIMEOUT_MS; waited++)
+    {
+        mach_vm_size_t got = 0;
+        if (mach_vm_read_overwrite(s->task, s->calloc_data + 0x20, sizeof block, (mach_vm_address_t)(uintptr_t)block, &got) == KERN_SUCCESS &&
+            got == sizeof block && (uint32_t)block[1] == 1 && (uint32_t)(block[1] >> 32) == 1)
+        {
+            done = 1;
+            break;
+        }
+        usleep(1000);
+    }
+    thread_terminate(thread);
+    mach_port_deallocate(mach_task_self(), thread);
+    if (!done)
+    {
+        s->calloc_code = 0; /* a late worker could still store into this data block; never reuse it */
+        snprintf(error, error_len, "remote calloc timed out");
+        return 0;
+    }
+    if (block[0] == 0)
+    {
+        snprintf(error, error_len, "remote calloc(%u) returned NULL", (unsigned)bytes);
+        return 0;
+    }
+    *result = block[0];
+    return 1;
+}
+
+static void op_remote_calloc(int fd, reader *r)
+{
+    int32_t handle;
+    uint32_t bytes;
+    if (!rd_i32(r, &handle) || !rd_u32(r, &bytes) || bytes == 0 || bytes > 16u * 1024u * 1024u)
+    {
+        send_error(fd, 1, "malformed RemoteCalloc request");
+        return;
+    }
+    task_slot *slot = slot_for(handle);
+    if (slot == NULL)
+    {
+        send_error(fd, 5, "invalid task handle");
+        return;
+    }
+    char error[256];
+    uint64_t address = 0;
+    if (!remote_calloc(slot, bytes, &address, error, sizeof error))
+    {
+        send_error(fd, 7, error);
+        return;
+    }
+    buffer out = {0};
+    buf_u32(&out, 0);
+    buf_u64(&out, address);
+    send_frame(fd, out.data, (uint32_t)out.len);
+    free(out.data);
+}
+
 static void op_allocate_near(int fd, reader *r)
 {
     int32_t handle;
@@ -1127,6 +1298,9 @@ static void handle_request(int fd, int client_id, const uint8_t *request, uint32
         break;
     case OP_READ_MANY:
         op_read_many(fd, &r);
+        break;
+    case OP_REMOTE_CALLOC:
+        op_remote_calloc(fd, &r);
         break;
     case OP_WRITE:
         op_write(fd, &r);

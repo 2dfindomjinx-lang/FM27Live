@@ -669,6 +669,7 @@ public static partial class Loc
         m["Preset: {0}"] = "Mẫu: {0}";
         m["Preset staged {0} rule(s); press Save to apply"] = "Mẫu đã chuẩn bị {0} quy định; nhấn Lưu để áp dụng";
         m["Squad rule: enter a non-negative whole number"] = "Quy định đội hình: nhập số nguyên không âm";
+        m["Read-only"] = "Chỉ đọc";
         m["Read-only: the game has no single validated value for this rule."] = "Chỉ đọc: game không có giá trị đơn hợp lệ cho quy định này.";
         m["Unnamed rule 0x{0:X3}"] = "Quy định chưa đặt tên 0x{0:X3}";
         m["Value 0x{0:X2}"] = "Giá trị 0x{0:X2}";

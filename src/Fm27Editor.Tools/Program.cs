@@ -537,14 +537,15 @@ int HealthStaff()
         contractCount++;
         bool vtRead = Pointer(job, out ulong vt);
         bool ownerRead = Pointer(job + (ulong)offsets.JobPerson, out ulong owner);
-        if (ownerRead && owner == person.Address) ownerFit++;
-        if (vtRead && vt != session.ModuleBase + contract.ContractVtableRva && ownerRead && owner == person.Address)
+        ulong anchor = person.Address + (ulong)offsets.JobPersonAnchor;
+        if (ownerRead && owner == anchor) ownerFit++;
+        if (vtRead && vt != session.ModuleBase + contract.ContractVtableRva && ownerRead && owner == anchor)
         {
             otherVtable++;
             var key = (vt, person.JobCode);
             otherTypes[key] = otherTypes.GetValueOrDefault(key) + 1;
         }
-        if (!vtRead || vt != session.ModuleBase + contract.ContractVtableRva || !ownerRead || owner != person.Address) continue;
+        if (!vtRead || vt != session.ModuleBase + contract.ContractVtableRva || !ownerRead || owner != anchor) continue;
         contractFit++;
         if (person.JobCode is not { } code) continue;
         int role = code > 1 && code % 2 == 1 ? code - 1 : code;
@@ -1235,7 +1236,7 @@ int StaffMove(int id, int buyerId, bool write, byte? newJob = null, int? newWage
     var plan = service.Plan(staff, from, to, session.ReadGameDate(), newJob, newWage);
     Console.WriteLine($"{staff.DisplayName}: {from.DisplayName} -> {to.DisplayName}, {string.Join(", ", plan.Departments)}, {plan.Writes.Count} writes");
     if (!write) { Console.WriteLine("plan only; add --write to apply"); return 0; }
-    service.Apply(plan);
+    service.Apply(plan, session.AllocateGameBlock);
     var after = session.Staff.Reload(staff.Address) ?? throw new StaleObjectException("Staff no longer readable");
     Console.WriteLine($"applied; club now {after.Club?.DisplayName ?? "-"}, job {after.JobCode}, wage {session.StaffContracts.Read(after)?.Wage}");
     return 0;
@@ -1334,7 +1335,7 @@ int StaffExpireCommand(int id)
 int Status()
 {
     using var session = Attach(writable: true);
-    Console.WriteLine($"build {session.Profile.Build}, access {(session.CanWrite ? "read/write" : "read-only")}");
+    Console.WriteLine($"build {session.Profile.Build}, access {(session.CanWrite ? "read/write" : session.HasVerifiedWrites ? "limited editing" : "read-only")}");
     return 0;
 }
 
@@ -1692,9 +1693,8 @@ int GlobalScanCommand()
     var memory = session.Memory;
     var module = session.Game;
     ulong size = module.ModuleEnd - module.ModuleBase;
-    var slots = GlobalArrayFinder.FindClubsSlots(memory, module.ModuleBase, size)
+    ulong S = GlobalArrayFinder.StartSlot(memory, module.ModuleBase, size, session.Profile.GlobalArrays?.ClubsSlotRva)
         ?? throw new InvalidOperationException("clubs anchor signature not found");
-    ulong S = slots.StartSlot;
     ulong Q(ulong at)
     {
         Span<byte> b = stackalloc byte[8];
@@ -1739,7 +1739,7 @@ int GlobalsCommand(int samples)
     var memory = session.Memory;
     var module = session.Game;
     ulong size = module.ModuleEnd - module.ModuleBase;
-    var arrays = GlobalArrayFinder.Read(memory, module.ModuleBase, size)
+    var arrays = GlobalArrayFinder.Read(memory, module.ModuleBase, size, session.Profile.GlobalArrays?.ClubsSlotRva)
         ?? throw new InvalidOperationException("clubs anchor signature not found");
     Console.WriteLine($"clubs {arrays.ClubsCount:N0} (0x{arrays.ClubsBegin:X})  staff {arrays.StaffCount:N0} (0x{arrays.StaffBegin:X})  " +
         $"referees {arrays.RefereeCount:N0} (0x{arrays.RefereesBegin:X})  " +
@@ -4249,7 +4249,7 @@ int FutureCreateCommand(string[] a)
     Console.WriteLine($"{player.DisplayName} ({id}): {player.ClubName} -> {club.DisplayName} ({clubId}); fee {fee}; {date:yyyy-MM-dd}; offer ID {plan.Id}");
     if (!write) { Console.WriteLine("Preview only. Add --write to apply."); return 0; }
     if (session.ReadGameDate() != today) throw new StaleObjectException("Game date changed; nothing written");
-    int offerId = creator.Apply(plan, size => RemoteCrtAllocator.Allocate(session.Process, size));
+    int offerId = creator.Apply(plan, session.AllocateGameBlock);
     var refreshed = session.Players.Reload(player.Address) ?? throw new MemoryAccessException("Cannot reload player after write");
     var offers = session.Proposals.Read(refreshed);
     var transfer = session.FutureTransfers.Read(refreshed, offers).SingleOrDefault(t => t.Offer.Id == offerId);
@@ -5540,9 +5540,8 @@ int VisionAddCommand(int clubId, string[] rest)
     Console.WriteLine($"{club.Name}: {rows.Count} rows; template {templateIndex} type {rows[templateIndex].TypeCode}");
     Console.WriteLine($"new row type {type} importance {importance} target {target} {start:yyyy-MM-dd}..{end:yyyy-MM-dd}" + (write ? "" : " (plan only)"));
     if (!write) return 0;
-    var allocate = session.Memory as IRemoteAllocator;
     var added = session.ClubVisionWriter.Create(team.Address, rows[templateIndex], type, importance, target, start, end,
-        allocate is null ? null : allocate.Allocate);
+        session.AllocateGameBlock);
     Console.WriteLine($"added at 0x{added.Address:X}; now {session.ReadClubVision(team.Address, null).Count} rows");
     return 0;
 }

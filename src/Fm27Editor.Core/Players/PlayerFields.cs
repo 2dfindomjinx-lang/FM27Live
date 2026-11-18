@@ -73,7 +73,7 @@ public sealed class PlayerFieldAccess(IProcessMemory memory, OffsetProfile profi
 
     public long? Read(PlayerRecord player, PlayerField field)
     {
-        if (!Map.TryGetValue(field, out var o) || !IsPlayer(player.Address) || Resolve(player.Address, o) is not { } at) return null;
+        if (!Map.TryGetValue(field, out var o) || !IsPlayer(player) || Resolve(player, o) is not { } at) return null;
         var b = new byte[ClubFieldAccess.Size(o.Type)];
         return memory.TryRead(at, b) ? ClubFieldAccess.Decode(b, o) : null;
     }
@@ -82,8 +82,8 @@ public sealed class PlayerFieldAccess(IProcessMemory memory, OffsetProfile profi
     {
         using var _ = Fm27Editor.Core.History.ChangeContext.Describe(Fm27Editor.Core.History.PlayerChangeLabels.Words(field.ToString()));
         var o = Map.TryGetValue(field, out var x) ? x : throw new InvalidOperationException($"{field} is not mapped in this profile");
-        if (!IsPlayer(player.Address)) throw new StaleObjectException($"0x{player.Address:X} is no longer a player object");
-        ulong at = Resolve(player.Address, o) ?? throw new StaleObjectException($"{field}: pointer path {o.PathText} is broken");
+        if (!IsPlayer(player)) throw new StaleObjectException($"0x{player.Address:X} is no longer a player object");
+        ulong at = Resolve(player, o) ?? throw new StaleObjectException($"{field}: pointer path {o.PathText} is broken");
         var current = memory.Read(at, ClubFieldAccess.Size(o.Type));
         if (ClubFieldAccess.Decode(current, o) != expected) throw new StaleObjectException($"{field} changed since it was read");
         var bytes = ClubFieldAccess.Encode(value, o, current);
@@ -91,24 +91,19 @@ public sealed class PlayerFieldAccess(IProcessMemory memory, OffsetProfile profi
             throw new MemoryAccessException($"Write of {field} at 0x{at:X} failed");
     }
 
-    bool IsPlayer(ulong address)
-    {
-        Span<byte> b = stackalloc byte[8];
-        if (address == 0 || !memory.TryRead(address, b)) return false;
-        ulong vt = BitConverter.ToUInt64(b);
-        return profile.PlayerVtableRvas.Any(r => vt == moduleBase + r);
-    }
+    bool IsPlayer(PlayerRecord player) => PersonOwner.Of(player, profile).IsValid(memory, moduleBase);
 
-    ulong? Resolve(ulong root, ClubFieldOffset o)
+    ulong? Resolve(PlayerRecord player, ClubFieldOffset o)
     {
-        ulong at = root;
+        ulong at = player.Address + (ulong)profile.PlayerOffset(player.VtableRva, o.Path[0]);
         Span<byte> b = stackalloc byte[8];
-        for (int i = 0; i < o.Path.Count - 1; i++)
+        for (int i = 1; i < o.Path.Count; i++)
         {
-            if (!memory.TryRead(at + (ulong)o.Path[i], b)) return null;
-            at = BitConverter.ToUInt64(b);
-            if (at == 0) return null;
+            if (!memory.TryRead(at, b)) return null;
+            ulong next = BitConverter.ToUInt64(b);
+            if (next == 0) return null;
+            at = next + (ulong)o.Path[i];
         }
-        return at + (ulong)o.Path[^1];
+        return at;
     }
 }

@@ -142,8 +142,11 @@ public sealed class CityRepository(IProcessMemory memory, OffsetProfile profile,
     }
 
     /// <summary>The raw City Of Birth pointer (0 when unset or unreadable): the snapshot for <see cref="PlayerOriginWriter.SetCity"/>.</summary>
-    public ulong CityPointer(PlayerRecord player) =>
-        profile.Cities is { } o && IsPlayer(player.Address) && Q(player.Address + (ulong)o.Pointer, out ulong city) ? city : 0;
+    public ulong CityPointer(PlayerRecord player)
+    {
+        var owner = PersonOwner.Of(player, profile);
+        return profile.Cities is { } o && owner.IsValid(memory, moduleBase) && Q(owner.At(o.Pointer), out ulong city) ? city : 0;
+    }
 
     public CityRecord? Read(ulong city)
     {
@@ -157,8 +160,6 @@ public sealed class CityRepository(IProcessMemory memory, OffsetProfile profile,
             : new(city, BitConverter.ToInt32(b, o.Id), name, BitConverter.ToUInt64(b, o.Nation), BitConverter.ToSingle(b, f.Latitude),
                 BitConverter.ToSingle(b, f.Longitude), BitConverter.ToInt16(b, f.Altitude), b[f.Inhabitants], b[f.Attraction]);
     }
-
-    bool IsPlayer(ulong address) => Q(address, out ulong vt) && profile.PlayerVtableRvas.Any(r => vt == moduleBase + r);
 
     string? StringAt(ulong p)
     {
@@ -327,9 +328,9 @@ public sealed class PlayerOriginWriter(IProcessMemory memory, OffsetProfile prof
 
     void Swap(PlayerRecord player, int offset, ulong expected, ulong target)
     {
-        ulong vt = memory.ReadUInt64(player.Address);
-        if (!profile.PlayerVtableRvas.Any(r => vt == moduleBase + r)) throw new StaleObjectException("The player changed since it was read");
-        ulong at = player.Address + (ulong)offset;
+        var owner = PersonOwner.Of(player, profile);
+        if (!owner.IsValid(memory, moduleBase)) throw new StaleObjectException("The player changed since it was read");
+        ulong at = owner.At(offset);
         if (memory.ReadUInt64(at) != expected) throw new StaleObjectException("The value changed since it was read");
         var data = BitConverter.GetBytes(target);
         if (!memory.TryWrite(at, data) || memory.ReadUInt64(at) != target) throw new MemoryAccessException($"Could not write 0x{at:X}");

@@ -66,10 +66,11 @@ public sealed class TeamCohesionWriter(IProcessMemory memory, OffsetProfile prof
     {
         var c = profile.Cohesion ?? throw new InvalidOperationException("Profile has no cohesion offsets");
         var r = profile.Relations ?? throw new InvalidOperationException("Profile has no relation offsets");
-        if (!profile.PlayerVtableRvas.Any(rva => memory.ReadUInt64(player.Address) == moduleBase + rva)) throw new StaleObjectException("The player changed since it was read");
+        var owner = PersonOwner.Of(player, profile);
+        if (!owner.IsValid(memory, moduleBase)) throw new StaleObjectException("The player changed since it was read");
         if (profile.Club is not { } k || memory.ReadUInt64(club) != moduleBase + k.ClubVtableRva) throw new ArgumentException("Not a club", nameof(club));
         int index = BitConverter.ToInt32(memory.Read(club + (ulong)c.ClubIndex, 4));
-        ulong holder = memory.ReadUInt64(player.Address + (ulong)r.Pointer);
+        ulong holder = memory.ReadUInt64(owner.At(r.Pointer));
         if (holder == 0) return null;
         var header = memory.Read(holder + (ulong)c.Vector, 24);
         ulong begin = BitConverter.ToUInt64(header, 0), end = BitConverter.ToUInt64(header, 8), capacity = BitConverter.ToUInt64(header, 16);

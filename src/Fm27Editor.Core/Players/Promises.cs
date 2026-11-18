@@ -156,7 +156,7 @@ public sealed class PromiseStore(IProcessMemory memory, OffsetProfile profile, u
     public IReadOnlyList<PromiseRecord> Read(PersonOwner owner)
     {
         if (!Available || !owner.IsValid(memory, moduleBase)) return [];
-        var (_, _, begin, end, _) = Vector(HolderVector(owner.Address, owner.Shift) ?? 0);
+        var (_, _, begin, end, _) = Vector(HolderVector(owner.At(O.Holder)) ?? 0);
         return ReadAll(begin, end);
     }
 
@@ -181,9 +181,8 @@ public sealed class PromiseStore(IProcessMemory memory, OffsetProfile profile, u
     }
 
     /// <summary>The address of the vector header the person's holder points at (0 when the person has none).</summary>
-    ulong? HolderVector(ulong person, int shift)
+    ulong? HolderVector(ulong at)
     {
-        ulong at = person + (ulong)(O.Holder - shift);
         if (!memory.TryRead(at, new byte[8])) return null;
         ulong holder = memory.ReadUInt64(at);
         return holder == 0 ? null : holder;
@@ -325,18 +324,18 @@ public sealed class PromiseStore(IProcessMemory memory, OffsetProfile profile, u
     /// </summary>
     ulong[] Holders(PersonOwner owner, ulong manager, Func<int, ulong>? allocate)
     {
-        ulong person = HolderOf(owner.Address, owner.Shift, owner.Name, allocate);
-        ulong mgr = HolderOf(manager, profile.Relations?.PlayerPerson ?? 0x288, "The manager", allocate);
+        ulong person = HolderOf(owner.At(O.Holder), owner.Name, allocate);
+        ulong mgr = HolderOf(manager + (ulong)(O.Holder - (profile.Relations?.PlayerPerson ?? 0x288)), "The manager", allocate);
         return [person, mgr, GlobalVectorAddress()];
     }
 
-    ulong HolderOf(ulong person, int shift, string name, Func<int, ulong>? allocate)
+    ulong HolderOf(ulong at, string name, Func<int, ulong>? allocate)
     {
-        if (HolderVector(person, shift) is { } existing) return existing;
+        if (HolderVector(at) is { } existing) return existing;
         if (allocate is null) throw new StaleObjectException($"{name} has no promise list");
         ulong holder = allocate(24);
         Write(holder, new byte[24]);
-        Write(person + (ulong)(O.Holder - shift), BitConverter.GetBytes(holder));
+        Write(at, BitConverter.GetBytes(holder));
         return holder;
     }
 
@@ -344,7 +343,7 @@ public sealed class PromiseStore(IProcessMemory memory, OffsetProfile profile, u
     {
         if (!owner.IsValid(memory, moduleBase)) throw new StaleObjectException($"{owner.Name} changed since it was read");
         if (promise.Person != PersonPart(owner)) throw new StaleObjectException("The promise belongs to someone else");
-        var (_, _, begin, end, _) = Vector(HolderVector(owner.Address, owner.Shift) ?? 0);
+        var (_, _, begin, end, _) = Vector(HolderVector(owner.At(O.Holder)) ?? 0);
         if (begin == 0 || end < begin || (end - begin) % 8 != 0) throw new StaleObjectException("The person's promises changed since they were read");
         var raw = memory.Read(begin, (int)(end - begin));
         bool found = false;
@@ -353,7 +352,7 @@ public sealed class PromiseStore(IProcessMemory memory, OffsetProfile profile, u
     }
 
     /// <summary>The person part a record points at: player + 0x288 for a player, the entry itself for staff.</summary>
-    ulong PersonPart(PersonOwner owner) => owner.Address + (ulong)((profile.Relations?.PlayerPerson ?? 0x288) - owner.Shift);
+    ulong PersonPart(PersonOwner owner) => owner.At(profile.Relations?.PlayerPerson ?? 0x288);
 
     void Append(ulong vector, ulong record, Func<int, ulong> allocate)
     {

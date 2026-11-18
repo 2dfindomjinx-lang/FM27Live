@@ -55,11 +55,7 @@ public static class WorkPermitBatch
         {
             if (!seen.Add(p.Address)) { skipped.Add(new(p.Address, SafeName(p), "duplicate player in batch")); continue; }
             int person;
-            try
-            {
-                RequirePlayer(memory, profile, moduleBase, p);
-                person = PersonIndex(memory, profile, p);
-            }
+            try { person = PersonIndex(memory, profile, moduleBase, p); }
             catch (Exception ex) { skipped.Add(new(p.Address, SafeName(p), $"unreadable: {ex.Message}")); continue; }
             if (snapshot.Has(nation, person))
             {
@@ -111,11 +107,7 @@ public static class WorkPermitBatch
         foreach (var p in plan.Targets)
         {
             int person;
-            try
-            {
-                RequirePlayer(memory, profile, moduleBase, p);
-                person = PersonIndex(memory, profile, p);
-            }
+            try { person = PersonIndex(memory, profile, moduleBase, p); }
             catch (Exception ex) { Skip(p, $"player changed since plan: {ex.Message}"); Report(); continue; }
             if (plan.ExpectedPersons is not { } baseline || !baseline.TryGetValue(p.Address, out int was))
             { Skip(p, "no plan-time identity; re-plan the batch"); Report(); continue; }
@@ -203,18 +195,12 @@ public static class WorkPermitBatch
         catch (Exception ex) when (ex is MemoryAccessException or InvalidOperationException) { return false; }
     }
 
-    static void RequirePlayer(IProcessMemory memory, OffsetProfile profile, ulong moduleBase, PlayerRecord player)
+    static int PersonIndex(IProcessMemory memory, OffsetProfile profile, ulong moduleBase, PlayerRecord player)
     {
-        ulong vtable;
-        try { vtable = memory.ReadUInt64(player.Address); }
-        catch (MemoryAccessException ex) { throw new InvalidOperationException("Player is no longer readable", ex); }
-        if (!profile.PlayerVtableRvas.Any(r => vtable == moduleBase + r))
+        var owner = PersonOwner.Of(player, profile);
+        if (!owner.IsValid(memory, moduleBase))
             throw new InvalidOperationException("Player changed since it was read");
-    }
-
-    static int PersonIndex(IProcessMemory memory, OffsetProfile profile, PlayerRecord player)
-    {
-        try { return BitConverter.ToInt32(memory.Read(player.Address + (ulong)WorkPermitTable.PersonIndexFor(profile), 4)); }
+        try { return BitConverter.ToInt32(memory.Read(owner.At(WorkPermitTable.PersonIndexFor(profile)), 4)); }
         catch (MemoryAccessException ex) { throw new InvalidOperationException("Player is no longer readable", ex); }
     }
 

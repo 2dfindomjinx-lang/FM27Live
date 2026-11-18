@@ -35,7 +35,7 @@ public sealed record RefereeRecord(ulong Address, uint VtableRva, string? FirstN
 /// Reads the officials array. A measured profile (<see cref="Offsets.OfficialsOffsets"/>) names its module slot and
 /// object layout (Mac); without one the array is found through the clubs anchor and the x86-64 layout is used.
 /// </summary>
-public sealed class RefereeDirectory(IProcessMemory memory, ulong moduleBase, ulong moduleSize, Fm27Editor.Core.Offsets.OfficialsOffsets? offsets = null)
+public sealed class RefereeDirectory(IProcessMemory memory, ulong moduleBase, ulong moduleSize, Fm27Editor.Core.Offsets.OfficialsOffsets? offsets = null, Game.GlobalArrayOffsets? globals = null)
 {
     /// <summary>
     /// Whether referees can be read with these offsets: a measured officials section, or the x86-64 defaults, which hold on
@@ -118,7 +118,7 @@ public sealed class RefereeDirectory(IProcessMemory memory, ulong moduleBase, ul
     public IReadOnlyList<RefereeRecord> ReadAll()
     {
         using var reads = new BulkReadScope(memory);
-        return new RefereeDirectory(reads.Memory, moduleBase, moduleSize, offsets).ReadAllCore();
+        return new RefereeDirectory(reads.Memory, moduleBase, moduleSize, offsets, globals).ReadAllCore();
     }
 
     IReadOnlyList<RefereeRecord> ReadAllCore()
@@ -130,7 +130,7 @@ public sealed class RefereeDirectory(IProcessMemory memory, ulong moduleBase, ul
             begin = memory.TryRead(moduleBase + rva, new byte[8].AsSpan()) ? memory.ReadUInt64(moduleBase + rva) : 0;
             end = memory.TryRead(moduleBase + rva + 8, new byte[8].AsSpan()) ? memory.ReadUInt64(moduleBase + rva + 8) : 0;
         }
-        else if (GlobalArrayFinder.Read(memory, moduleBase, moduleSize) is { } arrays)
+        else if (GlobalArrayFinder.Read(memory, moduleBase, moduleSize, globals?.ClubsSlotRva) is { } arrays)
         {
             begin = arrays.RefereesBegin;
             end = arrays.RefereesEnd;

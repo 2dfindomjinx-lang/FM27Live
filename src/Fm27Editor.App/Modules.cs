@@ -66,6 +66,8 @@ public sealed record PlayerFilter
     public ulong RequiredPreferredMoves { get; init; }
     public int PositionMinRating { get; init; } = 15;
     public IReadOnlyList<AttributeThreshold> AttributeThresholds { get; init; } = [];
+    public string? RoleCode { get; init; }
+    public double? MinRoleScore { get; init; }
     public Fm27Editor.Core.Offsets.Gender? Gender { get; init; }
     public bool ExcludeWomenClubs { get; init; }
 }
@@ -74,6 +76,10 @@ public enum PlayerSortKey
 {
     CurrentAbility,
     PotentialAbility,
+    Rca,
+    BestRoleScore,
+    RoleScore,
+    Personality,
     Age,
     Name,
     Club,
@@ -82,7 +88,11 @@ public enum PlayerSortKey
     Attribute
 }
 
-public sealed record PlayerSortSpec(PlayerSortKey Key = PlayerSortKey.CurrentAbility, bool Descending = true, PlayerAttribute? Attribute = null);
+public sealed record PlayerSortSpec(
+    PlayerSortKey Key = PlayerSortKey.CurrentAbility,
+    bool Descending = true,
+    PlayerAttribute? Attribute = null,
+    string? RoleCode = null);
 
 public sealed record FilterPreset(
     string Name,
@@ -109,6 +119,8 @@ public sealed record FilterPreset(
     public ContractType? ContractType { get; init; }
     public PlayingTime? AgreedPlayingTime { get; init; }
     public IReadOnlyList<ContractClauseCriterion>? Clauses { get; init; }
+    public string? RoleCode { get; init; }
+    public double? MinRoleScore { get; init; }
     public override string ToString() => Loc.S(Name);
 }
 
@@ -343,10 +355,35 @@ public sealed class PlayersModule : IEditorModule
                 "Asking Price" => p.DisplayAskingPrice, "Wages" => p.Contract?.Wage,
                 "Ethnicity" => p.Ethnicity, "Treated As Non-EU In Italy" => p.TreatedAsNonEuInItaly,
                 "Regen" => RegenIds.IsRegen(p) is { } regen ? (regen ? 1 : 0) : null,
+                "RCA" => ScoutingMetrics.Rca(p),
+                "BestRoleScore" => (long)Math.Round(ScoutingMetrics.BestRole(p).Score),
+                "ProgressRate" => (long)Math.Round(RoleScores.ProgressRate(p)),
+                "CoreMental" => (long)Math.Round(RoleScores.CoreMentalPercent(p)),
                 _ when key.StartsWith("Personality:", StringComparison.Ordinal) && Enum.TryParse<PersonalityAttribute>(key[12..], out var personality) => p.PersonalityValue(personality),
                 _ => null
             };
+            if (key is "Personality" or "PersonalityType")
+            {
+                var classified = ScoutingMetrics.Personality(p);
+                long? choice = range.Min ?? range.Max;
+                if (classified.Id == 255 && choice is not null) return false;
+                if (choice == -2 && classified.IsNegative) return false;
+                if (choice == -3 && !classified.IsNegative) return false;
+                if (choice >= 0 && classified.Id != choice) return false;
+                continue;
+            }
             if (value is null || range.Min is { } lo && value < lo || range.Max is { } hi && value > hi) return false;
+        }
+        if (filter.MinRoleScore is { } requested && (!double.IsFinite(requested) || requested is < 0 or > 100)) return false;
+        if (!string.IsNullOrWhiteSpace(filter.RoleCode))
+        {
+            var role = RoleScores.All.FirstOrDefault(r => string.Equals(r.Code, filter.RoleCode, StringComparison.OrdinalIgnoreCase));
+            if (role is null || filter.MinRoleScore is { } minScore && (!double.IsFinite(minScore) || minScore is < 0 or > 100 || RoleScores.Evaluate(role, p) < minScore))
+                return false;
+        }
+        else if (filter.MinRoleScore is { } bestMin && (!double.IsFinite(bestMin) || bestMin is < 0 or > 100 || ScoutingMetrics.BestRole(p).Score < bestMin))
+        {
+            return false;
         }
         if (filter.RequiredPreferredMoves != 0 && (p.PreferredMoveBits is not { } moves || (moves & filter.RequiredPreferredMoves) != filter.RequiredPreferredMoves)) return false;
         if (filter.PositionRanges.Count > 0)
@@ -394,6 +431,17 @@ public sealed class PlayersModule : IEditorModule
         {
             PlayerSortKey.CurrentAbility => OrderNum(filtered, p => (int)p.CurrentAbility, sort.Descending),
             PlayerSortKey.PotentialAbility => OrderNum(filtered, p => (int)p.PotentialAbility, sort.Descending),
+            PlayerSortKey.Rca => OrderNum(filtered, RcaCalculator.Calculate, sort.Descending),
+            PlayerSortKey.BestRoleScore => sort.Descending
+                ? filtered.OrderByDescending(p => ScoutingMetrics.BestRole(p).Score)
+                : filtered.OrderBy(p => ScoutingMetrics.BestRole(p).Score),
+            PlayerSortKey.RoleScore when sort.RoleCode is { } roleCode =>
+                RoleScores.All.FirstOrDefault(r => string.Equals(r.Code, roleCode, StringComparison.OrdinalIgnoreCase)) is { } role
+                    ? (sort.Descending
+                        ? filtered.OrderByDescending(p => RoleScores.Evaluate(role, p))
+                        : filtered.OrderBy(p => RoleScores.Evaluate(role, p)))
+                    : OrderNum(filtered, p => (int)p.CurrentAbility, true),
+            PlayerSortKey.Personality => OrderText(filtered, p => ScoutingMetrics.Personality(p).Name, sort.Descending),
             PlayerSortKey.Age => OrderNullableNum(filtered, p => p.Age, sort.Descending),
             PlayerSortKey.Name => OrderText(filtered, p => p.DisplayName, sort.Descending),
             PlayerSortKey.Club => OrderNonEmptyText(filtered, p => p.ClubName, sort.Descending),

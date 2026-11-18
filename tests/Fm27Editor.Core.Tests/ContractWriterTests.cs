@@ -1,3 +1,4 @@
+using Fm27Editor.Core.Memory;
 using Fm27Editor.Core.Offsets;
 using Fm27Editor.Core.Players;
 
@@ -9,6 +10,29 @@ namespace Fm27Editor.Core.Tests;
 /// </summary>
 public class ContractWriterTests
 {
+    [Theory]
+    [InlineData(32, -500, -1)]
+    [InlineData(3, -1, 32000)]
+    [InlineData(3, 101, -1)]
+    [InlineData(22, -1, 0)]
+    [InlineData(13, 1000, -1)]
+    public void Invalid_clause_values_are_rejected_before_any_write(short type, int value, short parameter)
+    {
+        LaceyTerms(4);
+        int writes = _w.Memory.Writes;
+        Assert.Throws<ArgumentOutOfRangeException>(() => Writer().AddTerm(Player(), Writer().Read(Player())!, type, value, parameter, null));
+        Assert.Equal(writes, _w.Memory.Writes);
+    }
+
+    [Fact]
+    public void Percentage_clause_uses_captured_value_column_and_no_parameter()
+    {
+        LaceyTerms(4);
+        Writer().AddTerm(Player(), Writer().Read(Player())!, 3, 7, -1, null);
+        var term = Writer().Read(Player())!.Terms.Single(t => t.Type == 3);
+        Assert.Equal((7, (short)-1), (term.Value, term.Parameter));
+    }
+
     const ulong Contract = 0x4000_0000;
     const uint ContractVtable = 0x4B00AE8;
     readonly TestWorld _w = new();

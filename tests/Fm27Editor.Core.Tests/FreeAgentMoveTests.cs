@@ -18,6 +18,22 @@ namespace Fm27Editor.Core.Tests;
 /// </summary>
 public class FreeAgentMoveTests
 {
+    [Fact]
+    public void Every_partial_signing_failure_restores_published_state()
+    {
+        var fault = new WriteFaultMemory(_w.Memory);
+        var service = new FreeAgentSigning(fault, _profile, TestWorld.ModuleBase);
+        var plan = service.Plan(Free(), City(), Today);
+        var checks = plan.Writes.Concat(plan.Guards).Where(w => w.Expected.Length > 0).ToArray();
+        for (int failure = 1; failure <= plan.Writes.Count + 2; failure++)
+        {
+            fault.Reset(failure);
+            Assert.Throws<MemoryAccessException>(() => service.Apply(plan, Alloc));
+            foreach (var check in checks) Assert.Equal(check.Expected, _w.Memory.Read(check.Address, check.Expected.Length));
+            Assert.Equal(0UL, Q(TestWorld.Mainoo + PlayerContract));
+        }
+    }
+
     const ulong Club = 0x6000_0000, Team = 0x6002_0000, Squad = 0x6003_0000, TemplatePlayer = 0x1000_5000, TemplateContract = 0x6300_0000;
     const int PlayerTeam = 0x130, PlayerContract = 0x330;
     static readonly DateOnly Today = new(2026, 12, 15);

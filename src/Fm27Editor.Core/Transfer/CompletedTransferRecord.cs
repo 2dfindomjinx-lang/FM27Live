@@ -5,7 +5,10 @@ using Fm27Editor.Core.Players;
 namespace Fm27Editor.Core.Transfer;
 
 public sealed record CompletedTransferPlan(ulong Player, ulong Person, ulong Buyer, ulong Seller, int Fee, DateOnly Today,
-    ulong Root, int OfferId, int Serial, FutureTransferVectorSnapshot? Ids, FutureTransferVectorSnapshot? Links, IReadOnlyList<PlannedWrite> Guards);
+    ulong Root, int OfferId, int Serial, FutureTransferVectorSnapshot? Ids, FutureTransferVectorSnapshot? Links, IReadOnlyList<PlannedWrite> Guards)
+{
+    public required FutureTransferVectorSnapshot Offers { get; init; }
+}
 
 /// <summary>
 /// The record FM keeps of a finished transfer. FM's own move of Cole Palmer Chelsea → Man Utd for £50M (In-Game Editor, Steam
@@ -33,12 +36,13 @@ public sealed class CompletedTransferRecord(IProcessMemory memory, OffsetProfile
         var offers = FutureTransferVectorSnapshot.Capture(memory, root + (ulong)po.ListOffset, 8, MaxOffers);
         guards.AddRange(offers.Guards);
         int slot = offers.IndexOf(x => BitConverter.ToUInt64(x) == 0);
-        if (slot < 0) throw new InvalidOperationException("The game's offer list has no free slot");
+        if (slot < 0) slot = offers.Count;
+        if (slot >= MaxOffers) throw new InvalidOperationException("The game's offer list reached the supported limit");
         ulong ids = Pointer(player + (ulong)po.PlayerIds, "player offer IDs");
         ulong links = Pointer(player + (ulong)fo.PlayerOffers, "player offers");
         return new(player, player + (ulong)rel.PlayerPerson, buyerTeam, sellerTeam, fee, today, root, slot, serial,
             ids == 0 ? null : FutureTransferVectorSnapshot.Capture(memory, ids, 4, MaxPersonOffers),
-            links == 0 ? null : FutureTransferVectorSnapshot.Capture(memory, links, 8, MaxPersonOffers), guards);
+            links == 0 ? null : FutureTransferVectorSnapshot.Capture(memory, links, 8, MaxPersonOffers), guards) { Offers = offers };
     }
 
     /// <summary>
@@ -57,6 +61,14 @@ public sealed class CompletedTransferRecord(IProcessMemory memory, OffsetProfile
 
     public void Apply(CompletedTransferPlan plan, Func<int, ulong> allocate)
     {
+        var prepared = Prepare(plan, allocate);
+        FutureTransferTransaction.Apply(memory, prepared.Guards, prepared.Writes);
+    }
+
+    /// <summary>Allocates and plans the record without publishing any changes.</summary>
+    public (IReadOnlyList<PlannedWrite> Guards, IReadOnlyList<PlannedWrite> Writes) Prepare(CompletedTransferPlan plan, Func<int, ulong> allocate)
+    {
+        plan.Offers.Validate(memory);
         var po = profile.Proposals!; var fo = profile.FutureTransfers!;
         var guards = new List<PlannedWrite>(plan.Guards);
         foreach (var v in new[] { plan.Ids, plan.Links }) if (v is not null) { v.Validate(memory); guards.AddRange(v.Guards); }
@@ -83,9 +95,18 @@ public sealed class CompletedTransferRecord(IProcessMemory memory, OffsetProfile
         ulong linkAddress = Fresh(link, "offer link");
         Vector(plan.Player + (ulong)po.PlayerIds, plan.Ids, BitConverter.GetBytes(plan.OfferId));
         Vector(plan.Player + (ulong)fo.PlayerOffers, plan.Links, BitConverter.GetBytes(linkAddress));
-        ulong slotAddress = memory.ReadUInt64(plan.Root + (ulong)po.ListOffset) + (ulong)plan.OfferId * 8;
-        publish.Add(new(slotAddress, new byte[8], BitConverter.GetBytes(address), "offer slot"));
+        if (plan.OfferId == plan.Offers.Count)
+        {
+            var append = plan.Offers.Append(memory, BitConverter.GetBytes(address), allocate);
+            scratch.Add(append[0]);
+            publish.Add(append[1]);
+        }
+        else
+        {
+            ulong slotAddress = memory.ReadUInt64(plan.Root + (ulong)po.ListOffset) + (ulong)plan.OfferId * 8;
+            publish.Add(new(slotAddress, new byte[8], BitConverter.GetBytes(address), "offer slot"));
+        }
         publish.Add(new(plan.Root + (ulong)po.OfferSerial, BitConverter.GetBytes(plan.Serial), BitConverter.GetBytes(plan.Serial + 1), "offer serial"));
-        FutureTransferTransaction.Apply(memory, guards, [.. scratch, .. publish]);
+        return (guards, [.. scratch, .. publish]);
     }
 }

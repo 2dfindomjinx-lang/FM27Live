@@ -126,13 +126,7 @@ public sealed class FreeAgentSigning(IProcessMemory memory, OffsetProfile profil
         writes.AddRange(plan.Writes);
         // The contract pointer goes last: until then the player is still a free agent to the game.
         writes.Add(new(plan.Player.Address + (ulong)C.PlayerContract, new byte[8], BitConverter.GetBytes(contract), "player contract"));
-        foreach (var w in writes)
-        {
-            if (!memory.Read(w.Address, w.Expected.Length).AsSpan().SequenceEqual(w.Expected))
-                throw new StaleObjectException($"{w.What} changed while writing");
-            if (!memory.TryWrite(w.Address, w.Value) || !memory.Read(w.Address, w.Value.Length).AsSpan().SequenceEqual(w.Value))
-                throw new MemoryAccessException($"Write failed: {w.What}");
-        }
+        FutureTransferTransaction.Apply(memory, plan.Guards, writes);
     }
 
     PlannedWrite Write(ulong address, byte[] value, string what) => new(address, memory.Read(address, value.Length), value, what);

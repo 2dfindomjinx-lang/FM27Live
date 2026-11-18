@@ -129,16 +129,36 @@ public class ChangeJournalTests
     }
 
     [Fact]
-    public void Undoing_a_group_restores_every_entry_and_reports_the_ones_it_could_not()
+    public void Undoing_a_group_with_a_stale_entry_refuses_every_write()
     {
         _m.TryWrite(At, [1]); _m.TryWrite(At + 4, [2]); _m.TryWrite(At + 8, [3]);
         using (_j.Begin("Competition", "Premier League", "Page save")) { Write(At, 11); Write(At + 4, 22); Write(At + 8, 33); }
         Assert.True(_m.TryWrite(At + 4, [99]));   // changed by the game after the save
 
         var (restored, errors) = _j.Undo(_j.Groups[0], _m);
-        Assert.Equal(2, restored);
+        Assert.Equal(0, restored);
         Assert.Single(errors);
-        Assert.Equal([(byte)1, (byte)99, (byte)3], [_m.Read(At, 1)[0], _m.Read(At + 4, 1)[0], _m.Read(At + 8, 1)[0]]);
+        Assert.Equal([(byte)11, (byte)99, (byte)33], [_m.Read(At, 1)[0], _m.Read(At + 4, 1)[0], _m.Read(At + 8, 1)[0]]);
+    }
+
+    [Fact]
+    public void Group_undo_partial_write_failure_restores_the_complete_after_state()
+    {
+        _m.TryWrite(At, [1, 2]); _m.TryWrite(At + 4, [3, 4]);
+        using (_j.Begin("Player", "Move", "Transfer")) { Write(At, 10, 20); Write(At + 4, 30, 40); }
+        var group = _j.Groups.Single();
+        Assert.False(_j.Undo(group.Entries[0], _m, out _));
+        var fault = new WriteFaultMemory(_m) { Failure = 2 };
+        var (restored, errors) = _j.Undo(group, fault);
+        Assert.Equal(0, restored);
+        Assert.Single(errors);
+        Assert.Equal(new byte[] { 10, 20 }, _m.Read(At, 2));
+        Assert.Equal(new byte[] { 30, 40 }, _m.Read(At + 4, 2));
+        Assert.All(group.Entries, e => Assert.False(e.Undone));
+        var success = _j.Undo(group, _m);
+        Assert.Equal(2, success.Restored);
+        Assert.Empty(success.Errors);
+        Assert.Equal(new byte[] { 1, 2 }, _m.Read(At, 2));
     }
 
     [Fact]

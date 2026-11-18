@@ -20,7 +20,7 @@ public static class StaffWageMassEdit
             var contract = contracts.Read(person);
             if (contract is null) { unavailable++; continue; }
             int before = contract.Wage;
-            int after = mode == MassEditMode.Set ? value : checked(before + value);
+            int after = (int)MassEditValue.Resolve(mode, before, value, 0, int.MaxValue);
             if (before < 0 || after < 0) throw new ArgumentOutOfRangeException(nameof(value), after, "Wage cannot be negative");
             if (before != after) changes.Add(new(person, contract.Address, before, after));
         }

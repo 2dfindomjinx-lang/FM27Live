@@ -54,17 +54,20 @@ public sealed class GameSession : IDisposable
         (futureContract == 0 ? Contracts : FutureContract(futureContract)).AddTerm(player, snapshot, type, value, parameter, AllocateGameBlock);
 
     /// <summary>Applies a transfer, allocating a new squad buffer in the game process when the destination squad is full.</summary>
-    public void ApplyTransfer(Transfer.TransferPlan plan)
+    public void ApplyTransfer(Transfer.TransferPlan plan, int sellOnPercent = 0)
     {
+        if (sellOnPercent is < 0 or > 100) throw new ArgumentOutOfRangeException(nameof(sellOnPercent));
         var today = ReadGameDate() ?? throw new InvalidOperationException("The in-game date could not be read");
-        ulong buyer = plan.Buyer.FirstTeam?.Address ?? throw new InvalidOperationException($"{plan.Buyer.DisplayName} has no first team");
-        ulong seller = plan.Seller.FirstTeam?.Address ?? throw new InvalidOperationException($"{plan.Seller.DisplayName} has no first team");
-        // Checked before anything is written, so a full offer list stops the move instead of leaving it half done.
-        var record = new Transfer.CompletedTransferRecord(_memory, Profile, Game.ModuleBase);
-        record.Plan(plan.Player.Address, buyer, seller, plan.Fee, today);
-        Transfers.Apply(plan, AllocateGameBlock);
-        // FM counts the buyer's FFP transfer expenditure from its finished-transfer records, not from the club finances.
-        record.Apply(record.Plan(plan.Player.Address, buyer, seller, plan.Fee, today), AllocateGameBlock);
+        MemoryWriteBatch.Run(_memory, staged =>
+        {
+            new Transfer.TransferService(staged, Profile, Game.ModuleBase).ApplyWithRecord(plan, today, AllocateGameBlock);
+            if (sellOnPercent > 0)
+            {
+                int id = plan.Player.Id ?? throw new InvalidOperationException("Player ID is unavailable");
+                new Clubs.TransferClauseWriter(staged, Profile, Game.ModuleBase).AddSellOn(plan.Buyer.Address, id,
+                    plan.Seller.Address, sellOnPercent, AllocateGameBlock, plan.Fee > 0 ? plan.Fee : null);
+            }
+        });
     }
 
     Presets.AcceleratedDevelopment? _accelerated;

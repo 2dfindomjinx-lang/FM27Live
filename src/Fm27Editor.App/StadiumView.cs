@@ -435,12 +435,12 @@ internal sealed class StadiumScreen(IScreenHost host)
         float? latitude = null, longitude = null;
         if (draft.Latitude is { } latText)
         {
-            if (!float.TryParse(latText.Trim(), System.Globalization.NumberStyles.Float, Inv, out float lat) || lat is < -90 or > 90) return Loc.S("Latitude: enter -90 to 90");
+            if (!float.TryParse(latText.Trim(), System.Globalization.NumberStyles.Float, Inv, out float lat) || !float.IsFinite(lat) || lat is < -90 or > 90) return Loc.S("Latitude: enter -90 to 90");
             latitude = lat;
         }
         if (draft.Longitude is { } lonText)
         {
-            if (!float.TryParse(lonText.Trim(), System.Globalization.NumberStyles.Float, Inv, out float lon) || lon is < -180 or > 180) return Loc.S("Longitude: enter -180 to 180");
+            if (!float.TryParse(lonText.Trim(), System.Globalization.NumberStyles.Float, Inv, out float lon) || !float.IsFinite(lon) || lon is < -180 or > 180) return Loc.S("Longitude: enter -180 to 180");
             longitude = lon;
         }
 

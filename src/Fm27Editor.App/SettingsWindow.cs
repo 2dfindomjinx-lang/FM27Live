@@ -58,7 +58,7 @@ public sealed partial class MainWindow
         string AutoCurrencyLabel() => detected is { } d ? Loc.F("Same as the game ({0})", d.Code) : Loc.S("Same as the game (not recognised, £)");
         string autoLabel = AutoCurrencyLabel();
         var currencyChoices = new[] { new CurrencyChoice(null, autoLabel) }
-            .Concat(Fm27Editor.Core.Settings.CurrencySetting.Available.Select(c => new CurrencyChoice(c, $"{c.Code} - {c.Name} - {c.Symbol}"))).ToArray();
+            .Concat(Fm27Editor.Core.Settings.CurrencySetting.Available.Select(c => new CurrencyChoice(c, $"{c.Code} - {Loc.S(c.Name)} - {c.Symbol}"))).ToArray();
         var currencyCombo = new ComboBox
         {
             ItemsSource = currencyChoices,
@@ -78,7 +78,7 @@ public sealed partial class MainWindow
             else Fm27Editor.Core.Settings.CurrencySetting.Set(chosen.Info);
             ReloadCurrentScreen();
             var now = Fm27Editor.Core.Settings.CurrencySetting.Current;
-            status.Text = $"{Loc.S("Currency")}: {now.Code} - {now.Name}";
+            status.Text = $"{Loc.S("Currency")}: {now.Code} - {Loc.S(now.Name)}";
         };
         var currencyRow = new Grid { ColumnDefinitions = new ColumnDefinitions("140,*"), ColumnSpacing = 12 };
         var currencyLabel = new TextBlock { Text = Loc.S("Currency"), TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center, Foreground = UiKit.TextSecondary };

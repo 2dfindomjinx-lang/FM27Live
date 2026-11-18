@@ -20,7 +20,7 @@ public static class NationMassEdit
         {
             if (nation.Address == 0 || !seen.Add(nation.Address)) throw new ArgumentException("Nations must be unique and valid");
             long before = access.Read(nation.Address, field) ?? throw new StaleObjectException($"{nation.DisplayName}: {field} is not readable");
-            long after = mode == MassEditMode.Set ? value : checked(before + value);
+            long after = MassEditValue.Resolve(mode, before, value, minimum, maximum);
             if (after < minimum || after > maximum)
                 throw new ArgumentOutOfRangeException(nameof(value), after, $"{field} must be between {minimum} and {maximum}");
             if (before != after) changes.Add(new(nation, field, before, after));

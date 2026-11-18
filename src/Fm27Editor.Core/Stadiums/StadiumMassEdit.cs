@@ -37,7 +37,7 @@ public static class StadiumMassEdit
                 if (field is StadiumField.InternationalPitchLength or StadiumField.InternationalPitchWidth) continue;
                 throw new StaleObjectException($"{club.DisplayName}: {field} is not readable");
             }
-            long after = mode == MassEditMode.Set ? value : checked(before + value);
+            long after = MassEditValue.Resolve(mode, before, value, minimum, maximum);
             if (after < minimum || after > maximum)
                 throw new ArgumentOutOfRangeException(nameof(value), after, $"{field} must be between {minimum} and {maximum}");
             _ = ClubFieldAccess.Encode(after, o);

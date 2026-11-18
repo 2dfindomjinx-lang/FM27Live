@@ -16,7 +16,7 @@ public static class StaffPersonalityMassEdit
             if (person.Id <= 0 || !ids.Add(person.Id)) throw new ArgumentException("Staff must have unique positive IDs");
             int before = person.Personality[(int)field];
             if (before is < 1 or > 20) throw new ArgumentException($"{person.DisplayName}: original {field} cannot be restored by the writer");
-            int after = mode == MassEditMode.Set ? value : checked(before + value);
+            int after = (int)MassEditValue.Resolve(mode, before, value, 1, 20);
             if (after is < 1 or > 20) throw new ArgumentOutOfRangeException(nameof(value), after, "Personality must be between 1 and 20");
             if (before != after) changes.Add(new(person, field, before, after));
         }

@@ -21,7 +21,7 @@ public static class PlayerRatingMassEdit
             if (player.Id is not > 0 || !ids.Add(player.Id.Value)) throw new ArgumentException("Players must have unique positive IDs");
             int current = Read(player, field);
             if (current is < 1 or > 20) throw new ArgumentException($"{player.DisplayName}: original {field} cannot be restored by the writer");
-            int target = mode == MassEditMode.Set ? value : checked(current + value);
+            int target = (int)MassEditValue.Resolve(mode, current, value, 1, 20);
             if (target is < 1 or > 20) throw new ArgumentOutOfRangeException(nameof(value), target, "Value must be between 1 and 20");
             if (current != target) changes.Add(new(player, field, current, target));
         }

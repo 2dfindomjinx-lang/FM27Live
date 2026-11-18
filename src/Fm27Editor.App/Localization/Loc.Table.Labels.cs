@@ -5,6 +5,7 @@ public static partial class Loc
     static partial void RegisterLabels(Dictionary<string, string> m)
     {
         // Common fallback format strings
+        m["Filter nations..."] = "Lọc quốc gia...";
         m["Code {0}"] = "Mã {0}";
         m["Clause {0}"] = "Điều khoản {0}";
         m["Motive {0}"] = "Lý do {0}";
@@ -489,6 +490,13 @@ public static partial class Loc
         m["Finance"] = "Tài chính";
         m["Developed"] = "Phát triển";
         m["Developing"] = "Đang phát triển";
+        m["Not Set"] = "Chưa thiết lập";
+        m["Developed State"] = "Quốc gia phát triển";
+        m["Developing State"] = "Quốc gia đang phát triển";
+        m["Lower Developed State"] = "Quốc gia kém phát triển";
+        m["Development"] = "Mức độ phát triển";
+        m["National Team"] = "Đội tuyển quốc gia";
+        m["Region"] = "Khu vực";
         m["Economic Factor"] = "Hệ số kinh tế";
         m["Gain Nationality Type"] = "Cách nhập quốc tịch";
         m["Does Not Allow Dual Nationality"] = "Không cho phép hai quốc tịch";

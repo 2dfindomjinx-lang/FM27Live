@@ -1508,7 +1508,7 @@ public sealed partial class MainWindow
     async Task ShowEditHistoryAsync()
     {
         if (backend.State.Status != ConnectionStatus.Connected || backend.Edits?.Journal is not { } journal) { status.Text = Loc.S("Load game first"); return; }
-        var window = new EditHistoryWindow(journal, backend.Session.Memory, text => status.Text = text, RefreshAfterHistoryUndo);
+        var window = new EditHistoryWindow(journal, backend.Session.Memory, text => status.Text = text, RefreshAfterHistoryUndo, backend.Edits);
         await window.ShowDialog(this);
     }
 

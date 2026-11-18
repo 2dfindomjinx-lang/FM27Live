@@ -17,7 +17,7 @@ public static class StaffAttributeMassEdit
             if (person.Id <= 0 || !ids.Add(person.Id)) throw new ArgumentException("Staff must have unique positive IDs");
             byte raw = writer.ReadAttributeRaw(person, attribute);
             int before = person.Attribute(attribute);
-            int after = mode == MassEditMode.Set ? value : checked(before + value);
+            int after = (int)MassEditValue.Resolve(mode, before, value, 1, 20);
             if (after is < 1 or > 20) throw new ArgumentOutOfRangeException(nameof(value), after, "Attribute must be between 1 and 20");
             byte newRaw = before == after ? raw : writer.EncodeAttribute(attribute, after);
             if (raw != newRaw) changes.Add(new(person, attribute, before, after, raw, newRaw));

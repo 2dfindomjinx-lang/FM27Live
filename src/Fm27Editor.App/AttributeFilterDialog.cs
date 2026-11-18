@@ -51,23 +51,33 @@ public sealed class AttributeFilterDialog : Window
     readonly Button playerScopeButton = MakeScopeButton("Player");
     readonly Button coachScopeButton = MakeScopeButton("Coach");
     readonly Button clubScopeButton = MakeScopeButton("Club");
+    readonly Button nationScopeButton = MakeScopeButton("Nation");
     readonly ContentControl scopeContent = new();
     int scopeIndex;
     readonly ContentControl coachHost = new();
     readonly ContentControl clubHost = new();
+    readonly ContentControl nationHost = new();
     readonly Func<IReadOnlyList<StaffRecord>>? staffSource;
     readonly Func<IReadOnlyList<ClubEntry>>? clubSource;
     readonly Func<StaffRecord, IReadOnlyList<RelationEntry>>? staffRelations;
     readonly ClubFieldAccess? clubAccess;
+    readonly Func<IReadOnlyList<NationRecord>>? nationSource;
+    readonly NationFieldAccess? nationAccess;
+    readonly NationLinks? nationLinks;
+    readonly NationAgreements? nationAgreements;
+    readonly NationSearchCriteria? initialNationCriteria;
+    public NationSearchCriteria? ResultNationCriteria { get; private set; }
     readonly DateOnly today;
     readonly string initialScope;
     StaffFilterPanel? coachPanel;
     ClubFilterPanel? clubPanel;
+    NationFilterPanel? nationPanel;
     public string SelectedScope { get; private set; } = "Player";
     public int ScopeTotalCount { get; private set; }
     public string? ScopeFilterNote { get; private set; }
     public IReadOnlyList<StaffRecord> MatchedStaff { get; private set; } = [];
     public IReadOnlyList<ClubEntry> MatchedClubs { get; private set; } = [];
+    public IReadOnlyList<NationRecord> MatchedNations { get; private set; } = [];
 
     readonly Dictionary<PlayerAttribute, (int Min, int Max)> staged = [];
     readonly HashSet<PlayerPosition> stagedPositions = [];
@@ -359,7 +369,12 @@ public sealed class AttributeFilterDialog : Window
         Func<IReadOnlyList<ClubEntry>>? clubSource = null,
         Func<StaffRecord, IReadOnlyList<RelationEntry>>? staffRelations = null,
         ClubFieldAccess? clubAccess = null,
-        DateOnly? today = null)
+        DateOnly? today = null,
+        Func<IReadOnlyList<NationRecord>>? nationSource = null,
+        NationFieldAccess? nationAccess = null,
+        NationLinks? nationLinks = null,
+        NationAgreements? nationAgreements = null,
+        NationSearchCriteria? initialNationCriteria = null)
     {
         Title = Loc.S("Advanced Search");
         this.initialScope = initialScope;
@@ -367,6 +382,11 @@ public sealed class AttributeFilterDialog : Window
         this.clubSource = clubSource;
         this.staffRelations = staffRelations;
         this.clubAccess = clubAccess;
+        this.nationSource = nationSource;
+        this.nationAccess = nationAccess;
+        this.nationLinks = nationLinks;
+        this.nationAgreements = nationAgreements;
+        this.initialNationCriteria = initialNationCriteria;
         this.today = today ?? DateOnly.FromDateTime(DateTime.Today);
         Width = 1080;
         Height = 760;
@@ -525,17 +545,18 @@ public sealed class AttributeFilterDialog : Window
             Orientation = Orientation.Horizontal,
             Spacing = 2,
             Margin = new Thickness(0, 4, 0, 0),
-            Children = { playerScopeButton, coachScopeButton, clubScopeButton },
+            Children = { playerScopeButton, coachScopeButton, clubScopeButton, nationScopeButton },
         };
         playerScopeButton.Click += (_, _) => SelectScope(0);
         coachScopeButton.Click += (_, _) => SelectScope(1);
         clubScopeButton.Click += (_, _) => SelectScope(2);
+        nationScopeButton.Click += (_, _) => SelectScope(3);
         DockPanel.SetDock(scopeStrip, Dock.Top);
         root.Children.Add(scopeStrip);
         root.Children.Add(scopeContent);
 
         Content = root;
-        SelectScope(initialScope switch { "Coach" => 1, "Club" => 2, _ => 0 });
+        SelectScope(initialScope switch { "Coach" => 1, "Club" => 2, "Nation" => 3, _ => 0 });
 
         foreach (var tb in new[] { nameQueryBox, minAgeBox, maxAgeBox, minCaBox, maxCaBox, minPaBox, maxPaBox })
             tb.TextChanged += (_, _) => { if (!updatingControls) UpdateSummary(); };
@@ -565,8 +586,8 @@ public sealed class AttributeFilterDialog : Window
     void SelectScope(int index)
     {
         scopeIndex = index;
-        SelectedScope = index switch { 1 => "Coach", 2 => "Club", _ => "Player" };
-        foreach (var (button, i) in new[] { playerScopeButton, coachScopeButton, clubScopeButton }.Select((b, i) => (b, i)))
+        SelectedScope = index switch { 1 => "Coach", 2 => "Club", 3 => "Nation", _ => "Player" };
+        foreach (var (button, i) in new[] { playerScopeButton, coachScopeButton, clubScopeButton, nationScopeButton }.Select((b, i) => (b, i)))
         {
             bool active = i == index;
             button.Foreground = Brush(active ? "#F8FAFC" : "#94A3B8");
@@ -575,7 +596,7 @@ public sealed class AttributeFilterDialog : Window
             button.BorderBrush = active ? UiKit.Accent : Brushes.Transparent;
         }
         EnsureScopePanels();
-        scopeContent.Content = index switch { 1 => coachHost, 2 => clubHost, _ => playerRoot };
+        scopeContent.Content = index switch { 1 => coachHost, 2 => clubHost, 3 => nationHost, _ => playerRoot };
         UpdateScopeSummary();
     }
 
@@ -605,20 +626,39 @@ public sealed class AttributeFilterDialog : Window
             clubPanel.Changed += (_, _) => UpdateScopeSummary();
             clubHost.Content = clubPanel;
         }
+        if (scopeIndex == 3 && nationPanel is null)
+        {
+            if (nationAccess is null)
+            {
+                nationHost.Content = new TextBlock
+                {
+                    Text = Loc.S("Connect to the game to search nations."),
+                    Foreground = Brush("#94A3B8"),
+                    Margin = new Thickness(14),
+                };
+                return;
+            }
+            nationPanel = new NationFilterPanel(nationSource?.Invoke() ?? nationsCatalogue, nationAccess, nationLinks, nationAgreements, initialNationCriteria);
+            nationPanel.Changed += (_, _) => UpdateScopeSummary();
+            nationHost.Content = nationPanel;
+        }
     }
 
     void UpdateScopeSummary()
     {
-        if (scopeIndex is < 0 or > 2) return;
+        if (scopeIndex is < 0 or > 3) return;
         if (SelectedScope == "Player")
         {
             UpdateSummary();
             return;
         }
         summaryText.Foreground = Brush("#CBD5E1");
-        summaryText.Text = SelectedScope == "Coach"
-            ? coachPanel?.SummaryStatus() ?? Loc.S("No filters set")
-            : clubPanel?.SummaryStatus() ?? Loc.S("No filters set");
+        summaryText.Text = SelectedScope switch
+        {
+            "Coach" => coachPanel?.SummaryStatus() ?? Loc.S("No filters set"),
+            "Club" => clubPanel?.SummaryStatus() ?? Loc.S("No filters set"),
+            _ => nationPanel?.SummaryStatus() ?? Loc.S("No filters set"),
+        };
     }
     Control BuildPresetBar()
     {
@@ -1676,6 +1716,7 @@ public sealed class AttributeFilterDialog : Window
         {
             if (SelectedScope == "Coach") { coachPanel?.Clear(); UpdateScopeSummary(); return; }
             if (SelectedScope == "Club") { clubPanel?.Clear(); UpdateScopeSummary(); return; }
+            if (SelectedScope == "Nation") { nationPanel?.Clear(); UpdateScopeSummary(); return; }
             updatingControls = true;
             genderCombo.SelectedIndex = 0;
             RefreshDialogLeagues(null, null);
@@ -1749,6 +1790,19 @@ public sealed class AttributeFilterDialog : Window
                 MatchedClubs = matched;
                 ScopeTotalCount = clubPanel.TotalCount;
                 ScopeFilterNote = clubPanel.SelectedGender() is { } cg ? Loc.F("Gender: {0}", Loc.S(cg.ToString())) : null;
+                Saved = true;
+                Close();
+                return;
+            }
+            if (SelectedScope == "Nation")
+            {
+                if (nationPanel?.Criteria() is null) { summaryText.Text = Loc.S("Invalid range"); return; }
+                var matched = nationPanel.Matched();
+                if (matched.Count == 0) { summaryText.Text = Loc.S("No nations match the filter."); return; }
+                MatchedNations = matched;
+                ResultNationCriteria = nationPanel.Criteria();
+                ScopeTotalCount = nationPanel.TotalCount;
+                ScopeFilterNote = null;
                 Saved = true;
                 Close();
                 return;

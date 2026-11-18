@@ -1,3 +1,4 @@
+using Fm27Editor.Core.Memory;
 using Fm27Editor.Core.Clubs;
 using Fm27Editor.Core.Players;
 using Fm27Editor.Core.Transfer;
@@ -76,6 +77,50 @@ public class TransferServiceTests
         var players = new[] { repo.Reload(TestWorld.Mainoo)!, repo.Reload(TestWorld.Yamal)! };
         return (new TransferService(_w.Memory, _w.Profile, TestWorld.ModuleBase),
                 ClubDirectory.FromPlayers(_w.Memory, players, _w.Profile, TestWorld.ModuleBase), players[0]);
+    }
+
+    [Fact]
+    public void Every_failed_move_or_record_write_restores_the_whole_move()
+    {
+        var (_, clubs, mainoo) = Setup();
+        var po = _w.Profile.Proposals!;
+        const ulong root = 0x80000000, offers = 0x81000000;
+        TestWorld.Set64(_w.Memory.Map(TestWorld.ModuleBase + po.ListRootRva, 8), 0, root);
+        var rootBytes = _w.Memory.Map(root, 0x1000);
+        TestWorld.Set64(rootBytes, po.ListOffset, offers);
+        TestWorld.Set64(rootBytes, po.ListOffset + 8, offers + 8);
+        TestWorld.Set64(rootBytes, po.ListOffset + 16, offers + 16);
+        TestWorld.Set64(_w.Memory.Map(offers, 16), 0, 0x123456);
+        ulong next = 0x90000000;
+        ulong Allocate(int size) { ulong at = next; next += 0x10000; _w.Memory.Map(at, size); return at; }
+        var memory = new FaultMemory(_w.Memory);
+        var service = new TransferService(memory, _w.Profile, TestWorld.ModuleBase);
+        var plan = service.Plan(mainoo, clubs, clubs.Single(c => c.Id == 868), 1000);
+        // This fixture discovers teams through players; explicitly mark the seller team as senior.
+        plan = plan with { Seller = plan.Seller with { Teams = plan.Seller.Teams.Select(t => t with { IsFirstTeam = true }).ToArray() } };
+        var record = new CompletedTransferRecord(memory, _w.Profile, TestWorld.ModuleBase);
+        var prepared = record.Prepare(record.Plan(mainoo.Address, BuyerTeam, SellerTeam, 1000, new(2026, 11, 16)), Allocate);
+        var checks = plan.Writes.Concat(plan.Guards).Concat(prepared.Guards).ToArray();
+        int writeCount = plan.Writes.Count + prepared.Writes.Count;
+        for (int failure = 1; failure <= writeCount; failure++)
+        {
+            memory.FailAt = failure; memory.Calls = 0;
+            Assert.Throws<MemoryAccessException>(() => service.ApplyWithRecord(plan, new(2026, 11, 16), Allocate));
+            foreach (var check in checks)
+                Assert.Equal(check.Expected, memory.Read(check.Address, check.Expected.Length));
+        }
+    }
+
+    sealed class FaultMemory(FakeMemory inner) : IProcessMemory
+    {
+        public int FailAt, Calls;
+        public bool TryRead(ulong address, Span<byte> data) => inner.TryRead(address, data);
+        public bool TryWrite(ulong address, ReadOnlySpan<byte> data)
+        {
+            if (++Calls != FailAt) return inner.TryWrite(address, data);
+            inner.TryWrite(address, data[..Math.Max(1, data.Length / 2)]);
+            return false;
+        }
     }
 
     [Fact]

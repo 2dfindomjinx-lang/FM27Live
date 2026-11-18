@@ -18,6 +18,7 @@ public sealed class EditHistoryWindow : Window
     const int MaxEntriesShown = 150;
 
     readonly ChangeJournal journal;
+    readonly IEditService edits;
     readonly IProcessMemory memory;
     readonly Action<string> onStatus;
     readonly Action onUndone;
@@ -26,9 +27,10 @@ public sealed class EditHistoryWindow : Window
     readonly TextBlock message = new() { Foreground = UiKit.Brush("#94A3B8"), VerticalAlignment = VerticalAlignment.Center };
     readonly HashSet<string> collapsed = [];
 
-    public EditHistoryWindow(ChangeJournal journal, IProcessMemory memory, Action<string> onStatus, Action onUndone)
+    public EditHistoryWindow(ChangeJournal journal, IProcessMemory memory, Action<string> onStatus, Action onUndone, IEditService edits)
     {
         this.journal = journal;
+        this.edits = edits;
         this.memory = memory;
         this.onStatus = onStatus;
         this.onUndone = onUndone;
@@ -50,7 +52,7 @@ public sealed class EditHistoryWindow : Window
             int restored = 0, refused = 0;
             foreach (var group in journal.Groups.OrderByDescending(g => g.Time))
             {
-                var (ok, errors) = journal.Undo(group, memory);
+                var (ok, errors) = UndoGroup(group);
                 restored += ok; refused += errors.Count;
             }
             Report(refused > 0
@@ -144,7 +146,7 @@ public sealed class EditHistoryWindow : Window
         var undoAll = new Button { Content = group.FullyUndone ? Loc.S("Undone") : Loc.S("Undo all"), IsEnabled = !group.FullyUndone };
         undoAll.Click += (_, _) =>
         {
-            var (restored, errors) = journal.Undo(group, memory);
+            var (restored, errors) = UndoGroup(group);
             string groupTitle = Loc.S(group.Title);
             string groupEntity = Loc.S(group.Entity);
             Report(errors.Count > 0
@@ -182,12 +184,33 @@ public sealed class EditHistoryWindow : Window
         };
     }
 
+    (int Restored, List<string> Errors) UndoGroup(ChangeGroup group)
+    {
+        try
+        {
+            (int Restored, List<string> Errors) result = (0, []);
+            edits.ExecuteUnrecorded(() => result = journal.Undo(group, memory));
+            return result;
+        }
+        catch (Exception ex) { return (0, [UserMessage.For(ex)]); }
+    }
+
+    bool UndoEntry(ChangeEntry entry, out string? error)
+    {
+        string? reason = null;
+        bool restored = false;
+        try { edits.ExecuteUnrecorded(() => restored = journal.Undo(entry, memory, out reason)); }
+        catch (Exception ex) { reason = UserMessage.For(ex); }
+        error = reason;
+        return restored;
+    }
+
     Control EntryRow(ChangeEntry entry)
     {
         var undo = new Button { Content = entry.Undone ? Loc.S("Undone") : Loc.S("Undo"), IsEnabled = !entry.Undone, MinWidth = 64 };
         undo.Click += (_, _) =>
         {
-            if (journal.Undo(entry, memory, out var error)) { Report(Loc.F("Restored {0} to {1}", Loc.S(entry.Name), entry.BeforeText)); onUndone(); }
+            if (UndoEntry(entry, out var error)) { Report(Loc.F("Restored {0} to {1}", Loc.S(entry.Name), entry.BeforeText)); onUndone(); }
             else Report(Loc.F("Cannot undo {0}: {1}", Loc.S(entry.Name), error ?? ""));
         };
         var name = new TextBlock { Text = Loc.S(entry.Name), FontWeight = FontWeight.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis };

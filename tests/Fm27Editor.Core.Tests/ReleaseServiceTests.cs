@@ -8,6 +8,20 @@ namespace Fm27Editor.Core.Tests;
 
 public class ReleaseServiceTests
 {
+    [Fact]
+    public void Every_partial_release_failure_restores_contract_squads_and_captaincies()
+    {
+        var fault = new WriteFaultMemory(memory);
+        var writer = new ReleaseService(fault, profile, Module, () => [manager]);
+        var plan = writer.Plan(player);
+        for (int failure = 1; failure <= plan.Writes.Count; failure++)
+        {
+            fault.Reset(failure);
+            Assert.Throws<MemoryAccessException>(() => writer.Apply(plan));
+            foreach (var w in plan.Writes) Assert.Equal(w.Expected, memory.Read(w.Address, w.Expected.Length));
+        }
+    }
+
     const ulong Module = 0x7000_0000_0000, Player = 0x1000_0000, Contract = 0x2000_0000,
         Club = 0x3000_0000, Team1 = 0x4000_0000, Team2 = 0x4001_0000,
         Teams = 0x5000_0000, Squad1 = 0x5001_0000, Squad2 = 0x5002_0000,

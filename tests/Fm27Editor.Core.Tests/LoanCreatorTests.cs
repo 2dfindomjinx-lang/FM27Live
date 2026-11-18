@@ -12,6 +12,22 @@ namespace Fm27Editor.Core.Tests;
 /// </summary>
 public class LoanCreatorTests
 {
+    [Fact]
+    public void Partial_failure_at_each_loan_write_restores_published_state()
+    {
+        var fault = new WriteFaultMemory(_w.Memory);
+        var creator = Creator(fault);
+        var plan = creator.Plan(Player(TestWorld.Mainoo), BorrowTeam, new LoanOffer(1, Today, NextYear), All());
+        ulong next = 0x78000000;
+        ulong Allocate(int n) { ulong at = next; next += 0x10000; _w.Memory.Map(at, n); return at; }
+        for (int failure = 1; failure <= plan.Writes.Count + 2; failure++)
+        {
+            fault.Reset(failure);
+            Assert.Throws<MemoryAccessException>(() => creator.Apply(plan, Allocate));
+            foreach (var w in plan.Writes) Assert.Equal(w.Expected, _w.Memory.Read(w.Address, w.Expected.Length));
+        }
+    }
+
     const uint TeamVt = 0x4C90A78, ClubVt = 0x4CDA1F8, ContractVt = 0x4AC05F8, LoanVt = 0x4D78AF8;
     const ulong ParentTeam = 0x6002_0000, ParentSquad = 0x6003_0000, ParentClub = 0x6000_0000;
     const ulong BorrowTeam = 0x6102_0000, BorrowSquad = 0x6103_0000, BorrowClub = 0x6100_0000;

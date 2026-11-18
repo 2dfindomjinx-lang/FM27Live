@@ -2,23 +2,35 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Fm27Editor.Core.Clubs;
+using Fm27Editor.Core.Nations;
 using Fm27Editor.Core.Staff;
 
 namespace Fm27Editor.App;
 
-/// <summary>Read-only list of the Coach or Club matches produced by Advanced Search.</summary>
+/// <summary>Read-only list of the Coach, Club or Nation matches produced by Advanced Search.</summary>
 internal sealed class SearchResultsWindow : Window
 {
     sealed record StaffRow(string Name, string Age, string Club, string Job, string Nationality, string Ca, string Pa);
     sealed record ClubRow(string Name, string Id);
+    sealed record NationRow(string Name, string ShortName, string Id);
 
     public string StatusMessage { get; } = "";
 
     public SearchResultsWindow(string scope, IReadOnlyList<StaffRecord> staff, IReadOnlyList<ClubEntry> clubs, DateOnly? gameDate,
-        int? totalCount = null, string? filterNote = null)
+        int? totalCount = null, string? filterNote = null, IReadOnlyList<NationRecord>? nations = null)
     {
-        int shown = scope == "Coach" ? staff.Count : clubs.Count;
-        string noun = Loc.S(scope == "Coach" ? "staff" : "clubs");
+        int shown = scope switch
+        {
+            "Coach" => staff.Count,
+            "Nation" => nations?.Count ?? 0,
+            _ => clubs.Count,
+        };
+        string noun = Loc.S(scope switch
+        {
+            "Coach" => "staff",
+            "Nation" => "nations",
+            _ => "clubs",
+        });
         Title = Loc.F("Advanced Search Results - {0:N0} {1}", shown, noun);
         if (totalCount is { } total && shown < total)
         {
@@ -62,6 +74,13 @@ internal sealed class SearchResultsWindow : Window
                 s.Nationality?.DisplayName ?? "",
                 s.CurrentAbility.ToString(),
                 s.PotentialAbility.ToString())).ToArray();
+        }
+        else if (scope == "Nation")
+        {
+            grid.Columns.Add(new DataGridTextColumn { Header = Loc.S("Name"), Binding = new Avalonia.Data.Binding(nameof(NationRow.Name)), Width = new DataGridLength(320) });
+            grid.Columns.Add(new DataGridTextColumn { Header = Loc.S("Short Name"), Binding = new Avalonia.Data.Binding(nameof(NationRow.ShortName)), Width = new DataGridLength(160) });
+            grid.Columns.Add(new DataGridTextColumn { Header = Loc.S("ID"), Binding = new Avalonia.Data.Binding(nameof(NationRow.Id)), Width = new DataGridLength(100) });
+            grid.ItemsSource = (nations ?? []).Select(n => new NationRow(n.DisplayName, n.ShortName ?? "", n.Id?.ToString() ?? "")).ToArray();
         }
         else
         {

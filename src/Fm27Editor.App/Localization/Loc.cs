@@ -83,7 +83,11 @@ public static partial class Loc
 
     public static TextBlock BindText(TextBlock tb, string key) => Bind(tb, () => tb.Text = S(key));
     public static Button BindContent(Button btn, string key) => Bind(btn, () => btn.Content = S(key));
-    public static T BindTip<T>(T ctl, string key) where T : Control => Bind(ctl, () => ToolTip.SetTip(ctl, S(key)));
+    public static T BindTip<T>(T ctl, string key) where T : Control => Bind(ctl, () =>
+    {
+        ToolTip.SetTip(ctl, S(key));
+        Avalonia.Automation.AutomationProperties.SetName(ctl, S(key));
+    });
     public static T BindToolTip<T>(T ctl, string key) where T : Control => BindTip(ctl, key);
     public static TextBox BindWatermark(TextBox tb, string key) => Bind(tb, () => tb.Watermark = S(key));
 }

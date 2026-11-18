@@ -106,6 +106,7 @@ public sealed class TransferService(IProcessMemory memory, OffsetProfile profile
 
         // Old squad: shift the tail left over the player and move end back by one.
         ulong squad = fromTeam + (ulong)T.Squad;
+        guards.AddRange(FutureTransferVectorSnapshot.Capture(memory, squad, 8, 10000).Guards);
         ulong begin = memory.ReadUInt64(squad), end = memory.ReadUInt64(squad + 8);
         var old = memory.Read(begin, (int)(end - begin));
         int index = Enumerable.Range(0, old.Length / 8).FirstOrDefault(i => BitConverter.ToUInt64(old, i * 8) == player.Address, -1);
@@ -116,6 +117,7 @@ public sealed class TransferService(IProcessMemory memory, OffsetProfile profile
 
         // New squad: append in place when there is room, otherwise Apply allocates a bigger buffer.
         ulong toSquad = to.Address + (ulong)T.Squad;
+        guards.AddRange(FutureTransferVectorSnapshot.Capture(memory, toSquad, 8, 10000).Guards);
         ulong tBegin = memory.ReadUInt64(toSquad), tEnd = memory.ReadUInt64(toSquad + 8), tCap = memory.ReadUInt64(toSquad + 16);
         IReadOnlyList<ulong>? newSquad = null;
         if (tEnd < tCap)
@@ -137,6 +139,12 @@ public sealed class TransferService(IProcessMemory memory, OffsetProfile profile
     /// </summary>
     public void Apply(TransferPlan plan, Func<int, ulong>? allocate = null)
     {
+        var prepared = Prepare(plan, allocate);
+        FutureTransferTransaction.Apply(memory, prepared.Guards, prepared.Writes);
+    }
+
+    public (IReadOnlyList<PlannedWrite> Guards, IReadOnlyList<PlannedWrite> Writes) Prepare(TransferPlan plan, Func<int, ulong>? allocate = null)
+    {
         var contract = plan.Player.Contract ?? throw new StaleObjectException("The player has no contract snapshot");
         if (!profile.PlayerVtableRvas.Any(v => moduleBase + v == memory.ReadUInt64(plan.Player.Address)) ||
             memory.ReadUInt64(plan.Player.Address + (ulong)C.PlayerContract) != contract.Address ||
@@ -156,19 +164,29 @@ public sealed class TransferService(IProcessMemory memory, OffsetProfile profile
             var oldPointers = memory.Read(toSquad, 24);
             int capacity = items.Count * 2;
             ulong buffer = allocate(capacity * 8);
+            if (buffer == 0) throw new MemoryAccessException("Squad allocation failed");
             var bytes = items.SelectMany(BitConverter.GetBytes).ToArray();
             writes.Add(new PlannedWrite(buffer, memory.Read(buffer, bytes.Length), bytes, "new squad buffer"));
             writes.Add(new PlannedWrite(toSquad, oldPointers,
                 [.. BitConverter.GetBytes(buffer), .. BitConverter.GetBytes(buffer + (ulong)bytes.Length), .. BitConverter.GetBytes(buffer + (ulong)capacity * 8)],
                 "new squad begin/end/capacity"));
         }
-        foreach (var w in writes)
-        {
-            if (!memory.Read(w.Address, w.Expected.Length).AsSpan().SequenceEqual(w.Expected))
-                throw new StaleObjectException($"{w.What} changed while writing");
-            if (!memory.TryWrite(w.Address, w.Value) || !memory.Read(w.Address, w.Value.Length).AsSpan().SequenceEqual(w.Value))
-                throw new MemoryAccessException($"Write failed: {w.What}");
-        }
+        var guards = plan.Guards.ToList();
+        foreach (var address in new[] { plan.Player.Address, plan.Player.Address + (ulong)C.PlayerContract, contract.Address })
+            guards.Add(new(address, memory.Read(address, 8), [], "player/contract identity"));
+        return (guards, writes);
+    }
+
+    /// <summary>Finance, squads, contract and completed offer share one rollback boundary.</summary>
+    public void ApplyWithRecord(TransferPlan plan, DateOnly today, Func<int, ulong> allocate)
+    {
+        ulong buyer = plan.Buyer.FirstTeam?.Address ?? throw new InvalidOperationException("Buyer has no first team");
+        ulong seller = plan.Seller.FirstTeam?.Address ?? throw new InvalidOperationException("Seller has no first team");
+        var record = new CompletedTransferRecord(memory, profile, moduleBase);
+        var recordPlan = record.Plan(plan.Player.Address, buyer, seller, plan.Fee, today);
+        var move = Prepare(plan, allocate);
+        var completed = record.Prepare(recordPlan, allocate);
+        FutureTransferTransaction.Apply(memory, [.. move.Guards, .. completed.Guards], [.. move.Writes, .. completed.Writes]);
     }
 
     void AddLoanSquadRemoval(List<PlannedWrite> writes, ulong team, LoanTransferSafety.Squad squad, ulong player)

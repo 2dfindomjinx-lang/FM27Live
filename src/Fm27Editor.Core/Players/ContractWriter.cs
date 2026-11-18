@@ -269,11 +269,15 @@ public sealed class ContractWriter(IProcessMemory memory, OffsetProfile profile,
     }
 
     /// <summary>Changes value and parameter of an existing clause; the type stays.</summary>
-    public void SetTerm(PlayerRecord player, ContractDetails s, int index, int value, short parameter)
+    public void SetTerm(PlayerRecord player, ContractDetails s, int index, int value, short parameter) =>
+        MemoryWriteBatch.Run(memory, staged => new ContractWriter(staged, profile, moduleBase, futureContract).SetTermCore(player, s, index, value, parameter));
+
+    void SetTermCore(PlayerRecord player, ContractDetails s, int index, int value, short parameter)
     {
         Require(player, s);
         if (index < 0 || index >= s.Terms.Count) throw new ArgumentOutOfRangeException(nameof(index));
         var old = s.Terms[index];
+        ContractTermRules.Validate(old.Type, value, parameter);
         ulong begin = memory.ReadUInt64(s.Address + (ulong)(C.Clauses ?? throw new InvalidOperationException("Profile has no clause offset")));
         Write(begin + (ulong)index * 8,
             [.. BitConverter.GetBytes(old.Value), .. BitConverter.GetBytes(old.Parameter), .. BitConverter.GetBytes(old.Type)],
@@ -284,8 +288,12 @@ public sealed class ContractWriter(IProcessMemory memory, OffsetProfile profile,
     /// Appends a bonus or clause. Fills the vector in place when it has room; otherwise copies it into a
     /// buffer from <paramref name="allocate"/> (outside the game's allocator, as for transfers) with double capacity.
     /// </summary>
-    public void AddTerm(PlayerRecord player, ContractDetails s, short type, int value, short parameter, Func<int, ulong>? allocate)
+    public void AddTerm(PlayerRecord player, ContractDetails s, short type, int value, short parameter, Func<int, ulong>? allocate) =>
+        MemoryWriteBatch.Run(memory, staged => new ContractWriter(staged, profile, moduleBase, futureContract).AddTermCore(player, s, type, value, parameter, allocate));
+
+    void AddTermCore(PlayerRecord player, ContractDetails s, short type, int value, short parameter, Func<int, ulong>? allocate)
     {
+        ContractTermRules.Validate(type, value, parameter);
         Require(player, s);
         var (vector, begin, end, cap) = TermVector(s);
         if ((end - begin) / 8 != (ulong)s.Terms.Count) throw new StaleObjectException("Bonuses and clauses changed since they were read");
@@ -307,7 +315,10 @@ public sealed class ContractWriter(IProcessMemory memory, OffsetProfile profile,
     }
 
     /// <summary>Removes one bonus or clause: later entries move up, the end pointer moves back.</summary>
-    public void RemoveTerm(PlayerRecord player, ContractDetails s, int index)
+    public void RemoveTerm(PlayerRecord player, ContractDetails s, int index) =>
+        MemoryWriteBatch.Run(memory, staged => new ContractWriter(staged, profile, moduleBase, futureContract).RemoveTermCore(player, s, index));
+
+    void RemoveTermCore(PlayerRecord player, ContractDetails s, int index)
     {
         Require(player, s);
         if (index < 0 || index >= s.Terms.Count) throw new ArgumentOutOfRangeException(nameof(index));

@@ -113,22 +113,22 @@ public sealed class ReleaseService(IProcessMemory memory, OffsetProfile profile,
             if (!memory.Read(write.Address, expected.Length).AsSpan().SequenceEqual(expected))
                 throw new StaleObjectException($"{write.What} changed; nothing written");
         }
-        var writes = undo ? plan.Writes.Reverse() : plan.Writes;
-        foreach (var write in writes)
+        ValidatePlayer(plan.Player);
+        if (memory.ReadUInt64(plan.Contract) != moduleBase + C.ContractVtableRva ||
+            memory.ReadUInt64(plan.Club) != moduleBase + K.ClubVtableRva)
+            throw new StaleObjectException("Contract or club changed while writing");
+        foreach (ulong team in plan.Teams)
+            if (memory.ReadUInt64(team) != moduleBase + T.VtableRva || memory.ReadUInt64(team + (ulong)C.TeamClub) != plan.Club)
+                throw new StaleObjectException("Team changed while writing");
+        var guards = plan.Guards.Select(g =>
         {
-            ValidatePlayer(plan.Player);
-            if (memory.ReadUInt64(plan.Contract) != moduleBase + C.ContractVtableRva ||
-                memory.ReadUInt64(plan.Club) != moduleBase + K.ClubVtableRva)
-                throw new StaleObjectException("Contract or club changed while writing");
-            foreach (ulong team in plan.Teams)
-                if (memory.ReadUInt64(team) != moduleBase + T.VtableRva || memory.ReadUInt64(team + (ulong)C.TeamClub) != plan.Club)
-                    throw new StaleObjectException("Team changed while writing");
-            byte[] expected = undo ? write.Value : write.Expected, value = undo ? write.Expected : write.Value;
-            if (!memory.Read(write.Address, expected.Length).AsSpan().SequenceEqual(expected))
-                throw new StaleObjectException($"{write.What} changed while writing");
-            if (!memory.TryWrite(write.Address, value) || !memory.Read(write.Address, value.Length).AsSpan().SequenceEqual(value))
-                throw new MemoryAccessException($"Write failed: {write.What}");
-        }
+            var expected = (byte[])g.Bytes.Clone();
+            if (undo) foreach (var w in plan.Writes) Overlay(expected, g.Address, w.Address, w.Value);
+            return new PlannedWrite(g.Address, expected, [], g.What);
+        }).Where(g => g.Expected.Length > 0).ToArray();
+        var writes = (undo ? plan.Writes.Reverse() : plan.Writes)
+            .Select(w => undo ? w with { Expected = w.Value, Value = w.Expected } : w).ToArray();
+        FutureTransferTransaction.Apply(memory, guards, writes);
     }
 
     IReadOnlyList<ManagedClubSnapshot> ReadManagers()

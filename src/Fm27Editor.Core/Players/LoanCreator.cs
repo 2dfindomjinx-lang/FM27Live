@@ -191,23 +191,7 @@ public sealed class LoanCreator(IProcessMemory memory, OffsetProfile profile, ul
         writes.AddRange(plan.Writes.Take(plan.Writes.Count - 1));
         writes.Add(slot with { Value = BitConverter.GetBytes(holder) });
 
-        var done = new List<PlannedWrite>();
-        try
-        {
-            foreach (var w in writes)
-            {
-                if (!memory.Read(w.Address, w.Expected.Length).AsSpan().SequenceEqual(w.Expected))
-                    throw new StaleObjectException($"{w.What} changed while writing");
-                if (!memory.TryWrite(w.Address, w.Value) || !memory.Read(w.Address, w.Value.Length).AsSpan().SequenceEqual(w.Value))
-                    throw new MemoryAccessException($"Write failed: {w.What}");
-                done.Add(w);
-            }
-        }
-        catch
-        {
-            foreach (var w in Enumerable.Reverse(done)) memory.TryWrite(w.Address, w.Expected);
-            throw;
-        }
+        FutureTransferTransaction.Apply(memory, [], writes);
     }
 
     static void Put32(byte[] b, int at, int value) => BitConverter.GetBytes(value).CopyTo(b, at);

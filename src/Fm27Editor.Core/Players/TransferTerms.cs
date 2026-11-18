@@ -8,7 +8,11 @@ namespace Fm27Editor.Core.Players;
 public sealed record TransferTerms(int Instalments, byte Months, int LeagueApps, byte LeagueAppsCount,
     int InternationalApps, byte InternationalAppsCount, int PerLeagueApp, byte PerLeagueAppCount,
     int LeagueGoals, byte LeagueGoalsCount, int BuyBackFee, short SellOn, bool SellOnProfit, int WageContribution,
-    byte PeriodMonths = 12, bool Friendly = false);
+    byte PeriodMonths = 12, bool Friendly = false)
+{
+    public bool RequiresScheduledTransfer => Instalments != 0 || LeagueApps != 0 || InternationalApps != 0 ||
+        PerLeagueApp != 0 || LeagueGoals != 0 || BuyBackFee != 0 || WageContribution != 0 || Friendly || SellOnProfit;
+}
 
 /// <summary>Experimental layouts observed in three FMRTE 27 Game Pass transfer-offer captures.</summary>
 public static class TransferTermsLayout

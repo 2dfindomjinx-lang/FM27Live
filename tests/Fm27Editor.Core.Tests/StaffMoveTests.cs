@@ -8,6 +8,20 @@ namespace Fm27Editor.Core.Tests;
 
 public class StaffMoveTests
 {
+    [Fact]
+    public void Every_partial_staff_move_failure_restores_all_fields()
+    {
+        var fault = new WriteFaultMemory(memory);
+        var service = new StaffMoveService(fault, profile, Module);
+        var plan = service.Plan(member, from, to);
+        for (int failure = 1; failure <= plan.Writes.Count; failure++)
+        {
+            fault.Reset(failure);
+            Assert.Throws<MemoryAccessException>(() => service.Apply(plan));
+            foreach (var w in plan.Writes) Assert.Equal(w.Expected, memory.Read(w.Address, w.Expected.Length));
+        }
+    }
+
     const ulong Module = 0x7000_0000_0000, Staff = 0x1000_0000, Person = Staff + 0x100, Contract = 0x2000_0000;
     const ulong From = 0x3000_0000, To = 0x3001_0000, FromTeam = 0x4000_0000, ToTeam = 0x4001_0000;
     const ulong FromTeams = 0x5000_0000, ToTeams = 0x5001_0000, FromMedical = 0x5002_0000,

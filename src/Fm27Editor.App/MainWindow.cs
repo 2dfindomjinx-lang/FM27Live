@@ -521,12 +521,16 @@ public sealed partial class MainWindow : Window
             clubSource: connected ? () => clubCache ?? backend.Session.LoadClubs(players) : null,
             staffRelations: statusReader is null ? null : staff => statusReader.Read(backend.Session.Owner(staff)).Entries,
             clubAccess: connected ? new Fm27Editor.Core.Clubs.ClubFieldAccess(backend.Session.Memory, backend.Session.Profile, backend.Session.ModuleBase) : null,
-            today: connected ? backend.Session.ReadGameDate() : null);
+            today: connected ? backend.Session.ReadGameDate() : null,
+            nationSource: connected ? () => nationCatalogue ?? backend.Session.Nations.LoadAll() : null,
+            nationAccess: connected ? new Fm27Editor.Core.Nations.NationFieldAccess(backend.Session.Memory, backend.Session.Profile, backend.Session.ModuleBase) : null,
+            nationLinks: connected ? backend.Session.NationLinks : null,
+            nationAgreements: connected ? backend.Session.NationAgreements : null);
         await dialog.ShowDialog(this);
         savedPresets = dialog.UpdatedPresets;
         if (dialog.Saved && dialog.SelectedScope != "Player")
         {
-            await new SearchResultsWindow(dialog.SelectedScope, dialog.MatchedStaff, dialog.MatchedClubs, backend.Session.ReadGameDate(), dialog.ScopeTotalCount, dialog.ScopeFilterNote).ShowDialog(this);
+            await new SearchResultsWindow(dialog.SelectedScope, dialog.MatchedStaff, dialog.MatchedClubs, backend.Session.ReadGameDate(), dialog.ScopeTotalCount, dialog.ScopeFilterNote, dialog.MatchedNations).ShowDialog(this);
             RefreshQuickPresetCombo();
             return;
         }

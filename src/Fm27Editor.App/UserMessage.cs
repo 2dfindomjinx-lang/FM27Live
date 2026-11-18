@@ -21,10 +21,13 @@ public static class UserMessage
         SaveChangedException ex => Loc.S(ex.Message),
         UnsupportedBuildException => Loc.S("This game version is not supported"),
         PartialClauseWriteException => Loc.S("Some clause fields may have been saved. Reload before retrying."),
-        StaleObjectException => Loc.S("Player data changed in game; reloaded"),
+        StaleObjectException => Loc.S("Game data changed. Reload before retrying."),
         MemoryAccessException => Loc.S("Couldn't access game data. Check that a save is loaded and retry."),
+        AggregateException => Loc.S("The edit failed and could not be fully restored. Reload your backup save before continuing."),
+        OverflowException or FormatException => Loc.S("Enter a valid number within the allowed range"),
         ArgumentOutOfRangeException => Loc.S("Value is outside the allowed range"),
         System.ComponentModel.Win32Exception ex => Loc.F("Windows error {0}: {1}", ex.NativeErrorCode, ex.Message),
-        _ => $"{error.GetType().Name}: {error.Message}"
+        _ => Loc.VietnameseTable.ContainsKey(error.Message) ? Loc.S(error.Message)
+            : Loc.IsVi ? Loc.S("The operation could not be completed. See the diagnostic log for details.") : error.Message
     };
 }

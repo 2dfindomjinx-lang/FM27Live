@@ -1,3 +1,4 @@
+using Fm27Editor.Core.Memory;
 using Fm27Editor.Core.Players;
 using Fm27Editor.Core.Stadiums;
 
@@ -13,6 +14,19 @@ namespace Fm27Editor.Core.Tests;
 /// </summary>
 public class StadiumTests
 {
+    [Theory]
+    [InlineData(float.NaN)]
+    [InlineData(float.PositiveInfinity)]
+    [InlineData(float.NegativeInfinity)]
+    public void Non_finite_coordinates_never_reach_memory(float value)
+    {
+        var stadium = Repo().LoadAll()[0];
+        int writes = _w.Memory.Writes;
+        Assert.Throws<ArgumentOutOfRangeException>(() => Writer().SetCoordinates(stadium, value, null));
+        Assert.Throws<ArgumentOutOfRangeException>(() => Writer().SetCoordinates(stadium, null, value));
+        Assert.Equal(writes, _w.Memory.Writes);
+    }
+
     const ulong Root = 0x7100_0000, Vector = 0x7100_1000, Ot = 0x7101_0000, Stands = 0x7102_0000, Name = 0x7103_0000;
     readonly TestWorld _w = new();
 

@@ -10,6 +10,12 @@
   "nationAppointmentVtable": "0x4C5E518",
   "agreementRegionVtable": "0x4F29B08",
   "agreementVtable": "0x4DF4068",
+  "forceAccept": {
+    "boardRequestsRva": "0x159E0B7",
+    "boardRequestsOriginal": "0F 85 07 01 00 00",
+    "clubVisionRva": "0x1D95C0F",
+    "clubVisionOriginal": "78 78"
+  },
   "imageSize": "0x18878000",
   "peTimestamp": "0x6AF5C68F",
   "playerList": {
@@ -1141,6 +1147,11 @@
       "goals": "0x136",
       "license": "0x13C",
       "roles": "0xD0"
+    },
+    "allowances": {
+      "teamManager": "0x80",
+      "humanMscc": "0x388",
+      "msccExtraStaff": "0x116C"
     },
     "knowledgeHolder": "0xB0",
     "knowledgeValue": "0x24",

@@ -103,6 +103,18 @@ public sealed class GameSession : IDisposable
     public Presets.ForceTransferOffersHook ForceTransferOffersHook =>
         _forceTransfer ??= new(_memory, CanWrite ? _memory as Presets.ICodePatchHost : null, Profile, Game.ModuleBase, Game.ModuleSize);
 
+    ForceAccept.ForceAcceptPlanner? _forceAccept;
+
+    /// <summary>Guarded code-patch planner for the force-accept presets (Board Requests &amp; Club Vision).</summary>
+    public ForceAccept.ForceAcceptPlanner ForceAccept =>
+        _forceAccept ??= new(Profile, _memory, Game.ModuleBase);
+
+    Clubs.StaffAllowanceAccess? _staffAllowances;
+
+    /// <summary>Reader and guarded writer for a human manager's extra staff allowances (<c>Mscc</c>).</summary>
+    public Clubs.StaffAllowanceAccess StaffAllowances =>
+        _staffAllowances ??= new(_memory, Profile, Game.ModuleBase);
+
     /// <summary>Current in-game date, read fresh on every call; null if unknown.</summary>
     public DateOnly? ReadGameDate() => GameClock.Read(_memory, Profile, Game.ModuleBase);
 

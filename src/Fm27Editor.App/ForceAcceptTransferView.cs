@@ -2,6 +2,7 @@
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Fm27Editor.Core.ForceAccept;
 using Fm27Editor.Core.Game;
 using Fm27Editor.Core.Memory;
 using Fm27Editor.Core.Presets;
@@ -10,6 +11,214 @@ namespace Fm27Editor.App;
 
 public sealed partial class MainWindow
 {
+    event Action? forceBoardRequestChanged;
+
+    Control BuildClubBoardRequestsCard(GameSession session) =>
+        BuildForceBoardRequestCard(session, includeRefreshButton: false);
+
+    Control BuildForceBoardRequestSection(GameSession session) =>
+        BuildForceBoardRequestCard(session, includeRefreshButton: true);
+
+    Control BuildForceBoardRequestCard(GameSession session, bool includeRefreshButton)
+    {
+        var heading = new TextBlock
+        {
+            Text = Loc.S("Force Board Request (Experimental)"),
+            FontSize = 14,
+            FontWeight = FontWeight.SemiBold,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        var titleControl = UiKit.TitleWithInfo(
+            heading,
+            Loc.S("The board accepts every board request and Club Vision change you submit while this is turned on."));
+
+        if (session.Profile.IsArm64)
+        {
+            return UiKit.Card(
+                Loc.S("Force Board Request (Experimental)"),
+                new TextBlock
+                {
+                    Text = Loc.S("Unavailable on this architecture."),
+                    TextWrapping = TextWrapping.Wrap,
+                    Foreground = UiKit.TextMuted,
+                },
+                customTitle: titleControl);
+        }
+
+        var planner = session.ForceAccept;
+        var edits = backend.Edits;
+
+        var on = new CheckBox
+        {
+            Content = Loc.S("On"),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+
+        var stateText = new TextBlock
+        {
+            Text = Loc.S("Checking…"),
+            FontSize = 12.5,
+            Foreground = UiKit.TextMuted,
+            TextWrapping = TextWrapping.Wrap,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+
+        var statusText = new TextBlock
+        {
+            Text = "",
+            FontSize = 12,
+            Foreground = UiKit.Brush("#E06C75"),
+            TextWrapping = TextWrapping.Wrap,
+            IsVisible = false,
+        };
+
+        bool syncing = false;
+        bool busy = false;
+
+        void RenderPlan(ForceAcceptPlan plan)
+        {
+            syncing = true;
+            try
+            {
+                on.IsEnabled = plan.State is ForceAcceptPlanState.Appliable or ForceAcceptPlanState.Active;
+                on.IsChecked = plan.State == ForceAcceptPlanState.Active;
+                stateText.Text = plan.State switch
+                {
+                    ForceAcceptPlanState.Active => Loc.S("On"),
+                    ForceAcceptPlanState.Appliable => Loc.S("Off"),
+                    ForceAcceptPlanState.Blocked => Loc.S("Unavailable · unexpected code bytes"),
+                    _ => Loc.S("Unavailable on this build"),
+                };
+            }
+            finally { syncing = false; }
+        }
+
+        async Task RefreshAsync()
+        {
+            if (busy) return;
+            busy = true;
+            try
+            {
+                var plan = await Task.Run(() => planner.Plan(ForceAcceptPreset.BoardRequests));
+                RenderPlan(plan);
+            }
+            catch (Exception ex)
+            {
+                statusText.Text = UserMessage.For(ex);
+                statusText.IsVisible = true;
+            }
+            finally { busy = false; }
+        }
+
+        var row = new DockPanel { LastChildFill = true };
+        if (includeRefreshButton)
+        {
+            var controls = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 8,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(8, 0, 0, 0),
+                Children = { on },
+            };
+            var refreshBtn = new Button
+            {
+                Content = Loc.S("Refresh"),
+                Height = 26,
+                MinHeight = 26,
+                Padding = new Thickness(10, 0),
+                FontSize = 12.5,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            controls.Children.Add(refreshBtn);
+            DockPanel.SetDock(controls, Dock.Right);
+            row.Children.Add(controls);
+
+            refreshBtn.Click += async (_, _) =>
+            {
+                statusText.IsVisible = false;
+                await RefreshAsync();
+            };
+        }
+        else
+        {
+            on.Margin = new Thickness(8, 0, 0, 0);
+            DockPanel.SetDock(on, Dock.Right);
+            row.Children.Add(on);
+        }
+        row.Children.Add(stateText);
+
+        var body = new StackPanel
+        {
+            Spacing = 6,
+            Children = { row, statusText },
+        };
+        var card = UiKit.Card(
+            Loc.S("Force Board Request (Experimental)"),
+            body,
+            customTitle: titleControl);
+
+        on.IsCheckedChanged += async (_, _) =>
+        {
+            if (syncing || busy) return;
+            bool enable = on.IsChecked == true;
+            busy = true;
+            statusText.IsVisible = false;
+            try
+            {
+                var updated = await Task.Run(() =>
+                {
+                    var current = planner.Plan(ForceAcceptPreset.BoardRequests);
+                    if (enable)
+                    {
+                        if (current.State != ForceAcceptPlanState.Appliable)
+                            throw new InvalidOperationException("Force Board Request cannot be enabled in its current state.");
+                        edits.Execute("Force Accept", "Board requests", "Force accept", () => planner.Apply(current, gamePaused: true));
+                    }
+                    else if (current.State == ForceAcceptPlanState.Active)
+                    {
+                        edits.Execute("Force Accept", "Board requests", "Restore", () => planner.Restore(current, gamePaused: true));
+                    }
+                    return planner.Plan(ForceAcceptPreset.BoardRequests);
+                });
+                RenderPlan(updated);
+                forceBoardRequestChanged?.Invoke();
+            }
+            catch (Exception ex)
+            {
+                syncing = true;
+                on.IsChecked = !enable;
+                syncing = false;
+                statusText.Text = UserMessage.For(ex);
+                statusText.IsVisible = true;
+            }
+            finally { busy = false; }
+        };
+
+        void OnExternalChange()
+        {
+            if (!busy)
+                _ = RefreshAsync();
+        }
+
+        forceBoardRequestChanged += OnExternalChange;
+        card.DetachedFromVisualTree += (_, _) => forceBoardRequestChanged -= OnExternalChange;
+
+        try
+        {
+            RenderPlan(planner.Plan(ForceAcceptPreset.BoardRequests));
+        }
+        catch (Exception ex)
+        {
+            on.IsEnabled = false;
+            stateText.Text = Loc.S("Unavailable on this build");
+            statusText.Text = UserMessage.For(ex);
+            statusText.IsVisible = true;
+        }
+
+        return card;
+    }
+
     Control BuildForceAcceptTransferSection(GameSession session)
     {
         var hook = session.ForceTransferOffersHook;

@@ -50,7 +50,8 @@ static class SteamCheck
     {
         var allPlayers = s.Players.LoadAll();
         var players = Spread(allPlayers, 3000).ToList();
-        var staff = Spread(s.Staff.LoadAll(), 1500).ToList();
+        var allStaff = s.Staff.LoadAll();
+        var staff = Spread(allStaff, 1500).ToList();
         var clubs = Spread(s.LoadClubs(allPlayers), 500).ToList();
         var nationsAll = s.Nations.LoadAll();
         var nations = Spread(nationsAll, 60).ToList();
@@ -84,6 +85,18 @@ static class SteamCheck
         Feature("staff career plans", staff, x => s.CareerPlans.Read(s.Owner(x)));
         Feature("staff languages", staff, x => s.ReadLanguages(s.Owner(x)));
         Feature("staff statuses (relations)", staff, x => s.ReadStatuses(s.Owner(x)));
+        if (s.Profile.Staff?.Allowances is not null)
+        {
+            var humanStaff = allStaff.Where(x => x.Kind.Manager).ToList();
+            Feature("staff allowances (human)", humanStaff, x => s.StaffAllowances.ReadForStaff(x.StaffAddress));
+        }
+        if (s.Profile.ForceAccept?.BoardRequestsRva is not null && s.Profile.ForceAccept?.ClubVisionRva is not null)
+        {
+            Feature("force board request (plan)", new object[] { 0 }, _ =>
+                s.ForceAccept.Plan(Fm27Editor.Core.ForceAccept.ForceAcceptPreset.BoardRequests).State
+                    is Fm27Editor.Core.ForceAccept.ForceAcceptPlanState.Appliable
+                    or Fm27Editor.Core.ForceAccept.ForceAcceptPlanState.Active ? 1 : null);
+        }
 
         Feature("club finance", clubs, c => s.ReadFinance(c.Address));
         Feature("club fields", clubs, c => c.FirstTeam is { } t ? s.ClubFields.ReadAll(c.Address, t.Address) : null);

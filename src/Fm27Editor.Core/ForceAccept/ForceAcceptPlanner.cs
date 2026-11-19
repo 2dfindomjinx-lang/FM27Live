@@ -40,22 +40,24 @@ public sealed class ForceAcceptPlanner(OffsetProfile profile, IProcessMemory mem
     /// implemented x86-64 overwrite. No ARM64 byte sequences are offered until the acceptance logic is measured.
     /// </summary>
     sealed record Site(string Key, Func<ForceAcceptOffsets?, uint?> RvaFrom, byte[] Original, byte[] Replacement,
-        bool RequiresGuardedHook = false);
+        bool RequiresGuardedHook = false, Func<ForceAcceptOffsets?, byte[]?>? OriginalFrom = null);
 
     static readonly IReadOnlyDictionary<ForceAcceptPreset, Site[]> Sites = new Dictionary<ForceAcceptPreset, Site[]>
     {
         // Board: NOP the two conditional jumps that reject a request — the 6-byte jne guarding general requests and
         // the 2-byte js guarding club vision. Cheat Engine (FM26): `aob1 = 83 00 00 00 01 48 89 ?? ?? 03 00 00`
-        // with `nop 6` at aob1+0x1A, and `aob2 = 0F B6 4E 6B 01 C1` with `nop 2` at aob2+0x0D. On the live FM27
-        // image aob2 matches once, at RVA 0x1D52F09, where +0x0D holds `78 78` (js, a different displacement from
-        // FM26's `78 7C`); aob1's FM27 equivalent is not settled (the 6-byte jne sequence has 8+ hits), so both
-        // RVAs stay in the profile until measured per build.
+        // with `nop 6` at aob1+0x1A, and `aob2 = 0F B6 4E 6B 01 C1` with `nop 2` at aob2+0x0D. On FM27 the struct
+        // offset in aob1 shifted from +0x83 to +0x81 (`80 ?? 81 00 00 00 01 48 89 ?? ?? 03 00 00 0F 85`) and the
+        // branch displacements vary per build (`0F 85 07 01 00 00` and `78 78` on Steam 27.1.0+2505117), so each
+        // profile carries both the measured RVAs and its exact original branch bytes.
         [ForceAcceptPreset.BoardRequests] =
         [
             new("generalRequests", o => o?.BoardRequestsRva,
-                [0x0F, 0x85, 0xFD, 0x00, 0x00, 0x00], [0x90, 0x90, 0x90, 0x90, 0x90, 0x90]),
+                [0x0F, 0x85, 0xFD, 0x00, 0x00, 0x00], [0x90, 0x90, 0x90, 0x90, 0x90, 0x90],
+                OriginalFrom: o => o?.BoardRequestsOriginal),
             new("clubVision", o => o?.ClubVisionRva,
-                [0x78, 0x7C], [0x90, 0x90]),
+                [0x78, 0x7C], [0x90, 0x90],
+                OriginalFrom: o => o?.ClubVisionOriginal),
         ],
         // Contract: NOT IMPLEMENTED — the site is reported NotImplemented and never read, so no byte pattern can
         // enable the preset. The Cheat Engine preset (`K9__players-and-staff-always-accept-your-contract-offers`,
@@ -95,7 +97,11 @@ public sealed class ForceAcceptPlanner(OffsetProfile profile, IProcessMemory mem
         var planned = new List<ForceAcceptSitePlan>(Sites[preset].Length);
         foreach (var site in Sites[preset])
         {
-            byte[] original = arm64 ? [] : site.Original;
+            byte[] original = arm64
+                ? []
+                : site.OriginalFrom?.Invoke(profile.ForceAccept) is { } custom && custom.Length == site.Original.Length
+                    ? custom
+                    : site.Original;
             byte[] replacement = arm64 ? [] : site.Replacement;
             uint? rva = site.RvaFrom(profile.ForceAccept);
             // A preset whose reference is a guarded hook is never read: no byte pattern at the site can enable it,

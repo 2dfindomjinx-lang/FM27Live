@@ -196,6 +196,7 @@ public static class NewBuildDiscoverer
             cuObj.Remove("containerVtable");
             discoveredVtablePaths.Remove("player.callUps.containerVtable");
         }
+        ProbePeCodeSignatures(image, memory, game.ModuleBase, provisional, working, rawBase, discoveredRootPaths, structuralOverrides, items);
 
         // Build final resolved profile + compact "extends" output.
         var finalProfile = OffsetProfile.Load(working.ToJsonString(), resolveLayout);
@@ -1451,6 +1452,247 @@ public static class NewBuildDiscoverer
         }
         items.Add(new("player.callUps.containerNation", DiscoveryStatus.Manual, "NOT_FOUND",
             $"No offset in 0x100..0x240 of {containers.Count} national-team containers points at a nation"));
+    }
+
+    static void ProbePeCodeSignatures(
+        ModuleImage image,
+        IProcessMemory memory,
+        ulong moduleBase,
+        OffsetProfile profile,
+        JsonObject working,
+        JsonObject rawBase,
+        List<string> discoveredRootPaths,
+        HashSet<string> structuralOverrides,
+        List<DiscoveryItem> items)
+    {
+        if (profile.IsArm64) return;
+        if (!TryReadPrimaryPeCodeSection(image.Bytes, memory, moduleBase, out uint codeRva, out byte[] code))
+            return;
+
+        if (TryFindStaffAllowanceOffsetsInCode(code, codeRva, out int humanMscc, out int msccExtraStaff, out uint allowCodeRva))
+        {
+            string tmHex = "0x80";
+            string msccHex = Hex((uint)humanMscc);
+            string mestHex = Hex((uint)msccExtraStaff);
+            ProfileJsonResolver.SetByPath(working, "staff.allowances.teamManager", tmHex);
+            ProfileJsonResolver.SetByPath(working, "staff.allowances.humanMscc", msccHex);
+            ProfileJsonResolver.SetByPath(working, "staff.allowances.msccExtraStaff", mestHex);
+            RecordStructuralIfDifferent(rawBase, "staff.allowances.teamManager", tmHex, structuralOverrides);
+            RecordStructuralIfDifferent(rawBase, "staff.allowances.humanMscc", msccHex, structuralOverrides);
+            RecordStructuralIfDifferent(rawBase, "staff.allowances.msccExtraStaff", mestHex, structuralOverrides);
+            items.Add(new("staff.allowances", DiscoveryStatus.Pass, $"mscc={msccHex}, extra={mestHex}",
+                $"unique code pair at RVA {Hex(allowCodeRva)}"));
+        }
+        else
+        {
+            items.Add(new("staff.allowances", DiscoveryStatus.Warn, "NOT_FOUND",
+                "Could not uniquely match staff allowance clamp sequence in executable section"));
+        }
+
+        if (TryFindForceBoardSitesInCode(code, codeRva, out uint gate1Rva, out byte[] gate1Orig, out uint gate2Rva, out byte[] gate2Orig))
+        {
+            string g1Hex = Hex(gate1Rva);
+            string g1OrigHex = string.Join(' ', gate1Orig.Select(b => $"{b:X2}"));
+            string g2Hex = Hex(gate2Rva);
+            string g2OrigHex = string.Join(' ', gate2Orig.Select(b => $"{b:X2}"));
+            ProfileJsonResolver.SetByPath(working, "forceAccept.boardRequestsRva", g1Hex);
+            ProfileJsonResolver.SetByPath(working, "forceAccept.boardRequestsOriginal", g1OrigHex);
+            ProfileJsonResolver.SetByPath(working, "forceAccept.clubVisionRva", g2Hex);
+            ProfileJsonResolver.SetByPath(working, "forceAccept.clubVisionOriginal", g2OrigHex);
+            if (!discoveredRootPaths.Contains("forceAccept.boardRequestsRva")) discoveredRootPaths.Add("forceAccept.boardRequestsRva");
+            if (!discoveredRootPaths.Contains("forceAccept.boardRequestsOriginal")) discoveredRootPaths.Add("forceAccept.boardRequestsOriginal");
+            if (!discoveredRootPaths.Contains("forceAccept.clubVisionRva")) discoveredRootPaths.Add("forceAccept.clubVisionRva");
+            if (!discoveredRootPaths.Contains("forceAccept.clubVisionOriginal")) discoveredRootPaths.Add("forceAccept.clubVisionOriginal");
+            items.Add(new("forceAccept.boardRequests", DiscoveryStatus.Pass, $"{g1Hex} / {g2Hex}",
+                $"gate1={g1OrigHex}, gate2={g2OrigHex}"));
+        }
+        else
+        {
+            items.Add(new("forceAccept.boardRequests", DiscoveryStatus.Warn, "NOT_FOUND",
+                "Could not uniquely match both Force Board Request AOB sites in executable section"));
+        }
+    }
+
+    public static bool TryReadPrimaryPeCodeSection(ReadOnlySpan<byte> header, IProcessMemory memory, ulong moduleBase, out uint codeRva, out byte[] code)
+    {
+        codeRva = 0;
+        code = [];
+        if (header.Length < 0x400 || header[0] != 'M' || header[1] != 'Z') return false;
+        int peOff = BitConverter.ToInt32(header[0x3C..]);
+        if (peOff <= 0 || peOff + 24 > header.Length) return false;
+        if (BitConverter.ToUInt32(header[peOff..]) != 0x00004550u) return false;
+        int numSections = BitConverter.ToUInt16(header[(peOff + 6)..]);
+        int optSize = BitConverter.ToUInt16(header[(peOff + 20)..]);
+        int secTable = peOff + 24 + optSize;
+        if (secTable + numSections * 40 > header.Length) return false;
+
+        for (int i = 0; i < numSections; i++)
+        {
+            int s = secTable + i * 40;
+            uint vsize = BitConverter.ToUInt32(header[(s + 8)..]);
+            uint vrva = BitConverter.ToUInt32(header[(s + 12)..]);
+            uint chars = BitConverter.ToUInt32(header[(s + 36)..]);
+            // First executable section (typically .text or .idata at RVA 0x1000, ~70-90 MB, before .udata/.rdata).
+            if ((chars & 0x20000000u) != 0 && vrva == 0x1000 && vsize > 0x100000 && vsize <= 128 * 1024 * 1024)
+            {
+                codeRva = vrva;
+                code = new byte[vsize];
+                const int chunk = 1 << 20;
+                for (int off = 0; off < code.Length; off += chunk)
+                {
+                    int n = Math.Min(chunk, code.Length - off);
+                    memory.TryRead(moduleBase + codeRva + (ulong)off, code.AsSpan(off, n));
+                }
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Locates the staff-allowance calculation sequence on x86-64:
+    /// a pointer load <c>mov reg, [reg + humanMscc]</c> (<c>(48|49|4C|4D) 8B &lt;disp32 modrm&gt;</c>)
+    /// followed closely by an indexed byte load <c>[r64+r64+msccExtraStaff]</c> (<c>movzx</c> <c>0F B6</c> or <c>mov</c> <c>8A</c>)
+    /// and a clamp against <c>10</c> (<c>cmp reg8, 0x0A</c>), paired immediately after by Physios with the same
+    /// <c>humanMscc</c> and <c>msccExtraStaff + 3</c>. Handles both Steam and Game Pass register encodings.
+    /// </summary>
+    public static bool TryFindStaffAllowanceOffsetsInCode(ReadOnlySpan<byte> code, uint codeBaseRva, out int humanMscc, out int msccExtraStaff, out uint matchedRva)
+    {
+        humanMscc = 0;
+        msccExtraStaff = 0;
+        matchedRva = 0;
+        var candidates = new List<(int Offset, int Mscc, int Mest)>();
+
+        for (int i = 0; i + 32 <= code.Length; i++)
+        {
+            if (code[i] is not (0x48 or 0x49 or 0x4C or 0x4D)) continue;
+            if (code[i + 1] != 0x8B) continue;
+            byte modrm = code[i + 2];
+            if (modrm < 0x80 || modrm > 0xBF || (modrm & 7) == 4) continue;
+
+            int mscc = BitConverter.ToInt32(code[(i + 3)..]);
+            if (mscc is < 0x100 or > 0x1000) continue;
+
+            int mest = 0;
+            int afterLoad = -1;
+            int scanEnd = Math.Min(code.Length - 8, i + 16);
+            for (int k = i + 7; k < scanEnd; k++)
+            {
+                int p = (code[k] is >= 0x40 and <= 0x4F) ? k + 1 : k;
+                if (p + 7 < code.Length && code[p] == 0x0F && code[p + 1] == 0xB6 && (code[p + 2] & 0xC7) == 0x84)
+                {
+                    int candidateMest = BitConverter.ToInt32(code[(p + 4)..]);
+                    if (candidateMest is >= 0x400 and <= 0x4000)
+                    {
+                        mest = candidateMest;
+                        afterLoad = p + 8;
+                        break;
+                    }
+                }
+                if (p + 6 < code.Length && code[p] == 0x8A && (code[p + 1] & 0xC7) == 0x84)
+                {
+                    int candidateMest = BitConverter.ToInt32(code[(p + 3)..]);
+                    if (candidateMest is >= 0x400 and <= 0x4000)
+                    {
+                        mest = candidateMest;
+                        afterLoad = p + 7;
+                        break;
+                    }
+                }
+            }
+            if (afterLoad < 0) continue;
+
+            bool hasClamp10 = false;
+            int lim = Math.Min(code.Length - 3, afterLoad + 36);
+            for (int j = afterLoad; j <= lim; j++)
+            {
+                if (code[j] == 0x80 && code[j + 1] is >= 0xF8 and <= 0xFF && code[j + 2] == 0x0A)
+                {
+                    hasClamp10 = true;
+                    break;
+                }
+            }
+            if (hasClamp10)
+                candidates.Add((i, mscc, mest));
+        }
+
+        var pairs = new List<(int Offset, int Mscc, int Mest)>();
+        for (int a = 0; a < candidates.Count; a++)
+        {
+            for (int b = a + 1; b < candidates.Count; b++)
+            {
+                int dist = candidates[b].Offset - candidates[a].Offset;
+                if (dist > 0x140) break;
+                if (candidates[a].Mscc == candidates[b].Mscc && candidates[b].Mest == candidates[a].Mest + 3)
+                    pairs.Add(candidates[a]);
+            }
+        }
+
+        if (pairs.Count != 1) return false;
+        humanMscc = pairs[0].Mscc;
+        msccExtraStaff = pairs[0].Mest;
+        matchedRva = codeBaseRva + (uint)pairs[0].Offset;
+        return true;
+    }
+
+    /// <summary>
+    /// Locates the two x86-64 conditional jump sites patched by the Force Board Request preset:
+    /// Gate 1 (<c>80 ?? ?? 00 00 00 01 48 89 ?? ?? 03 00 00 0F 85 ?? ?? 00 00</c>, 6-byte <c>jne</c> at +14) and
+    /// Gate 2 (<c>0F BF 46 62 0F B6 4E 6B 01 C1 78 ?? C6 46 67 04</c>, 2-byte <c>js</c> at +10).
+    /// Succeeds only when both AOBs match uniquely across the executable section.
+    /// </summary>
+    public static bool TryFindForceBoardSitesInCode(
+        ReadOnlySpan<byte> code,
+        uint codeBaseRva,
+        out uint boardRequestsRva,
+        out byte[] boardRequestsOriginal,
+        out uint clubVisionRva,
+        out byte[] clubVisionOriginal)
+    {
+        boardRequestsRva = 0;
+        boardRequestsOriginal = [];
+        clubVisionRva = 0;
+        clubVisionOriginal = [];
+
+        int gate1Hit = -1;
+        int gate1Count = 0;
+        int gate2Hit = -1;
+        int gate2Count = 0;
+
+        for (int i = 0; i + 20 <= code.Length; i++)
+        {
+            // Gate 1: 80 ?? ?? 00 00 00 01 48 89 ?? ?? 03 00 00 0F 85 ?? ?? 00 00
+            if (code[i] == 0x80
+                && code[i + 3] == 0x00 && code[i + 4] == 0x00 && code[i + 5] == 0x00 && code[i + 6] == 0x01
+                && code[i + 7] == 0x48 && code[i + 8] == 0x89
+                && code[i + 11] == 0x03 && code[i + 12] == 0x00 && code[i + 13] == 0x00
+                && code[i + 14] == 0x0F && code[i + 15] == 0x85
+                && code[i + 18] == 0x00 && code[i + 19] == 0x00)
+            {
+                gate1Hit = i + 14;
+                gate1Count++;
+            }
+
+            // Gate 2: 0F BF 46 62 0F B6 4E 6B 01 C1 78 ?? C6 46 67 04
+            if (code[i] == 0x0F && code[i + 1] == 0xBF && code[i + 2] == 0x46 && code[i + 3] == 0x62
+                && code[i + 4] == 0x0F && code[i + 5] == 0xB6 && code[i + 6] == 0x4E && code[i + 7] == 0x6B
+                && code[i + 8] == 0x01 && code[i + 9] == 0xC1
+                && code[i + 10] == 0x78
+                && code[i + 12] == 0xC6 && code[i + 13] == 0x46 && code[i + 14] == 0x67 && code[i + 15] == 0x04)
+            {
+                gate2Hit = i + 10;
+                gate2Count++;
+            }
+        }
+
+        if (gate1Count != 1 || gate2Count != 1)
+            return false;
+
+        boardRequestsRva = codeBaseRva + (uint)gate1Hit;
+        boardRequestsOriginal = code.Slice(gate1Hit, 6).ToArray();
+        clubVisionRva = codeBaseRva + (uint)gate2Hit;
+        clubVisionOriginal = code.Slice(gate2Hit, 2).ToArray();
+        return true;
     }
 
     static void SetWorkingPath(JsonObject working, string path, string value, List<string> pathLog, HashSet<string> touchedArrayRoots)

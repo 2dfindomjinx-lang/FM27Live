@@ -1137,6 +1137,11 @@
       "license": "0x13C",
       "roles": "0xD0"
     },
+    "allowances": {
+      "teamManager": "0x80",
+      "humanMscc": "0x388",
+      "msccExtraStaff": "0x116C"
+    },
     "knowledgeHolder": "0xB0",
     "knowledgeValue": "0x24",
     "tendenciesHolder": "0xA8",

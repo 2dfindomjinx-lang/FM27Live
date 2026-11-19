@@ -202,6 +202,24 @@ public sealed partial class MainWindow
             ShowNotice("Wonderkid Academy switched off",
                 "A save was loaded, so Wonderkid Academy was switched off. Your settings are kept: switch it on again in the Hook Manager if you want it for this save.",
                 ("OK", true, null));
+
+        bool boardRestored = false;
+        await Task.Run(() => report.Run("board request cleanup", "Reading…", () =>
+        {
+            var plan = backend.Session.ForceAccept.Plan(Fm27Editor.Core.ForceAccept.ForceAcceptPreset.BoardRequests);
+            if (plan.State == Fm27Editor.Core.ForceAccept.ForceAcceptPlanState.Active)
+            {
+                backend.Session.ForceAccept.Restore(plan, gamePaused: true);
+                boardRestored = true;
+            }
+        }));
+        if (boardRestored)
+        {
+            forceBoardRequestChanged?.Invoke();
+            ShowNotice("Force Board Request switched off",
+                "A save was loaded, so Force Board Request was switched off. Switch it on again in Club → Information or Hook Manager if you want it for this save.",
+                ("OK", true, null));
+        }
     }
 
 }

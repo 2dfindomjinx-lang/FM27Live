@@ -196,7 +196,9 @@ public sealed class OffsetProfile
             ForceAccept = root.TryGetProperty("forceAccept", out var fa) ? new ForceAccept.ForceAcceptOffsets
             {
                 BoardRequestsRva = fa.TryGetProperty("boardRequestsRva", out _) ? (uint)Hex(fa, "boardRequestsRva") : null,
+                BoardRequestsOriginal = fa.TryGetProperty("boardRequestsOriginal", out var bro) ? ParseHexBytes(bro.GetString()) : null,
                 ClubVisionRva = fa.TryGetProperty("clubVisionRva", out _) ? (uint)Hex(fa, "clubVisionRva") : null,
+                ClubVisionOriginal = fa.TryGetProperty("clubVisionOriginal", out var cvo) ? ParseHexBytes(cvo.GetString()) : null,
                 ContractOffersRva = fa.TryGetProperty("contractOffersRva", out _) ? (uint)Hex(fa, "contractOffersRva") : null,
                 TransferOffersRva = fa.TryGetProperty("transferOffersRva", out _) ? (uint)Hex(fa, "transferOffersRva") : null,
             } : null,
@@ -549,7 +551,9 @@ public sealed class OffsetProfile
             {
                 w.WriteStartObject("forceAccept");
                 if (forceAccept.BoardRequestsRva is { } boardRequests) H("boardRequestsRva", boardRequests);
+                if (forceAccept.BoardRequestsOriginal is { Length: > 0 } boardOrig) w.WriteString("boardRequestsOriginal", FormatHexBytes(boardOrig));
                 if (forceAccept.ClubVisionRva is { } clubVision) H("clubVisionRva", clubVision);
+                if (forceAccept.ClubVisionOriginal is { Length: > 0 } visionOrig) w.WriteString("clubVisionOriginal", FormatHexBytes(visionOrig));
                 if (forceAccept.ContractOffersRva is { } contractOffers) H("contractOffersRva", contractOffers);
                 if (forceAccept.TransferOffersRva is { } transferOffers) H("transferOffersRva", transferOffers);
                 w.WriteEndObject();
@@ -878,6 +882,15 @@ public sealed class OffsetProfile
         if (s is null || !s.StartsWith("0x", StringComparison.OrdinalIgnoreCase)) throw new FormatException($"Expected hex string, got '{s}'");
         return int.Parse(s.AsSpan(2), NumberStyles.HexNumber, CultureInfo.InvariantCulture);
     }
+
+    static byte[] ParseHexBytes(string? s)
+    {
+        if (string.IsNullOrWhiteSpace(s)) throw new FormatException("Expected non-empty hex byte string");
+        var clean = string.Concat(s.Replace("0x", "", StringComparison.OrdinalIgnoreCase).Where(c => !char.IsWhiteSpace(c)));
+        return Convert.FromHexString(clean);
+    }
+
+    static string FormatHexBytes(byte[] bytes) => string.Join(' ', bytes.Select(b => $"{b:X2}"));
 }
 
 public readonly record struct PlayerInsertion(int At, int Length)

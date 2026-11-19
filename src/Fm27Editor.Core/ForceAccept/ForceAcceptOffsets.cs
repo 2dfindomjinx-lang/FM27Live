@@ -16,8 +16,14 @@ public sealed class ForceAcceptOffsets
     /// <summary>The 6-byte conditional jump whose NOP lets every general board request through.</summary>
     public uint? BoardRequestsRva { get; init; }
 
+    /// <summary>Optional per-build original 6-byte <c>jne</c> at <see cref="BoardRequestsRva"/> (defaults to <c>0F 85 FD 00 00 00</c>).</summary>
+    public byte[]? BoardRequestsOriginal { get; init; }
+
     /// <summary>The 2-byte conditional jump whose NOP lets every club-vision change through.</summary>
     public uint? ClubVisionRva { get; init; }
+
+    /// <summary>Optional per-build original 2-byte <c>js</c> at <see cref="ClubVisionRva"/> (defaults to <c>78 7C</c>).</summary>
+    public byte[]? ClubVisionOriginal { get; init; }
 
     /// <summary>
     /// The 16-byte window whose original form stores the contract-offer status at <c>[obj+0x1ED0]</c>. The

@@ -52,6 +52,8 @@ public sealed class StaffOffsets
     /// <summary>Caps, goals, licence and role ratings on the person part; null when not measured for this build.</summary>
     public StaffPersonDetails? PersonDetails { get; init; }
     public int? ContractRollingMask { get; init; }
+    /// <summary>Extra staff allowances on the human manager's <c>Mscc</c> record; null when not measured for this build.</summary>
+    public StaffAllowanceOffsets? Allowances { get; init; }
     /// <summary>Staff-part byte offset per attribute and whether it is stored ×5 (most) or as 1–20.</summary>
     public required IReadOnlyDictionary<StaffAttribute, (int Offset, bool Scaled)> Attributes { get; init; }
 
@@ -100,6 +102,10 @@ public sealed class StaffOffsets
                 (uint)Hex(pd, "personVtable"), Hex(pd, "caps"), Hex(pd, "goals"), Hex(pd, "license"), Hex(pd, "roles")) : null,
             JobPersonAnchor = e.TryGetProperty("jobPersonAnchor", out _) ? Hex(e, "jobPersonAnchor") : 0,
             ContractRollingMask = e.TryGetProperty("contractRollingMask", out _) ? Hex(e, "contractRollingMask") : null,
+            Allowances = e.TryGetProperty("allowances", out var al) ? new StaffAllowanceOffsets(
+                al.TryGetProperty("teamManager", out _) ? Hex(al, "teamManager") : 0x80,
+                Hex(al, "humanMscc"),
+                Hex(al, "msccExtraStaff")) : null,
         };
     }
 
@@ -111,6 +117,14 @@ public sealed class StaffOffsets
         {
             w.WriteStartObject("personDetails");
             H("personVtable", d.PersonVtableRva); H("caps", d.Caps); H("goals", d.Goals); H("license", d.License); H("roles", d.Roles);
+            w.WriteEndObject();
+        }
+        if (Allowances is { } al)
+        {
+            w.WriteStartObject("allowances");
+            H("teamManager", al.TeamManager);
+            H("humanMscc", al.HumanMscc);
+            H("msccExtraStaff", al.MsccExtraStaff);
             w.WriteEndObject();
         }
         if (KnowledgeHolder is { } kh) H("knowledgeHolder", kh);
@@ -157,6 +171,14 @@ public sealed class StaffOffsets
 /// objects with <see cref="PersonVtableRva"/> carry this layout; other staff kinds report them as unknown.
 /// </summary>
 public sealed record StaffPersonDetails(uint PersonVtableRva, int Caps, int Goals, int License, int Roles);
+
+/// <summary>
+/// Offsets for a human manager's extra staff allowances (<c>db::HUMAN_NON_PLAYER</c>, profile <c>staff.allowances</c>).
+/// <see cref="TeamManager"/> on a team object points at the manager's staff part; <see cref="HumanMscc"/> on the
+/// human manager's staff part points at the <c>Mscc</c> record; <see cref="MsccExtraStaff"/> is the base offset inside
+/// <c>Mscc</c> of the 21-byte extra-staff block.
+/// </summary>
+public sealed record StaffAllowanceOffsets(int TeamManager, int HumanMscc, int MsccExtraStaff);
 
 /// <summary>Coaching licence codes, from FMRTE 27 writing each choice in turn on Paolo Orlandoni (Steam 27.0.1, 12/11/2026).</summary>
 public enum StaffLicense : sbyte

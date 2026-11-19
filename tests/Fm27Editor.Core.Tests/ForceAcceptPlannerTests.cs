@@ -1,4 +1,5 @@
 using Fm27Editor.Core.ForceAccept;
+using Fm27Editor.Core.Memory;
 using Fm27Editor.Core.Offsets;
 
 namespace Fm27Editor.Core.Tests;
@@ -290,5 +291,104 @@ public class ForceAcceptPlannerTests
         // The sites are not measured on the supported builds, so the section stays out of the shipped profiles and
         // every preset reports Unavailable there instead of planning against a guessed address.
         Assert.Null(OffsetProfile.Load(ShippedJson).ForceAccept);
+    }
+
+    [Fact]
+    public void Board_preset_uses_per_build_original_bytes_and_restores_them_cleanly()
+    {
+        // Captured from live FM27 Steam 27.1.0+2505117 at RVA 0x159E0B7 (0F 85 07 01 00 00) and RVA 0x1D95C0F (78 78).
+        byte[] fm27Gate1 = [0x0F, 0x85, 0x07, 0x01, 0x00, 0x00];
+        byte[] fm27Gate2 = [0x78, 0x78];
+        var profile = OffsetProfile.LoadFile(Path.Combine(AppContext.BaseDirectory, "offsets", "27.1.0+2505117-steam.json"));
+        Assert.NotNull(profile.ForceAccept);
+        Assert.Equal(0x159E0B7u, profile.ForceAccept!.BoardRequestsRva);
+        Assert.Equal(fm27Gate1, profile.ForceAccept.BoardRequestsOriginal);
+        Assert.Equal(0x1D95C0Fu, profile.ForceAccept.ClubVisionRva);
+        Assert.Equal(fm27Gate2, profile.ForceAccept.ClubVisionOriginal);
+
+        var copy = OffsetProfile.Load(profile.ToJson());
+        Assert.Equal(fm27Gate1, copy.ForceAccept!.BoardRequestsOriginal);
+        Assert.Equal(fm27Gate2, copy.ForceAccept.ClubVisionOriginal);
+
+        var memory = new FakeMemory();
+        Put(memory, Base + 0x159E0B7u, fm27Gate1);
+        Put(memory, Base + 0x1D95C0Fu, fm27Gate2);
+        var planner = Planner(copy, memory);
+
+        var plan = planner.Plan(ForceAcceptPreset.BoardRequests);
+        Assert.Equal(ForceAcceptPlanState.Appliable, plan.State);
+        Assert.Equal(2, planner.Apply(plan, gamePaused: true));
+        Assert.Equal(Gate1Patched, memory.Read(Base + 0x159E0B7u, 6));
+        Assert.Equal(Gate2Patched, memory.Read(Base + 0x1D95C0Fu, 2));
+
+        var active = planner.Plan(ForceAcceptPreset.BoardRequests);
+        Assert.Equal(ForceAcceptPlanState.Active, active.State);
+        Assert.Equal(2, planner.Restore(active, gamePaused: true));
+        Assert.Equal(fm27Gate1, memory.Read(Base + 0x159E0B7u, 6));
+        Assert.Equal(fm27Gate2, memory.Read(Base + 0x1D95C0Fu, 2));
+    }
+
+    [Fact]
+    public void Auto_discovers_force_board_sites_from_captured_fm27_code_slices()
+    {
+        // Real instruction bytes captured around RVA 0x159E0A8 and RVA 0x1D95C05 on Steam 27.1.0+2505117.
+        var code = new byte[0x200];
+        Convert.FromHexString("4180BE8100000001488985300300000F85070100004989C6").CopyTo(code, 0x20);
+        Convert.FromHexString("0FBF46620FB64E6B01C17878C6466704").CopyTo(code, 0x100);
+
+        bool ok = NewBuildDiscoverer.TryFindForceBoardSitesInCode(
+            code, 0x1000u, out uint g1Rva, out byte[] g1Orig, out uint g2Rva, out byte[] g2Orig);
+
+        Assert.True(ok);
+        Assert.Equal(0x1000u + 0x20u + 15u, g1Rva);
+        Assert.Equal([0x0F, 0x85, 0x07, 0x01, 0x00, 0x00], g1Orig);
+        Assert.Equal(0x1000u + 0x100u + 10u, g2Rva);
+        Assert.Equal([0x78, 0x78], g2Orig);
+    }
+
+    [Fact]
+    public void Board_preset_supports_gamepass_2710_measured_sites_and_auto_discovery()
+    {
+        // Captured from live FM27 Game Pass 27.1.0+2505117 at RVA 0x14630B4 (0F 85 F7 00 00 00) and RVA 0x1BD6825 (78 79).
+        byte[] gpGate1 = [0x0F, 0x85, 0xF7, 0x00, 0x00, 0x00];
+        byte[] gpGate2 = [0x78, 0x79];
+        var profile = OffsetProfile.LoadFile(Path.Combine(AppContext.BaseDirectory, "offsets", "27.1.0+2505117-gamepass.json"));
+        Assert.NotNull(profile.ForceAccept);
+        Assert.Equal(0x14630B4u, profile.ForceAccept!.BoardRequestsRva);
+        Assert.Equal(gpGate1, profile.ForceAccept.BoardRequestsOriginal);
+        Assert.Equal(0x1BD6825u, profile.ForceAccept.ClubVisionRva);
+        Assert.Equal(gpGate2, profile.ForceAccept.ClubVisionOriginal);
+
+        var memory = new FakeMemory();
+        Put(memory, Base + 0x14630B4u, gpGate1);
+        Put(memory, Base + 0x1BD6825u, gpGate2);
+        var planner = Planner(profile, memory);
+
+        var plan = planner.Plan(ForceAcceptPreset.BoardRequests);
+        Assert.Equal(ForceAcceptPlanState.Appliable, plan.State);
+        Assert.Equal(2, planner.Apply(plan, gamePaused: true));
+        Assert.Equal(Gate1Patched, memory.Read(Base + 0x14630B4u, 6));
+        Assert.Equal(Gate2Patched, memory.Read(Base + 0x1BD6825u, 2));
+
+        var active = planner.Plan(ForceAcceptPreset.BoardRequests);
+        Assert.Equal(ForceAcceptPlanState.Active, active.State);
+        Assert.Equal(2, planner.Restore(active, gamePaused: true));
+        Assert.Equal(gpGate1, memory.Read(Base + 0x14630B4u, 6));
+        Assert.Equal(gpGate2, memory.Read(Base + 0x1BD6825u, 2));
+
+        var restored = planner.Plan(ForceAcceptPreset.BoardRequests);
+        Assert.Equal(ForceAcceptPlanState.Appliable, restored.State);
+
+        var code = new byte[0x200];
+        Convert.FromHexString("4180BE8100000001488985480300000F85F7000000").CopyTo(code, 0x20);
+        Convert.FromHexString("0FBF46620FB64E6B01C17879C6466704").CopyTo(code, 0x100);
+        bool ok = NewBuildDiscoverer.TryFindForceBoardSitesInCode(
+            code, 0x1000u, out uint g1Rva, out byte[] g1Orig, out uint g2Rva, out byte[] g2Orig);
+
+        Assert.True(ok);
+        Assert.Equal(0x1000u + 0x20u + 15u, g1Rva);
+        Assert.Equal(gpGate1, g1Orig);
+        Assert.Equal(0x1000u + 0x100u + 10u, g2Rva);
+        Assert.Equal(gpGate2, g2Orig);
     }
 }

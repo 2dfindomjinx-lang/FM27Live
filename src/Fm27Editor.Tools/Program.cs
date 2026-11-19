@@ -107,6 +107,7 @@ try
         "allowdeep" => AllowDeepCommand(int.Parse(args[1])),
         "board" => BoardCommand(string.Join(' ', args[1..])),
         "allowhuman" => AllowHumanCommand(),
+        "allowances" => AllowancesCommand(args[1..]),
         "allowat" => AllowAtCommand(Convert.ToUInt64(args[1].Replace("0x", ""), 16)),
         "nationtv" => NationTvCommand(args[1..]),
         "referees" => RefereesCommand(args.Length > 1 ? string.Join(' ', args[1..]) : null),
@@ -1950,6 +1951,54 @@ int BoardCommand(string query)
     foreach (var member in board)
         Console.WriteLine($"  {member.Role,-28} {member.Staff.DisplayName,-28} CA {member.Staff.CurrentAbility,3} PA {member.Staff.PotentialAbility,3} " +
             $"rep {member.Staff.CurrentReputation,5} job {member.Staff.JobCode} born {member.Staff.DateOfBirth:yyyy-MM-dd}");
+    return 0;
+}
+
+// allowances [clubId] [field value [--write]]   read or edit extra staff allowances for a human-managed club
+int AllowancesCommand(string[] rest)
+{
+    bool write = rest.Contains("--write", StringComparer.OrdinalIgnoreCase);
+    var words = rest.Where(w => !w.Equals("--write", StringComparison.OrdinalIgnoreCase)).ToArray();
+    using var session = Attach(writable: write);
+    var access = session.StaffAllowances;
+    if (words.Length == 0)
+    {
+        foreach (var h in session.Staff.LoadAll().Where(s => s.Kind.Manager))
+        {
+            var snap = access.ReadForStaff(h.StaffAddress);
+            Console.WriteLine($"human {h.Id} {h.DisplayName} (club {h.Club?.DisplayName ?? "none"} 0x{h.Club?.Address ?? 0:X}) staff=0x{h.StaffAddress:X} mscc=0x{snap?.MsccAddress ?? 0:X}");
+            if (snap is not null)
+                foreach (var f in StaffAllowanceAccess.AllFields)
+                    Console.WriteLine($"  {f,-30} = {snap[f]} (max {StaffAllowanceAccess.MaxValue(f)})");
+        }
+        return 0;
+    }
+
+    int clubId = int.Parse(words[0]);
+    var club = session.LoadClubs(session.Players.LoadAll()).FirstOrDefault(c => c.Id == clubId)
+        ?? throw new InvalidOperationException($"club {clubId} not loaded");
+    var snapshot = access.ReadForClub(club.Address);
+    if (snapshot is null)
+    {
+        Console.WriteLine($"{club.DisplayName} ({club.Id}): no human manager Mscc record");
+        return 1;
+    }
+
+    Console.WriteLine($"{club.DisplayName} ({club.Id}): humanStaff=0x{snapshot.HumanStaffAddress:X} mscc=0x{snapshot.MsccAddress:X}");
+    if (words.Length < 3)
+    {
+        foreach (var f in StaffAllowanceAccess.AllFields)
+            Console.WriteLine($"  {f,-30} = {snapshot[f]} (max {StaffAllowanceAccess.MaxValue(f)})");
+        return 0;
+    }
+
+    var field = Enum.Parse<StaffAllowanceField>(words[1], ignoreCase: true);
+    int newValue = int.Parse(words[2]);
+    Console.WriteLine($"{field}: {snapshot[field]} -> {newValue}{(write ? "" : " (plan only; add --write)")}");
+    if (!write) return 0;
+    access.Set(snapshot, field, newValue);
+    var after = access.ReadForClub(club.Address)!;
+    Console.WriteLine($"after: {field} = {after[field]}");
     return 0;
 }
 // allowdeep <club id>   look for the staff-allowance record behind [team+0x80] (read-only)

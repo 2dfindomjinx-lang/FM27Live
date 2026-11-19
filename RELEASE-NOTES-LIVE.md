@@ -1,4 +1,6 @@
-FM27 Live 0.1.2 Windows sürümü.
+FM27 Live 0.1.3 Windows sürümü.
+
+- Küçük overlay düğmesinin konumu, açılan panelin ekrana sığdırılan konumundan ayrı tutulur. Sağ alta taşınan düğme, panel kapanınca aynı yere döner.
 
 - Overlay artık küçük FM27 düğmesi olarak açılır. Tıklama/F8 ile açılır; F8/Esc veya oyuna tıklama ile küçülür.
 - Açık panel ekranın tamamını kaplayamaz; F11/↔ paneli genişletir veya daraltır. Normal uygulamanın tam ekran modu ayrıdır.

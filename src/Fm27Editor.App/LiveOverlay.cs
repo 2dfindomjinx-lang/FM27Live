@@ -114,7 +114,7 @@ public sealed partial class MainWindow
     void ExpandOverlay()
     {
         if (!overlayMode || OwnedWindows.Any(w => w.IsVisible)) return;
-        if (overlayCollapsed) { overlayAnchorRight = Position.X + (int)(Width * overlayScale); overlayAnchorTop = Position.Y; }
+        if (overlayCollapsed) SaveOverlayGeometry();
         overlayCollapsed = false;
         var size = OverlayLayout.Fit(overlayArea.Width / overlayScale, overlayArea.Height / overlayScale,
             overlayWide ? 1100 : livePreferences.OverlayWidth, livePreferences.OverlayHeight);
@@ -139,7 +139,7 @@ public sealed partial class MainWindow
     void CollapseOverlay(bool restoreFocus)
     {
         if (!overlayMode || OwnedWindows.Any(w => w.IsVisible)) return;
-        if (!overlayCollapsed && ReferenceEquals(Content, overlayPanel)) SaveOverlayGeometry();
+        if (overlayCollapsed || ReferenceEquals(Content, overlayPanel)) SaveOverlayGeometry();
         overlayCollapsed = true;
         WindowState = WindowState.Normal;
         MinWidth = 0; MinHeight = 0; MaxWidth = OverlayLayout.HandleWidth; MaxHeight = OverlayLayout.HandleHeight;
@@ -156,7 +156,13 @@ public sealed partial class MainWindow
     void SaveOverlayGeometry()
     {
         if (!overlayMode) return;
-        overlayAnchorRight = Position.X + (int)(Width * overlayScale); overlayAnchorTop = Position.Y;
+        // The handle is the anchor. A panel may be shifted upward/left to fit the screen;
+        // saving that temporary position must never move the handle on the next collapse.
+        if (overlayCollapsed)
+        {
+            overlayAnchorRight = Position.X + (int)(Width * overlayScale);
+            overlayAnchorTop = Position.Y;
+        }
         livePreferences.OverlayX = overlayAnchorRight; livePreferences.OverlayY = overlayAnchorTop;
         if (!overlayCollapsed && ReferenceEquals(Content, overlayPanel))
         {

@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.5.2
+
+- **Move to club for staff (Windows, Steam and Game Pass):** a member of staff under contract could not join a club whose
+  department was full ("Destination Coaching allocator spare is not empty"). Like the IGE and FMRTE, there is no limit
+  now: a full department grows into a new list from the game's heap. Undo restores the old list.
+- **Staff job code (macOS Touch):** read as one byte, so roles no longer show as "Code 41xx" and the move keeps the flag
+  stored next to the job.
+
 ## 1.5.1
 
 - **Windows `27.1.0+2505117` (Steam and Game Pass):** support players who are also staff (`db::ACTUAL_PLAYER_AND_NON_PLAYER` subtype insertion) across readers, writers, and transfer/release paths, and complete `newbuild` discovery on Windows.

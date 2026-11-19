@@ -172,8 +172,23 @@ public class StaffMoveTests
         Assert.Equal(0UL, Q(buffer + 152));
         Assert.Equal(buffer + 152, Q(To + 0x80));
         Assert.Equal(buffer + 152, Q(To + 0x88));
+        // A spare already in use is never written: the move goes to a new buffer from the game heap instead
+        // (Man Utd's Coaching vector, Steam and Game Pass 27.1.0, 19/11/2026).
         Assert.True(memory.TryWrite(buffer + 152, BitConverter.GetBytes(1UL)));
-        Assert.Throws<InvalidOperationException>(() => service.Plan(member, from, to));
+        var grown = service.Plan(member, from, to);
+        Assert.Single(grown.Growth);
+        Assert.Throws<InvalidOperationException>(() => service.Apply(grown));
+        const ulong fresh = 0x5020_0000;
+        var applied = service.Apply(grown, size => { memory.Map(fresh, size); return fresh; });
+        Assert.Equal(fresh, Q(To + 0x78));
+        Assert.Equal(fresh + 160, Q(To + 0x80));
+        for (int i = 0; i < 19; i++) Assert.Equal(Other + (ulong)i * 8, Q(fresh + (ulong)i * 8));
+        Assert.Equal(Staff, Q(fresh + 152));
+        Assert.Equal(1UL, Q(buffer + 152));
+        service.Undo(applied);
+        Assert.Equal(buffer, Q(To + 0x78));
+        Assert.Equal(buffer + 152, Q(To + 0x80));
+        Assert.Equal(buffer + 152, Q(To + 0x88));
     }
 
     [Fact]

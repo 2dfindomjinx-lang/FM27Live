@@ -142,12 +142,21 @@ public sealed class StaffMoveService(IProcessMemory memory, OffsetProfile profil
                 ulong bytes = destination.Capacity - destination.Begin;
                 if (classes is null || classes.Count < 2 || classes.Any(x => x <= 0) ||
                     !classes.SequenceEqual(classes.Order()) || bytes <= (ulong)classes[0])
-                    throw new InvalidOperationException($"Destination {name} department is full");
+                {
+                    // No staff limit: like the IGE and FMRTE, a full department simply grows.
+                    growth.Add(new(destination.Header, staff.StaffAddress, name));
+                    continue;
+                }
                 int block = classes.Skip(1).FirstOrDefault(x => (ulong)x >= bytes);
-                if (block == 0 || (ulong)block - bytes < 8)
-                    throw new InvalidOperationException($"Destination {name} department is full");
-                var spare = Capture(destination.Capacity, checked(block - (int)bytes), "destination " + name + " allocator spare");
-                if (spare.Any(b => b != 0)) throw new InvalidOperationException($"Destination {name} allocator spare is not empty");
+                // The spare is usable only when the size class leaves room and it is still all zero. Otherwise (Man Utd's
+                // Coaching vector on Steam and Game Pass 27.1.0, 19/11/2026: spare in use) move to a new buffer from the game heap.
+                if (block == 0 || (ulong)block - bytes < 8 ||
+                    memory.Read(destination.Capacity, checked(block - (int)bytes)).Any(b => b != 0))
+                {
+                    growth.Add(new(destination.Header, staff.StaffAddress, name));
+                    continue;
+                }
+                Capture(destination.Capacity, checked(block - (int)bytes), "destination " + name + " allocator spare");
             }
             writes.Add(new(destination.End, memory.Read(destination.End, 8), BitConverter.GetBytes(staff.StaffAddress), "destination " + name + " slot"));
             writes.Add(new(destination.Header + 8,

@@ -8,7 +8,7 @@ Windows 10/11 x64 için normal uygulama ve oyun üstü overlay içeren FM27 anl�
 2. FM27'de kariyerini yükle. Önce yedek kayıt oluştur; ilk denemeyi ayrı bir kayıtta yap.
 3. Uygulamadaki **Load Game** düğmesiyle bağlan. Oyuncular, personel, kulüpler ve diğer editör ekranları aynı oturumu paylaşır.
 4. **Overlay / F8** ilk geçişte ekranın kenarında küçük bir **FM27 ›** düğmesi açar. Düğmeye tıklayarak veya tekrar F8 ile paneli aç. **F8/Esc**, **Küçült** veya oyuna tıklama paneli tekrar küçük düğmeye indirir. Düğmenin sol şeridinden, açık panelin başlığından sürükleyebilirsin.
-   Açık panelde **↔ / F11** genişletir-daraltır; panel ekranın tamamını kaplamaz. Dar alanda editör içeriği kaydırılabilir. **Uygulama** masaüstü görünümüne döner; normal uygulamada F11 tam ekrandır.
+   Açık panelde **↔ / F11** genişletir-daraltır; panel ekranın tamamını kaplamaz. Editör içeriği panele orantılı sığar; dış panelde sağa kaydırma gerekmez. Daha büyük yazılar için paneli genişlet. **Uygulama** masaüstü görünümüne döner; normal uygulamada F11 tam ekrandır.
 5. Overlay için FM'de **kenarlıksız tam ekran** veya pencere modu kullan. Exclusive fullscreen üzerinde görünmesi garanti edilmez.
 6. Küçük düğmeye sağ tıklayarak **Tamamen gizle** seçebilirsin; F8 veya bildirim alanı simgesinden geri açılır. **Çıkış** uygulamayı kapatır.
 

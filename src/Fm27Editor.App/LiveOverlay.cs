@@ -12,7 +12,7 @@ public sealed partial class MainWindow
 {
     Border? liveBarSurface;
     Control? desktopContent, overlayPanel, overlayHandle;
-    ScrollViewer? overlayViewport;
+    Viewbox? overlayViewport;
     bool overlayCollapsed, overlayWide;
     double desktopMinWidth, desktopMinHeight;
     int overlayAnchorRight, overlayAnchorTop;
@@ -47,8 +47,12 @@ public sealed partial class MainWindow
                 Math.Max(overlayArea.Y, overlayArea.Bottom - (int)(OverlayLayout.HandleHeight * overlayScale)));
             liveBarSurface!.IsVisible = false;
             desktopContent.Width = 1040; desktopContent.Height = 720;
-            overlayViewport = new ScrollViewer { Content = desktopContent,
-                HorizontalScrollBarVisibility = ScrollBarVisibility.Auto, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+            // Keep the editor's existing layout, but fit the whole surface inside the panel.
+            // Its own tables/sections retain their vertical scrolling; no outer horizontal pan is needed.
+            overlayViewport = new Viewbox { Child = desktopContent,
+                Stretch = Avalonia.Media.Stretch.Uniform,
+                StretchDirection = Avalonia.Media.StretchDirection.Both,
+                HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Stretch };
             overlayPanel = BuildOverlayPanel(overlayViewport);
             overlayHandle = BuildOverlayHandle();
             Title = "FM27 Live — Overlay";
@@ -59,7 +63,7 @@ public sealed partial class MainWindow
         {
             SaveOverlayGeometry();
             Content = null;
-            overlayViewport!.Content = null;
+            overlayViewport!.Child = null;
             desktopContent!.Width = double.NaN; desktopContent.Height = double.NaN;
             liveBarSurface!.IsVisible = true;
             Content = desktopContent;

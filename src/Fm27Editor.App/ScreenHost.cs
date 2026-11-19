@@ -50,6 +50,7 @@ public sealed partial class MainWindow : IScreenHost
     }
 
     bool IScreenHost.IsShowing(Control body) => ReferenceEquals(bodyHost.Content, body);
+    bool IScreenHost.HasUnsavedBody(Control body) => kindTabs.Values.Any(t => ReferenceEquals(t.Body, body) && t.Dirty);
     void IScreenHost.OpenTab(string kind, ulong address, string title, Control body, Action restore) => OpenKindTab(kind, address, title, body, restore);
     void IScreenHost.SwitchModule(string title) => SwitchModule(title);
 

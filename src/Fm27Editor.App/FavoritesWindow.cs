@@ -12,7 +12,7 @@ namespace Fm27Editor.App;
 /// </summary>
 sealed class FavoritesWindow : Window
 {
-    readonly IReadOnlyList<PlayerRecord> all;
+    IReadOnlyList<PlayerRecord> all;
     readonly DataGrid grid = new()
     {
         IsReadOnly = true, AutoGenerateColumns = false, CanUserResizeColumns = true, CanUserSortColumns = true,
@@ -76,9 +76,12 @@ sealed class FavoritesWindow : Window
 
     readonly TextBlock? count;
 
-    public void Refill()
+    public void Refill(IReadOnlyList<PlayerRecord>? fresh = null)
     {
+        if (fresh is not null) all = fresh;
+        int? selectedId = (grid.SelectedItem as PlayerRecord)?.Id;
         grid.ItemsSource = all.Where(p => FavoriteStore.Contains(p.Id)).OrderByDescending(p => p.CurrentAbility).ToList();
+        if (selectedId is not null) grid.SelectedItem = grid.ItemsSource.Cast<PlayerRecord>().FirstOrDefault(p => p.Id == selectedId);
         UpdateCount();
     }
 

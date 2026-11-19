@@ -86,6 +86,15 @@ public sealed class EditorBackend : IEditorBackend, IDisposable
         catch (Exception ex) { FreezeError = ex.Message; throw; }
     }
 
+    internal bool TryPublishRefresh(LoadedGameData previous, LoadedGameData fresh, DateOnly date)
+    {
+        if (!ReferenceEquals(Data, previous) || !ReferenceEquals(session, fresh.Session) || SaveChanged) return false;
+        session.LoadState.Refresh();
+        if (session.LoadState.SaveChanged || session.ReadGameDate() != date || fresh.GameDate != date) return false;
+        Data = fresh;
+        return true;
+    }
+
     public void TickFreezer()
     {
         if (SaveChanged || Freezer is not { } freezer || (freezer.Players.Count == 0 && freezer.Clubs.Count == 0 && freezer.Staff.Count == 0)) return;

@@ -453,6 +453,7 @@ public sealed partial class MainWindow
 
     sealed class PlayerTab
     {
+        public LoadedGameData? RefreshedData;
         public PlayerRecord Player = null!;
         public string Title = null!;
         public bool Dirty;

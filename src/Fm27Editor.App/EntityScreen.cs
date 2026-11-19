@@ -25,6 +25,7 @@ internal interface IScreenHost
     object? SelectedNav { get; }
     event EventHandler NavChanged;
     bool IsShowing(Control body);
+    bool HasUnsavedBody(Control body) => false;
     /// <summary>Opens (or re-activates) the entity's tab; <paramref name="restore"/> runs when the tab is clicked again.</summary>
     void OpenTab(string kind, ulong address, string title, Control body, Action restore);
     void SwitchModule(string title);
@@ -57,6 +58,8 @@ internal interface IEntityScreen : IRegisterable
     string Kind { get; }
     void ResetForConnection();
     Task PreloadAsync(LoadedGameData data);
+    Task RefreshDataAsync(LoadedGameData data, Func<bool> stillCurrent);
+    void RefreshCleanEditor(LoadedGameData data);
     int RowCount { get; }
     bool IsLoaded { get; }
     bool OwnsBody(Control body);
@@ -112,6 +115,9 @@ internal abstract class EntityScreen<TRecord, TRow, TDraft> : IEntityScreen
     public int RowCount => Rows.Count;
     public bool IsLoaded => hasLoaded;
     Control detailRoot = new Panel();
+    LoadedGameData? detailData;
+    TRecord? renderedRecord;
+    bool preservingSelection;
 
     public string Kind { get; }
     public IReadOnlyList<TRow> Rows { get; protected set; } = [];
@@ -196,7 +202,7 @@ internal abstract class EntityScreen<TRecord, TRow, TDraft> : IEntityScreen
         ConfigureColumns(ListGrid);
 
         search.TextChanged += (_, _) => Filter();
-        ListGrid.SelectionChanged += (_, _) => Selected = ListGrid.SelectedItem is TRow row ? RecordOf(row) : null;
+        ListGrid.SelectionChanged += (_, _) => { if (!preservingSelection) Selected = ListGrid.SelectedItem is TRow row ? RecordOf(row) : null; };
         ListGrid.DoubleTapped += (_, e) => { if (UiKit.OnRow(e)) OpenSelected(); };
         ListGrid.KeyDown += (_, e) => { if (e.Key == Key.Enter) { OpenSelected(); e.Handled = true; } };
         AttachContextMenu();
@@ -259,6 +265,8 @@ internal abstract class EntityScreen<TRecord, TRow, TDraft> : IEntityScreen
         Rows = [];
         Drafts.Clear();
         Selected = null;
+        renderedRecord = null;
+        detailData = null;
         SaveButton = null;
         ListGrid.ItemsSource = null;
         HeaderHost.Content = null;
@@ -289,6 +297,34 @@ internal abstract class EntityScreen<TRecord, TRow, TDraft> : IEntityScreen
 
     /// <summary>Prepares the complete list before Load Game publishes readiness, even for an inactive tab.</summary>
     public Task PreloadAsync(LoadedGameData data) => LoadAsync(data.Session, data, reportStatus: active);
+
+    public async Task RefreshDataAsync(LoadedGameData data, Func<bool> stillCurrent)
+    {
+        int current = ++loadGeneration;
+        BeforeLoad();
+        var loaded = await Task.Run(() => LoadRows(data.Session, data));
+        if (current != loadGeneration || !stillCurrent()) return;
+        Rows = loaded;
+        RowsLoaded();
+        // Updating a hidden list must not replace the snapshot that an open form is editing.
+        preservingSelection = true;
+        try { await FilterAsync(reportStatus: false); }
+        finally { preservingSelection = false; }
+        if (current == loadGeneration && stillCurrent()) hasLoaded = true;
+    }
+
+    bool ProtectedEditor => Host.HasUnsavedBody(detailRoot) || EditorRefreshGuard.Protects(detailRoot) ||
+        (renderedRecord is { } record && Drafts.TryGetValue(AddressOf(record), out var draft) && HasChanges(record, draft));
+
+    public void RefreshCleanEditor(LoadedGameData data)
+    {
+        if (ReferenceEquals(detailData, data) || !Host.IsShowing(detailRoot) || ProtectedEditor || renderedRecord is not { } record) return;
+        if (Reload(record) is not { } fresh) return;
+        Drafts.Remove(AddressOf(record)); // only an empty draft; pending fields retain their original write expectations
+        Selected = fresh;
+        Render();
+        detailData = data;
+    }
 
     async Task LoadAsync(GameSession session, LoadedGameData? data, bool reportStatus)
     {
@@ -424,12 +460,22 @@ internal abstract class EntityScreen<TRecord, TRow, TDraft> : IEntityScreen
     void OpenTab(TRecord record)
     {
         var shown = record;
-        Host.OpenTab(Kind, AddressOf(record), NameOf(record), detailRoot, () => { Selected = shown; Render(); });
+        Host.OpenTab(Kind, AddressOf(record), NameOf(record), detailRoot, () =>
+        {
+            if (renderedRecord is { } existing && AddressOf(existing) == AddressOf(shown) && ProtectedEditor) { Selected = existing; return; }
+            bool pending = Drafts.TryGetValue(AddressOf(shown), out var draft) && HasChanges(shown, draft);
+            Selected = pending ? shown : Reload(shown) ?? shown;
+            if (!pending) Drafts.Remove(AddressOf(shown));
+            Render();
+        });
     }
 
     // The editor.
     protected void Render()
     {
+        using var rebuilding = EditorRefreshGuard.Rebuilding(detailRoot);
+        renderedRecord = Selected;
+        detailData = Host.Backend.Data;
         HeaderHost.Content = null;
         Editor.Children.Clear();
         if (Selected is not { } record) { SaveButton = null; if (IsActive) Host.SetUnsaved(false); return; }

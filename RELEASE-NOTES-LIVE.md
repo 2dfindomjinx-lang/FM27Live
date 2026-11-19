@@ -1,11 +1,13 @@
-FM27 Live 0.1.5 Windows sürümü.
+FM27 Live 0.1.6 Windows sürümü.
 
-- Vietnamca yerine Türkçe eklendi. Türkçe–İngilizce geçişi yeniden başlatma gerektirmez; mevcut editör kontrolleri, açık sekmeler ve kaydedilmemiş alanlar korunur.
-- Benim kulübüm, Kadrom, Ligimdeki kulüpler, Oyuncunun kulübü ve Son kulüpler kısayolları normal uygulamaya ve overlay'e eklendi.
-- İnsan menajerin kulübü otomatik bulunur; birden fazla menajerde seçim sunulur. Kulüp elle de seçilebilir. Lig seçimi A takımın gerçek turnuva kimliğini kullanır; okunamayan bilgi tahmin edilmez.
-- Mevcut küçük overlay, konum koruma, ekrana sığdırma ve imzalı otomatik güncelleme sistemi korunur.
+- Oyun tarihi değişince veriler arka planda otomatik yenilenir. Tarih 3 saniyelik iki kontrolde sabit kalınca okuma başlar; Ctrl+R gerekmez.
+- Oyuncu ve kulüp listeleri, arama verileri, kulüp kısayolları ve düzenleme yapılmayan açık sayfalar güncellenir.
+- Kaydedilmemiş sekmeler yeniden oluşturulmaz. Henüz kutudan çıkılmamış veya tamamlanmamış metinler de korunur. Düzenlenen sayfa kaydetme/vazgeçme sonrasında güncel veriyi gösterir; diğer listeler yenilenmeye devam eder.
+- Otomatik yenileme oyuna yazmaz ve bekleyen değişikliklerin eski değer kontrolünü kaldırmaz. FM aynı alanı değiştirdiyse kaydetme sırasında mevcut çakışma kontrolü devreye girer.
+- Aynı anda tek okuma çalışır; hatalı okumalar mevcut veriyi silmez ve yeniden denenir. Farklı kayıt yüklenince eski okuma sonucu yayınlanmaz.
+- Normal uygulama, overlay ve imzalı otomatik güncelleme kanalı birlikte desteklenir.
 
-Dil: Settings → Language → Türkçe. Yeni sürüm mevcut uygulamanın güncelleme kanalından alınabilir.
+Mevcut uygulamada Güncellemeler → Şimdi kontrol et ile alınabilir.
 
-Bu sürümün gerçek oyun belleğine yazma testi yapılmadı. İlk oyun içi denemeyi yedek kariyerde yapın.
+Oyun içinde gün ilerletme ve gerçek oyun belleğine yazma testi yapılmadı.
 GPL-3.0-or-later. Kaynak kod ve upstream atfı depoda bulunur.

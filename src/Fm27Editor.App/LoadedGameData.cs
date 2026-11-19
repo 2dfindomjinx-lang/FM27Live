@@ -38,7 +38,7 @@ internal sealed class LoadedGameData(GameSession session)
     public Exception? DealIndexError { get; private set; }
     IReadOnlyList<ulong> dealCandidates = [];
 
-    // Only Load Game creates a new index. Tab reads and fee/status writes never trigger discovery.
+    // Load Game discovers fallback indexes; day refresh can reread an owned index without scanning the heap.
     internal void LoadTransferDeals(GameLoadReport report, Func<IReadOnlyList<ulong>> scan)
     {
         if (DealIndexAttempted) return;
@@ -59,8 +59,10 @@ internal sealed class LoadedGameData(GameSession session)
         return dealCandidates;
     }
 
-    public static LoadedGameData Read(GameSession session, GameLoadReport report)
+    public static LoadedGameData Read(GameSession session, GameLoadReport report, LoadedGameData? previous = null)
     {
+        if (previous is not null && !ReferenceEquals(previous.Session, session))
+            throw new InvalidOperationException("The game connection changed while refreshing");
         var data = new LoadedGameData(session) { GameDate = session.ReadGameDate() };
         // Deals and agreement regions otherwise read the same multi-gigabyte heap independently.
         bool needsRegions = session.Profile.AgreementRegionVtable is not null && session.Profile.Nation?.ListRootRva is not null;
@@ -69,8 +71,11 @@ internal sealed class LoadedGameData(GameSession session)
         bool ownedRegions = false;
         var index = new Lazy<IReadOnlyList<HeapVtableMatch>>(() =>
         {
-            ownedDeals = session.TransferDeals.TryReadOwnedCandidates();
-            ownedRegions = !needsRegions || session.NationAgreements.TryReadOwnedRegions() is not null;
+            // Daily refresh must not scan a multi-gigabyte heap. Refresh the owned index when available;
+            // legacy fallback discovery remains scoped to Load Game, just like explicit tab refresh.
+            ownedDeals = session.TransferDeals.TryReadOwnedCandidates() ?? (previous?.DealIndexLoaded == true ? previous.dealCandidates : null);
+            ownedRegions = previous is not null || !needsRegions || session.NationAgreements.TryReadOwnedRegions() is not null;
+            if (previous is not null && ownedDeals is null) return [];
             if (ownedDeals is not null && ownedRegions)
             {
                 FlightRecorder.Current?.Log("load", "owned indexes: transfer deals and agreement regions; heap scan avoided");
@@ -95,7 +100,7 @@ internal sealed class LoadedGameData(GameSession session)
         {
             data.Players = report.Read("players", "Reading players…", () => session.Players.LoadAll());
             foreach (var player in data.Players) player.GameDate = data.GameDate;
-            RegenIds.Current = RegenIds.FirstCreatedId(data.Players.Where(p => p.Id is not null).Select(p => p.Id!.Value));
+            if (previous is null) RegenIds.Current = RegenIds.FirstCreatedId(data.Players.Where(p => p.Id is not null).Select(p => p.Id!.Value));
             report.Run("scouting metrics", "Reading scouting metrics…", () => ScoutingMetrics.Warm(data.Players));
             data.Clubs = report.Read("clubs", "Reading clubs…", () => session.LoadClubs(data.Players));
             report.Run("club divisions", "Reading club leagues…", () =>
@@ -146,8 +151,13 @@ internal sealed class LoadedGameData(GameSession session)
         finally { discovery.GetAwaiter().GetResult(); }
         report.Run("shared discovery join", "Reading…", () => _ = index.Value, () => index.Value.Count);
         var dealVtables = session.TransferDeals.VtableAddresses;
-        data.LoadTransferDeals(report, () => ownedDeals ?? index.Value.Where(m => dealVtables.Contains(m.Vtable)).Select(m => m.Address).ToArray());
-        if (needsRegions)
+        if (previous is not null && ownedDeals is null)
+        {
+            data.DealIndexAttempted = previous.DealIndexAttempted;
+            data.DealIndexError = previous.DealIndexError;
+        }
+        else data.LoadTransferDeals(report, () => ownedDeals ?? index.Value.Where(m => dealVtables.Contains(m.Vtable)).Select(m => m.Address).ToArray());
+        if (needsRegions && previous is null)
             report.Run("agreement regions", "Reading…", () => session.NationAgreements.PreloadRegions(() =>
                 index.Value.Where(m => m.Vtable == regionVtable).Select(m => m.Address).ToArray()));
         return data;

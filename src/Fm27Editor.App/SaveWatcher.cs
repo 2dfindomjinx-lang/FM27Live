@@ -4,6 +4,7 @@ using Avalonia.Layout;
 using Avalonia.Threading;
 using Fm27Editor.Core.Memory;
 using Fm27Editor.Core.Players;
+using Fm27Editor.Core.Settings;
 
 namespace Fm27Editor.App;
 
@@ -119,7 +120,7 @@ public sealed partial class MainWindow
         }
         emptyChecks = 0;
         // The game moves on while the editor is open; keep the date in the status bar current (it was only set at Load Game).
-        if (!backend.SaveChanged && backend.GameDate is { } today) gameDateText.Text = today.ToString("dd MMM yyyy", Inv);
+        if (!backend.SaveChanged && backend.GameDate is { } today) gameDateText.Text = DateSetting.Format(today);
         if (backend.SaveChanged) staleHeading.Text = Loc.S("A save was loaded in the game");   // the start screen was shown, a save is back
         if (noSaveAtConnect)
         {
@@ -129,7 +130,8 @@ public sealed partial class MainWindow
             return;
         }
         if (watchedSave is not { } read) { watchedSave = TakeFingerprint(); return; }
-        if (backend.SaveChanged || read.StillHolds(PlayerIdAt)) { differentChecks = 0; return; }
+        if (backend.SaveChanged) return;
+        if (read.StillHolds(PlayerIdAt)) { differentChecks = 0; ObserveGameDay(); return; }
         if (++differentChecks < 2) return;
         differentChecks = 0;
         watchedSave = TakeFingerprint();             // one reminder per change
@@ -138,6 +140,7 @@ public sealed partial class MainWindow
 
     void MarkSaveChanged(string heading)
     {
+        dayRefresh.Reset();
         backend.SaveChanged = true;
         staleHeading.Text = Loc.S(heading);
         if (staleOverlay is not null) staleOverlay.IsVisible = true;

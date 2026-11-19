@@ -3186,5 +3186,8 @@
   "Open panel · F8. Drag the left edge. Right click to hide.": "Paneli aç · F8. Sol kenardan sürükle. Sağ tık: gizle.",
   "Desktop app": "Normal uygulama",
   "Hide completely (open with F8)": "Tamamen gizle (F8 ile aç)",
-  "Desktop": "Uygulama"
+  "Desktop": "Uygulama",
+  "Automatic refresh will retry: {0}": "Otomatik yenileme yeniden denenecek: {0}",
+  "Automatic refresh could not finish; existing data and edits are kept. Retrying shortly.": "Otomatik yenileme tamamlanamadı; mevcut veriler ve düzenlemelerin korundu. Birazdan yeniden denenecek.",
+  "Data refreshed for {0}. Unsaved tabs are kept until you save or discard them.": "Veriler {0} için yenilendi. Kaydedilmemiş sekmeler, kaydedene veya vazgeçene kadar korunur."
 }

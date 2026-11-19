@@ -24,6 +24,8 @@ Windows 10/11 x64 için normal uygulama ve oyun üstü overlay içeren FM27 anl�
 
 Tercihler kulüp/menajer kimlikleriyle saklanır; oyun belleği adresleri kayıtlar arasında taşınmaz.
 
+Oyun tarihi değişince listeler ve temiz editör sayfaları otomatik yenilenir. Tarih 3 saniyelik iki kontrolde sabit kalınca arka planda okuma başlar. Kaydedilmemiş sekmelerin kontrolleri, yarım yazılmış değerler dahil korunur; bu sayfalar kaydetme veya vazgeçme sonrasında yenilenir. Diğer listeler güncellenmeye devam eder. Otomatik yenileme oyuna yazmaz ve çakışma kontrollerini kaldırmaz. Yeni bir kayıt yüklenirse **Oyunu yükle** gerekir.
+
 ## Otomatik güncelleme
 
 Program açılışta ve açıkken 30 dakikada bir `2dfindomjinx-lang/FM27Live` yayın kanalını kontrol eder.

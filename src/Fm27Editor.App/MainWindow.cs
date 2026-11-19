@@ -291,6 +291,8 @@ public sealed partial class MainWindow : Window
         LanguageSetting.Changed += OnLanguageChanged;
         Closed += (_, _) =>
         {
+            refreshClosed = true;
+            dayRefresh.Reset();
             LanguageSetting.Changed -= OnLanguageChanged;
             SectionHost.SectionEdited -= OnSectionEdited;
             SectionHost.Release(this);
@@ -810,8 +812,10 @@ public sealed partial class MainWindow : Window
         clearAttrButton.IsVisible = hasAny;
     }
 
-    void PopulateFilterDropdowns()
+    void PopulateFilterDropdowns(bool preserveSelection = false)
     {
+        var previousLeague = preserveSelection ? divisionFilter.SelectedItem as string : null;
+        var previousNation = preserveSelection ? nationFilter.SelectedItem as string : null;
         var g = SelectedPlayerGender();
         var players = rows.OfType<PlayerRecord>()
             .Where(p => (g is null || p.Gender == g) && (g != Fm27Editor.Core.Offsets.Gender.Men || p.Club?.Gender != Fm27Editor.Core.Offsets.Gender.Women))
@@ -833,9 +837,9 @@ public sealed partial class MainWindow : Window
 
         suppressFilterEvents = true;
         divisionFilter.ItemsSource = leagues;
-        divisionFilter.SelectedIndex = 0;
+        divisionFilter.SelectedIndex = Math.Max(0, Array.IndexOf(leagues, previousLeague));
         nationFilter.ItemsSource = nations;
-        nationFilter.SelectedIndex = 0;
+        nationFilter.SelectedIndex = Math.Max(0, Array.IndexOf(nations, previousNation));
         RefreshClubDropdown();
         suppressFilterEvents = false;
     }
@@ -1131,7 +1135,7 @@ public sealed partial class MainWindow : Window
         activeRoleCode is not null || activeMinRoleScore is not null ||
         activeNumericRanges.Count > 0 || activePreferredMoves != 0 || activeAttrThresholds.Count > 0 || activeRelationships.Count > 0;
 
-    async Task FilterInternal(bool reportStatus, bool immediate = false)
+    async Task FilterInternal(bool reportStatus, bool immediate = false, bool preserveEditor = false)
     {
         int version = ++searchVersion;
         exportCsvButton.IsEnabled = exportJsonButton.IsEnabled = false;
@@ -1217,7 +1221,7 @@ public sealed partial class MainWindow : Window
         }
 
         bool viewingPlayerTab = playerTabs.Any(t => ReferenceEquals(t.Root, bodyHost.Content));
-        if (!viewingPlayerTab && !ReferenceEquals(selected, nextSelection))
+        if (!preserveEditor && !viewingPlayerTab && !ReferenceEquals(selected, nextSelection))
         {
             selected = nextSelection;
             RenderEditor();
@@ -1231,7 +1235,8 @@ public sealed partial class MainWindow : Window
         {
             var address = selected.Address;
             var player = await Task.Run(() => backend.Players.Reload(address));
-            if (player is null && selected?.Address == address) { status.Text = Loc.S("Player no longer available; reloading"); await LoadAsync(); }
+            // A retirement or transient read failure must never clear every open draft.
+            if (player is null && selected?.Address == address) status.Text = Loc.S("Player no longer readable");
         }
         catch (Exception ex) { status.Text = UserMessage.For(ex); }
     }
@@ -1266,6 +1271,7 @@ public sealed partial class MainWindow : Window
 
     void RenderEditor()
     {
+        using var rebuilding = EditorRefreshGuard.Rebuilding(playerTabs.FirstOrDefault(t => ReferenceEquals(t.Panel, editor))?.Root ?? editor);
         editor.Children.Clear();
         informationDirty = null;
         saveInformation = null;

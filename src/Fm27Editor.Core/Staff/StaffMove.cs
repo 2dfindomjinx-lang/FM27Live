@@ -175,8 +175,7 @@ public sealed class StaffMoveService(IProcessMemory memory, OffsetProfile profil
         }
         if (newJob is { } changedJob && changedJob != job)
         {
-            if (contractBytes[jobAt + 1] != 0)
-                throw new InvalidOperationException("Staff job code is wider than one byte");
+            // The job is one byte; Touch keeps a flag in the byte above it, which this write leaves alone.
             writes.Add(new(contract + (ulong)jobAt, [job], [changedJob], "contract job"));
         }
         if (newWage is { } wage)

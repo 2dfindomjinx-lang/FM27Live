@@ -171,7 +171,7 @@ public sealed class StaffRepository(IProcessMemory memory, OffsetProfile profile
         var jb = new byte[JobReadSize];
         if (job != 0 && memory.TryRead(job, jb) && BitConverter.ToUInt64(jb, s.JobPerson) == person + (ulong)s.JobPersonAnchor)
         {
-            jobCode = BitConverter.ToInt16(jb, s.JobCode);
+            jobCode = jb[s.JobCode]; // one byte: Touch keeps a flag (0x10) in the byte above (Head of Youth Development read as 0x1040)
             if (profile.Contract is { } c)
             {
                 ulong team = BitConverter.ToUInt64(jb, s.JobTeam);

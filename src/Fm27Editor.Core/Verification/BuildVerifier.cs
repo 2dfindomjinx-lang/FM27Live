@@ -473,6 +473,30 @@ public static class BuildVerifier
                 var distinct = cfVals.Distinct().Count();
                 cfOk = nonCompact.Count >= 10 && cfVals.Count * 10 >= nonCompact.Count * 8 && distinct > 1;
                 cfDetail = $"valid={cfVals.Count}/{nonCompact.Count}, distinct={distinct}";
+                if (cfOk)
+                {
+                    foreach (var dupField in new[] { ClubField.YouthCoaching, ClubField.YouthRecruitment })
+                    {
+                        if (!clubFields.IsMapped(dupField) || clubFields.Root(dupField) != ClubFieldRoot.Club) continue;
+                        int compared = 0, equal = 0;
+                        foreach (var club in nonCompact)
+                        {
+                            long? cfVal = clubFields.Read(club.Address, ClubField.CorporateFacilities);
+                            long? otherVal = clubFields.Read(club.Address, dupField);
+                            if (cfVal is >= 1 and <= 20 && otherVal is >= 1 and <= 20)
+                            {
+                                compared++;
+                                if (cfVal == otherVal) equal++;
+                            }
+                        }
+                        if (compared >= 5 && equal * 10 >= compared * 8)
+                        {
+                            cfOk = false;
+                            cfDetail += $", duplicateOf={dupField}";
+                            break;
+                        }
+                    }
+                }
             }
 
             bool balanceOk = nonCompact.Count >= 10 &&
@@ -534,6 +558,24 @@ public static class BuildVerifier
                         if (globalSet.Contains(row.Address)) overlap++;
                     }
                 }
+                if (globalSet.Count > 0 && playerPromises == 0)
+                {
+                    var byPerson = new Dictionary<ulong, PlayerRecord>(players.Count);
+                    int personRelOff = profile.Relations?.PlayerPerson ?? 0x288;
+                    foreach (var p in players)
+                        byPerson.TryAdd(PersonOwner.Of(p, profile).At(personRelOff), p);
+                    foreach (ulong rec in globalSet.Take(64))
+                    {
+                        ulong personAddr = ReadU64Safe(memory, rec + (ulong)pm.Person);
+                        if (personAddr == 0 || !byPerson.TryGetValue(personAddr, out var p)) continue;
+                        foreach (var row in store.Read(PersonOwner.Of(p, profile)))
+                        {
+                            playerPromises++;
+                            if (globalSet.Contains(row.Address)) overlap++;
+                        }
+                        if (overlap > 0) break;
+                    }
+                }
                 bool ok = vecOk && (playerPromises == 0 || overlap > 0);
                 checks.Add(new("semantics.promises", ok,
                     $"globalCount={globalSet.Count}, sampledPlayerPromises={playerPromises}, overlap={overlap}"));
@@ -551,7 +593,20 @@ public static class BuildVerifier
                 ulong root = ReadU64Safe(memory, game.ModuleBase + pr.ListRootRva);
                 ulong fBegin = root != 0 ? ReadU64Safe(memory, root + (ulong)ft.DateVector) : 0;
                 ulong fEnd = root != 0 ? ReadU64Safe(memory, root + (ulong)ft.DateVector + 8) : 0;
-                bool ok = root != 0 && fBegin >= 0x1_0000_0000UL && fEnd >= fBegin && (fEnd - fBegin) % 8 == 0 && (fEnd - fBegin) / 8 <= 100_000;
+                ulong fCap = root != 0 ? ReadU64Safe(memory, root + (ulong)ft.DateVector + 16) : 0;
+                bool ok = root != 0 && fBegin >= 0x1_0000_0000UL && fEnd >= fBegin && fCap >= fEnd &&
+                    (fEnd - fBegin) % 8 == 0 && (fCap - fBegin) % 8 == 0 &&
+                    (fEnd - fBegin) / 8 <= 100_000 && (fCap - fBegin) / 8 <= 200_000;
+                if (ok && fEnd > fBegin)
+                {
+                    ulong firstRec = ReadU64Safe(memory, fBegin);
+                    if (firstRec >= 0x1_0000_0000UL)
+                    {
+                        ulong firstPerson = ReadU64Safe(memory, firstRec + (ulong)ft.DatePerson);
+                        if (firstPerson >= game.ModuleBase && firstPerson < game.ModuleEnd)
+                            ok = false;
+                    }
+                }
                 int count = ok ? (int)((fEnd - fBegin) / 8) : -1;
                 checks.Add(new("semantics.futureTransfers", ok || expectedEmpty.Contains("futureTransfers"),
                     ok ? $"dateVector count={count}" : "invalid futureTransfers dateVector header"));
@@ -579,11 +634,12 @@ public static class BuildVerifier
                     bool rootValid = root != 0 && (pr.ManagerVtable is not { } mv || !sameObject || ReadU64Safe(memory, root) == game.ModuleBase + mv);
                     bool overlapsList = cfOff >= pr.ListOffset && cfOff < pr.ListOffset + 24;
                     bool overlapsDate = profile.FutureTransfers is { } ft && cfOff >= ft.DateVector && cfOff < ft.DateVector + 24;
+                    bool looksLikeVector = rootValid && NewBuildDiscoverer.LooksLikeVectorHeader(memory, root + (ulong)cfOff);
                     Span<byte> b = stackalloc byte[1];
-                    bool byteValid = rootValid && !overlapsList && !overlapsDate && memory.TryRead(root + (ulong)cfOff, b) && b[0] <= 1;
+                    bool byteValid = rootValid && !overlapsList && !overlapsDate && !looksLikeVector && memory.TryRead(root + (ulong)cfOff, b) && b[0] <= 1;
                     cfOk = byteValid;
                     cfMsg += rootValid
-                        ? (overlapsList || overlapsDate ? " (overlaps vector)" : $" (manager={b[0]}, bool={byteValid})")
+                        ? (overlapsList || overlapsDate ? " (overlaps vector)" : looksLikeVector ? " (vector header)" : $" (manager={b[0]}, bool={byteValid})")
                         : " (invalid manager)";
                 }
                 else if (sampleOffers.Count == 0 && !expectedEmpty.Contains("proposals"))

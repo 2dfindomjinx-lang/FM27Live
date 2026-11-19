@@ -11,6 +11,39 @@ namespace Fm27Editor.Core.Tests;
 /// </summary>
 public class CompletedTransferRecordTests
 {
+    [Fact]
+    public void Touch_player_staff_completed_offer_uses_shifted_links_and_person()
+    {
+        var profile = OffsetProfile.LoadFile(Path.Combine(AppContext.BaseDirectory, "offsets", "27.0.1+2503222-touch-mac.json"));
+        var memory = new FakeMemory();
+        const ulong module = 0x7FF000000000, root = 0x100000, offers = 0x200000, player = 0x300000;
+        var offsets = profile.Proposals!;
+        TestWorld.Set64(memory.Map(module + offsets.ListRootRva, 8), 0, root);
+        var manager = memory.Map(root, 0x1000);
+        TestWorld.Set64(manager, 0, module + offsets.ManagerVtable!.Value);
+        TestWorld.Set64(manager, offsets.ListOffset, offers);
+        TestWorld.Set64(manager, offsets.ListOffset + 8, offers);
+        TestWorld.Set64(manager, offsets.ListOffset + 16, offers + 8);
+        memory.Map(offers, 8);
+        var bytes = memory.Map(player, 0x3F0);
+        TestWorld.Set64(bytes, 0, module + 0x57B88A0);
+        TestWorld.Set64(bytes, 0x230, 0x123456);
+        TestWorld.Set64(bytes, 0x238, 0x789ABC);
+        ulong next = 0x400000;
+        ulong Allocate(int size) { ulong at = next; next += 0x1000; memory.Map(at, size); return at; }
+
+        var record = new CompletedTransferRecord(memory, profile, module);
+        var plan = record.Plan(player, 0x500000, 0x600000, 1000, new DateOnly(2026, 11, 24));
+        record.Apply(plan, Allocate);
+
+        ulong offer = memory.ReadUInt64(offers);
+        Assert.Equal(player + 0x3D0, memory.ReadUInt64(offer + 0x38));
+        Assert.NotEqual(0UL, memory.ReadUInt64(player + 0x328));
+        Assert.NotEqual(0UL, memory.ReadUInt64(player + 0x330));
+        Assert.Equal(0x123456UL, memory.ReadUInt64(player + 0x230));
+        Assert.Equal(0x789ABCUL, memory.ReadUInt64(player + 0x238));
+    }
+
     [Theory]
     [InlineData("27.0.1+2494687-gamepass.json", 2, false)]
     [InlineData("27.0.1+2503222-steam.json", 2, false)]

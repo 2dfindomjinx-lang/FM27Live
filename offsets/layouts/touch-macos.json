@@ -1791,6 +1791,7 @@
     },
     "award.listRootRva": {
       "kind": "indirectVector",
+      "holderClass": "AWARD_MANAGER",
       "vtablePath": "award.vtable",
       "offsetPath": "award.listOffset",
       "min": 50,

@@ -501,13 +501,43 @@ public static class NewBuildDiscoverer
                         }
                         if (chosen is not null && overlapCount > 0) break;
                     }
+                    bool emptyGlobalVector = false;
+                    if (chosen is null && samplePromiseAddrs.Count == 0)
+                    {
+                        uint? singleRoot = null;
+                        int matchingRoots = 0;
+                        foreach (uint vt in mgrVts)
+                        {
+                            foreach (uint root in RootFinder.FindObjects(image, memory, vt))
+                            {
+                                ulong obj = ReadU64Safe(memory, image.ModuleBase + root);
+                                if (obj == 0) continue;
+                                if (ReadU64Safe(memory, obj + (ulong)chosenVector) == 0 &&
+                                    ReadU64Safe(memory, obj + (ulong)chosenVector + 8) == 0 &&
+                                    ReadU64Safe(memory, obj + (ulong)chosenVector + 16) == 0)
+                                {
+                                    singleRoot = root;
+                                    matchingRoots++;
+                                }
+                            }
+                        }
+                        if (matchingRoots == 1)
+                        {
+                            chosen = singleRoot;
+                            emptyGlobalVector = true;
+                        }
+                    }
                     if (chosen is { } pRoot)
                     {
                         SetWorkingPath(working, path, Hex(pRoot), discoveredRootPaths, touchedArrayRoots);
                         SetWorkingPath(working, "player.promises.globalVector", Hex((uint)chosenVector), discoveredRootPaths, touchedArrayRoots);
                         items.Add(new(path, overlapCount > 0 ? DiscoveryStatus.Pass : DiscoveryStatus.Warn,
                             $"{Hex(pRoot)} + {Hex((uint)chosenVector)}",
-                            overlapCount > 0 ? $"confirmed {overlapCount} shared promise record(s)" : "singleton found (0 live player promises to cross-check)"));
+                            overlapCount > 0
+                                ? $"confirmed {overlapCount} shared promise record(s)"
+                                : emptyGlobalVector
+                                    ? "singleton found (0 live player promises; empty global vector)"
+                                    : "singleton found (0 live player promises to cross-check)"));
                     }
                     else
                     {
@@ -627,27 +657,91 @@ public static class NewBuildDiscoverer
     {
         var set = new HashSet<ulong>();
         if (ProfileJsonResolver.GetByPath(working, "player.promises.holder") is not JsonValue hv ||
-            !TryParseHexUInt(hv.GetValue<string>(), out uint holderOff))
+            !TryParseHexUInt(hv.GetValue<string>(), out uint holderOffInt))
             return set;
-        uint playerPerson = ProfileJsonResolver.GetByPath(working, "player.relations.playerPerson") is JsonValue ppv && TryParseHexUInt(ppv.GetValue<string>(), out uint pp)
-            ? pp : 0;
-        var players = ReadVectorSamplePointers(working, memory, moduleBase, "playerList.rootRva", "playerList.beginOffset", "playerList.endOffset", 1500);
-        foreach (ulong player in players)
+        int holderOff = (int)holderOffInt;
+        int recPersonOff = ProfileJsonResolver.GetByPath(working, "player.promises.person") is JsonValue rpv && TryParseHexUInt(rpv.GetValue<string>(), out uint rp)
+            ? (int)rp : 0x20;
+        int playerPersonOff = ProfileJsonResolver.GetByPath(working, "player.relations.playerPerson") is JsonValue ppv && TryParseHexUInt(ppv.GetValue<string>(), out uint pp)
+            ? (int)pp : 0;
+
+        var insertions = new Dictionary<ulong, (int At, int Length)>();
+        if (ProfileJsonResolver.GetByPath(working, "player.subtypeInsertions") is JsonArray insArr)
         {
-            ulong ownerBase = player;
-            if (playerPerson > 0 && ReadU64Safe(memory, player + holderOff) < 0x1_0000_0000UL)
-                ownerBase = player; // holder is player-relative directly
-            ulong holder = ReadU64Safe(memory, ownerBase + holderOff);
+            foreach (var item in insArr)
+            {
+                if (item is not JsonObject obj) continue;
+                if (obj["vtable"] is JsonValue vtv && TryParseHexUInt(vtv.GetValue<string>(), out uint vtRva) &&
+                    obj["at"] is JsonValue atv && TryParseHexUInt(atv.GetValue<string>(), out uint atVal) &&
+                    obj["length"] is JsonValue lenv && TryParseHexUInt(lenv.GetValue<string>(), out uint lenVal))
+                {
+                    insertions[moduleBase + vtRva] = ((int)atVal, (int)lenVal);
+                }
+            }
+        }
+
+        int TranslateOffset(int baseOff, ulong vtable) =>
+            insertions.TryGetValue(vtable, out var ins) && baseOff >= ins.At ? baseOff + ins.Length : baseOff;
+
+        var players = ReadVectorSamplePointers(working, memory, moduleBase, "playerList.rootRva", "playerList.beginOffset", "playerList.endOffset", 100_000);
+        if (players.Count == 0) return set;
+
+        var playerAddrs = players.ToArray();
+        var vtables = ReadU64Array(memory, playerAddrs);
+        var holderSlotAddrs = new ulong[players.Count];
+        for (int i = 0; i < players.Count; i++)
+            holderSlotAddrs[i] = players[i] + (ulong)TranslateOffset(holderOff, vtables[i]);
+        var holders = ReadU64Array(memory, holderSlotAddrs);
+
+        Span<byte> recHead = stackalloc byte[4];
+        for (int i = 0; i < players.Count; i++)
+        {
+            ulong holder = holders[i];
             if (holder < 0x1_0000_0000UL) continue;
             ulong b = ReadU64Safe(memory, holder), e = ReadU64Safe(memory, holder + 8);
             if (b < 0x1_0000_0000UL || e <= b || (e - b) % 8 != 0 || (e - b) / 8 > 64) continue;
+            ulong expectedPerson = playerPersonOff > 0
+                ? players[i] + (ulong)TranslateOffset(playerPersonOff, vtables[i])
+                : 0;
             for (ulong p = b; p < e; p += 8)
             {
                 ulong rec = ReadU64Safe(memory, p);
-                if (rec >= 0x1_0000_0000UL) set.Add(rec);
+                if (rec < 0x1_0000_0000UL) continue;
+                if (!memory.TryRead(rec, recHead)) continue;
+                uint refCount = BitConverter.ToUInt32(recHead);
+                if (refCount is < 1 or > 10) continue;
+                if (playerPersonOff > 0 && ReadU64Safe(memory, rec + (ulong)recPersonOff) != expectedPerson) continue;
+                set.Add(rec);
             }
         }
         return set;
+    }
+
+    static ulong[] ReadU64Array(IProcessMemory memory, ulong[] addresses)
+    {
+        var values = new ulong[addresses.Length];
+        if (addresses.Length == 0) return values;
+        if (memory is IScatterReadMemory scatter)
+        {
+            const int batchSize = 512;
+            var ok = new bool[batchSize];
+            var bufs = new byte[batchSize][];
+            for (int b = 0; b < batchSize; b++) bufs[b] = new byte[8];
+            for (int i = 0; i < addresses.Length; i += batchSize)
+            {
+                int n = Math.Min(batchSize, addresses.Length - i);
+                var reqs = new MemoryReadRequest[n];
+                for (int j = 0; j < n; j++) reqs[j] = new(addresses[i + j], bufs[j]);
+                scatter.ReadMany(reqs, ok.AsSpan(0, n));
+                for (int j = 0; j < n; j++)
+                    values[i + j] = ok[j] ? BitConverter.ToUInt64(bufs[j]) : 0;
+            }
+            return values;
+        }
+
+        for (int i = 0; i < addresses.Length; i++)
+            values[i] = ReadU64Safe(memory, addresses[i]);
+        return values;
     }
 
     static bool LooksLikePromiseVector(IProcessMemory memory, ulong vectorAddr, HashSet<ulong> samplePromises, out int overlapHits)
@@ -989,18 +1083,47 @@ public static class NewBuildDiscoverer
 
         var players = new PlayerRepository(memory, profile, moduleBase).LoadAll();
         var clubs = ClubDirectory.FromPlayers(memory, players, profile, moduleBase).Take(400).ToList();
-        var financeAddrs = new List<ulong>();
+        var clubFinPairs = new List<(ulong Club, ulong Finance)>();
         foreach (var club in clubs)
         {
             ulong fin = ReadU64Safe(memory, club.Address + (ulong)finPtrOff);
             if (fin >= 0x1_0000_0000UL && ReadU64Safe(memory, fin) == moduleBase + fullFinanceVt)
-                financeAddrs.Add(fin);
+                clubFinPairs.Add((club.Address, fin));
         }
-        if (financeAddrs.Count < 10)
+        if (clubFinPairs.Count < 10)
         {
             items.Add(new("club.fields.CorporateFacilities.path", DiscoveryStatus.Warn, cf.PathText,
-                $"only {financeAddrs.Count} full finance objects sampled"));
+                $"only {clubFinPairs.Count} full finance objects sampled"));
             return;
+        }
+
+        var clubFields = new ClubFieldAccess(memory, profile, moduleBase);
+        ClubField[] compareFields =
+        [
+            ClubField.Training,
+            ClubField.YouthImportance,
+            ClubField.YouthFacilities,
+            ClubField.YouthCoaching,
+            ClubField.YouthRecruitment,
+        ];
+        var knownValues = new List<long?[]>();
+        foreach (var field in compareFields)
+        {
+            if (!clubFields.IsMapped(field) || clubFields.Root(field) != ClubFieldRoot.Club) continue;
+            var vals = new long?[clubFinPairs.Count];
+            for (int i = 0; i < clubFinPairs.Count; i++)
+                vals[i] = clubFields.Read(clubFinPairs[i].Club, field);
+            knownValues.Add(vals);
+        }
+
+        var excludedFinanceOffsets = new HashSet<int>();
+        foreach (var (field, fieldOff) in profile.Club.Fields)
+        {
+            if (field != ClubField.CorporateFacilities && fieldOff.Root == ClubFieldRoot.Club &&
+                fieldOff.Path.Count == 2 && fieldOff.Path[0] == finPtrOff)
+            {
+                excludedFinanceOffsets.Add(fieldOff.Path[1]);
+            }
         }
 
         var probes = new List<int> { currentFieldOff };
@@ -1008,31 +1131,33 @@ public static class NewBuildDiscoverer
 
         (int Offset, double Ratio, int Distinct, int Min, int Max)? best = null;
         Span<byte> b = stackalloc byte[1];
+        var candVals = new byte[clubFinPairs.Count];
         foreach (int off in probes)
         {
+            if (excludedFinanceOffsets.Contains(off)) continue;
             int valid = 0;
             var distinct = new HashSet<byte>();
             int min = int.MaxValue, max = int.MinValue;
-            foreach (ulong fin in financeAddrs)
+            Array.Clear(candVals);
+            for (int i = 0; i < clubFinPairs.Count; i++)
             {
-                if (!memory.TryRead(fin + (ulong)off, b)) continue;
+                if (!memory.TryRead(clubFinPairs[i].Finance + (ulong)off, b)) continue;
                 byte val = b[0];
                 if (val is >= 1 and <= 20)
                 {
+                    candVals[i] = val;
                     valid++;
                     distinct.Add(val);
                     if (val < min) min = val;
                     if (val > max) max = val;
                 }
             }
-            double ratio = (double)valid / financeAddrs.Count;
+            double ratio = (double)valid / clubFinPairs.Count;
             if (ratio >= 0.80 && distinct.Count > 1)
             {
-                if (best is null || distinct.Count > best.Value.Distinct ||
-                    (distinct.Count == best.Value.Distinct && ratio > best.Value.Ratio))
-                {
+                if (DuplicatesKnownField(candVals, knownValues)) continue;
+                if (best is null || IsBetterCorporateCandidate(off, ratio, distinct.Count, best.Value, currentFieldOff))
                     best = (off, ratio, distinct.Count, min, max);
-                }
                 if (off == currentFieldOff && ratio >= 0.90 && distinct.Count >= 3) break;
             }
         }
@@ -1043,14 +1168,45 @@ public static class NewBuildDiscoverer
             ProfileJsonResolver.SetByPath(working, "club.fields.CorporateFacilities.path", newPath);
             RecordStructuralIfDifferent(rawBase, "club.fields.CorporateFacilities.path", newPath, structuralOverrides);
             items.Add(new("club.fields.CorporateFacilities.path", DiscoveryStatus.Pass, newPath,
-                $"valid={win.Ratio:P0}, distinct={win.Distinct}, range=[{win.Min}..{win.Max}] across {financeAddrs.Count} clubs"));
+                $"valid={win.Ratio:P0}, distinct={win.Distinct}, range=[{win.Min}..{win.Max}] across {clubFinPairs.Count} clubs"));
         }
         else
         {
             items.Add(new("club.fields.CorporateFacilities.path", DiscoveryStatus.Manual, cf.PathText,
-                $"No offset within ±0x40 of 0x{currentFieldOff:X} had >=80% in [1..20] with variance across {financeAddrs.Count} clubs",
+                $"No offset within ±0x40 of 0x{currentFieldOff:X} had >=80% in [1..20] with variance across {clubFinPairs.Count} clubs",
                 "dump a full CLUB_FINANCE record (memdump) and compare with the previous build's values for the same club"));
         }
+    }
+
+    static bool DuplicatesKnownField(byte[] candVals, List<long?[]> knownValues)
+    {
+        foreach (var known in knownValues)
+        {
+            int compared = 0, equal = 0;
+            for (int i = 0; i < candVals.Length; i++)
+            {
+                byte cv = candVals[i];
+                if (cv == 0 || known[i] is not { } kv || kv < 1 || kv > 20) continue;
+                compared++;
+                if (cv == kv) equal++;
+            }
+            if (compared >= 5 && equal * 10 >= compared * 8) return true;
+        }
+        return false;
+    }
+
+    static bool IsBetterCorporateCandidate(
+        int off,
+        double ratio,
+        int distinctCount,
+        (int Offset, double Ratio, int Distinct, int Min, int Max) best,
+        int anchorOff)
+    {
+        if (distinctCount != best.Distinct) return distinctCount > best.Distinct;
+        if (Math.Abs(ratio - best.Ratio) > 1e-9) return ratio > best.Ratio;
+        int dist = Math.Abs(off - anchorOff), bestDist = Math.Abs(best.Offset - anchorOff);
+        if (dist != bestDist) return dist < bestDist;
+        return off >= anchorOff && best.Offset < anchorOff;
     }
 
     static void ProbeFutureTransferDateVector(
@@ -1066,30 +1222,49 @@ public static class NewBuildDiscoverer
         ulong root = ReadU64Safe(memory, moduleBase + pr.ListRootRva);
         if (root == 0) return;
 
+        var personVtables = new HashSet<ulong>();
+        if (profile.Relations?.PersonVtable is { } pVt and not 0) personVtables.Add(moduleBase + pVt);
+        if (profile.Relations?.StaffPersonVtable is { } spVt and not 0) personVtables.Add(moduleBase + spVt);
+        if (profile.Staff?.Kinds is { } kinds)
+            foreach (var k in kinds) personVtables.Add(moduleBase + k.PersonVtableRva);
+
         var candidateList = new List<int> { ft.DateVector };
         for (int off = 0x8; off <= 0x200; off += 8) if (!candidateList.Contains(off)) candidateList.Add(off);
         int[] candidates = candidateList.ToArray();
         (int Offset, int ValidDates, int Total)? winner = null;
+        int recSize = Math.Max(ft.DateOfferId + 4, ft.DatePerson + 8);
+        var rec = new byte[recSize];
         foreach (int off in candidates)
         {
             ulong begin = ReadU64Safe(memory, root + (ulong)off);
             ulong end = ReadU64Safe(memory, root + (ulong)off + 8);
-            if (begin < 0x1_0000_0000UL || end <= begin || (end - begin) % 8 != 0 || (end - begin) / 8 > 100_000)
+            ulong cap = ReadU64Safe(memory, root + (ulong)off + 16);
+            if (begin < 0x1_0000_0000UL || end <= begin || cap < end ||
+                (end - begin) % 8 != 0 || (cap - begin) % 8 != 0 ||
+                (end - begin) / 8 > 100_000 || (cap - begin) / 8 > 200_000)
+            {
                 continue;
+            }
             int total = (int)((end - begin) / 8);
             int sample = Math.Min(total, 32);
             int valid = 0;
-            var rec = new byte[ft.DateOfferId + 4];
             for (int i = 0; i < sample; i++)
             {
                 ulong ptr = ReadU64Safe(memory, begin + (ulong)i * 8);
                 if (ptr == 0 || !memory.TryRead(ptr, rec)) continue;
                 int year = BitConverter.ToInt16(rec, ft.Date + 2);
                 int day = BitConverter.ToInt16(rec, ft.Date) & 0x1FF;
-                if (year is >= 2020 and <= 2045 && day is >= 1 and <= 366) valid++;
+                if (year is < 2020 or > 2045 || day is < 1 or > 366) continue;
+                ulong personPtr = BitConverter.ToUInt64(rec, ft.DatePerson);
+                if (personPtr < 0x1_0000_0000UL) continue;
+                if (personVtables.Count > 0 && !personVtables.Contains(ReadU64Safe(memory, personPtr))) continue;
+                valid++;
             }
             if (valid * 2 >= sample && (winner is null || valid > winner.Value.ValidDates))
+            {
                 winner = (off, valid, total);
+                if (off == ft.DateVector) break;
+            }
         }
 
         if (winner is { } win)
@@ -1139,8 +1314,9 @@ public static class NewBuildDiscoverer
         int expected = dateVector + 0x18;
         bool overlapsList = expected >= pr.ListOffset && expected < pr.ListOffset + 24;
         bool overlapsDate = expected >= dateVector && expected < dateVector + 24;
+        bool isVectorHeader = LooksLikeVectorHeader(memory, root + (ulong)expected);
         Span<byte> b = stackalloc byte[1];
-        if (!overlapsList && !overlapsDate && memory.TryRead(root + (ulong)expected, b) && b[0] <= 1)
+        if (!overlapsList && !overlapsDate && !isVectorHeader && memory.TryRead(root + (ulong)expected, b) && b[0] <= 1)
         {
             string hex = Hex((uint)expected);
             ProfileJsonResolver.SetByPath(working, "player.proposals.changedFlag", hex);
@@ -1151,7 +1327,20 @@ public static class NewBuildDiscoverer
             return;
         }
         items.Add(new("player.proposals.changedFlag", DiscoveryStatus.Warn, "null",
-            $"TRANSFER_MANAGER+0x{expected:X} unreadable, overlaps vector, or not bool (0x{b[0]:X2})"));
+            isVectorHeader
+                ? $"TRANSFER_MANAGER+0x{expected:X} looks like a std::vector header, not a bool"
+                : $"TRANSFER_MANAGER+0x{expected:X} unreadable, overlaps vector, or not bool (0x{b[0]:X2})"));
+    }
+
+    /// <summary>Returns true when <paramref name="addr"/> holds an aligned heap <c>{begin, end, cap}</c> std::vector header.</summary>
+    internal static bool LooksLikeVectorHeader(IProcessMemory memory, ulong addr)
+    {
+        ulong q0 = ReadU64Safe(memory, addr);
+        if (q0 < 0x1_0000_0000UL || (q0 & 7) != 0) return false;
+        ulong q1 = ReadU64Safe(memory, addr + 8);
+        ulong q2 = ReadU64Safe(memory, addr + 16);
+        return q1 >= q0 && (q1 - q0) % 8 == 0 && (q1 - q0) / 8 <= 500_000 &&
+               q2 >= q1 && (q2 - q0) % 8 == 0;
     }
 
     static void ProbeStaffJobPersonAnchor(

@@ -31,9 +31,11 @@ static class TransferCheck
 
         ClubEntry Club(string name) => clubs.FirstOrDefault(c => c.FirstTeam is not null &&
             (string.Equals(c.ShortName, name, StringComparison.OrdinalIgnoreCase) || string.Equals(c.Name, name, StringComparison.OrdinalIgnoreCase)))
-            ?? clubs.FirstOrDefault(c => c.FirstTeam is not null && (c.ShortName ?? c.Name ?? "").StartsWith(name, StringComparison.OrdinalIgnoreCase))
+            ?? clubs.FirstOrDefault(c => c.FirstTeam is not null &&
+                ((c.ShortName?.StartsWith(name, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                 (c.Name?.StartsWith(name, StringComparison.OrdinalIgnoreCase) ?? false)))
             ?? throw new InvalidOperationException($"No club named {name}");
-        ulong LoanHolder(PlayerRecord pl) => p.FutureTransfers?.CurrentLoanHolder is { } h ? mem.ReadUInt64(pl.Address + (ulong)h) : 0;
+        ulong LoanHolder(PlayerRecord pl) => p.FutureTransfers?.CurrentLoanHolder is { } h ? mem.ReadUInt64(PersonOwner.Of(pl, p).At(h)) : 0;
         PlayerRecord Pick(ClubEntry club) => all.First(pl => pl.Club?.Address == club.Address && pl.Contract is not null && pl.Id is not null
             && pl.Gender != Fm27Editor.Core.Offsets.Gender.Women && LoanHolder(pl) == 0 && used.Add(pl.Address)
             && mem.ReadUInt64(pl.Address + (ulong)p.Team!.PlayerTeam) == club.FirstTeam!.Address);

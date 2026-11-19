@@ -77,24 +77,7 @@ public sealed partial class MainWindow
                 Select(goalkeeperColumn.GetValueOrDefault(player.Address, player.Position(PlayerPosition.Goalkeeper) >= 15));
             }
             else column.Children.Add(Column(groups[i]));
-            if (groups[i] == "Mental")
-            {
-                var personality = ScoutingMetrics.Personality(player);
-                var persBadge = new TextBlock
-                {
-                    Text = personality.Name,
-                    FontSize = 11.5,
-                    FontWeight = personality.IsNegative ? FontWeight.Bold : FontWeight.SemiBold,
-                    Foreground = Brush(personality.IsNegative ? "#F87171" : "#94A3B8"),
-                    VerticalAlignment = VerticalAlignment.Center,
-                };
-                if (personality.IsNegative)
-                    ToolTip.SetTip(persBadge, "Negative personality (regen/newgen classification)");
-                column.Children.Add(AttributeCard(
-                    "Personality",
-                    PlayerFields.All.Where(f => f.Group == "Personality").Select(f => FieldControl(f, player)),
-                    rightHeader: persBadge));
-            }
+            if (groups[i] == "Mental") column.Children.Add(Column("Personality"));
             if (groups[i] == "Physical") column.Children.Add(Column("Hidden"));
             Grid.SetColumn(column, i + 1);
             host.Children.Add(column);
@@ -130,12 +113,13 @@ public sealed partial class MainWindow
                 MaxWidth = 190,
                 FontSize = 13,
                 Foreground = UiKit.TextSecondary,
+                HorizontalAlignment = HorizontalAlignment.Left,
                 VerticalAlignment = VerticalAlignment.Center,
                 TextWrapping = TextWrapping.Wrap,
                 Margin = new Thickness(0, 0, 5, 0),
             };
             Control inner;
-            if (value is CheckBox or NumericUpDown || label is "Planned Retirement" or "Days in Country")
+            if (value is CheckBox or NumericUpDown || label is "Personality" or "Planned Retirement" or "Days in Country")
             {
                 if (value is NumericUpDown || label == "Days in Country")
                 {
@@ -199,6 +183,22 @@ public sealed partial class MainWindow
             checks.Add(() => box.IsChecked != before);
             return () => box.IsChecked;
         }
+
+        var personality = ScoutingMetrics.Personality(player);
+        var personalityValue = new TextBlock
+        {
+            Text = Loc.S(personality.Name),
+            FontSize = 13,
+            FontWeight = personality.IsNegative ? FontWeight.Bold : FontWeight.SemiBold,
+            Foreground = personality.IsNegative ? UiKit.Brush("#F87171") : UiKit.TextPrimary,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            TextAlignment = TextAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+        };
+        if (personality.IsNegative)
+            ToolTip.SetTip(personalityValue, Loc.S("Negative personality (regen/newgen classification)"));
+        Row("Personality", personalityValue);
 
         foreach (var id in new[] { "Born", "Height", "HomeReputation", "CurrentReputation", "WorldReputation" })
         {

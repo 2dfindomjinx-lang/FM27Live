@@ -164,22 +164,10 @@ The editor is built and checked for men's football only. Women's teams, players 
 
 ## Roadmap
 
-Done:
-- Cross-platform Windows (Steam and Xbox / Game Pass) and macOS Apple silicon (FM27 Steam and FM27 Touch).
-- Players, staff, clubs, nations, stadiums, cities, competitions, awards, referees and injury types, plus dual-role player-staff support.
-- Immediate transfers (with fee and sell-on), loans, future transfers with full terms, free-agent signings, swaps, releases and game-heap allocations on macOS.
-- Automated `newbuild` RTTI discovery and `verify-build` release/crash gates.
-- Mass Edit (Players, Staff, Clubs, Nations), coach training ratings, squad presets, freezer, Wonderkid Academy and Development Speed.
-- Light and Dark themes, English and Vietnamese localisation, multi-currency conversion and bundled role scores.
-
 Next:
 - Player stats radar tab and visualisations.
 - Shortlist support.
-- Full transfer terms on immediate moves (currently sell-on only; future transfers support full terms).
-- Scout Information/Stats tabs and Possible Signings.
-- Kit items editing (change type, add, remove, duplicate).
 - Training calendar and coach allowances.
-- Smaller, faster-starting Windows executable.
 - Women's football support later on.
 
 ## Disclaimer and bug reports

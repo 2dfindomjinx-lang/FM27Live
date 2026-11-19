@@ -5,8 +5,9 @@ namespace Fm27Editor.App.Live;
 public sealed class LivePreferences
 {
     public bool AutomaticUpdates { get; set; } = true;
-    public double OverlayWidth { get; set; } = 1100;
-    public double OverlayHeight { get; set; } = 720;
+    public int OverlayLayoutVersion { get; set; }
+    public double OverlayWidth { get; set; } = 760;
+    public double OverlayHeight { get; set; } = 640;
     public int? OverlayX { get; set; }
     public int? OverlayY { get; set; }
     public double OverlayOpacity { get; set; } = 0.97;

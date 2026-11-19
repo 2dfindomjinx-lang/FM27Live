@@ -1,4 +1,8 @@
-FM27 Live 0.1.1 Windows sürümü.
+FM27 Live 0.1.2 Windows sürümü.
+
+- Overlay artık küçük FM27 düğmesi olarak açılır. Tıklama/F8 ile açılır; F8/Esc veya oyuna tıklama ile küçülür.
+- Açık panel ekranın tamamını kaplayamaz; F11/↔ paneli genişletir veya daraltır. Normal uygulamanın tam ekran modu ayrıdır.
+- Dar panelde tüm editör kontrollerine kaydırarak erişilir; düzenleme oturumu ve taslaklar korunur.
 
 - Normal editör, F8 ile açılıp gizlenen overlay, F11 tam ekran ve bildirim alanı menüsü.
 - ECDSA imzalı otomatik güncelleme; SHA-256 kontrolü, ayarları koruma ve açılış başarısızlığında geri dönüş.

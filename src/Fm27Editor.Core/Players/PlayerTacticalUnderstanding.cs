@@ -52,7 +52,7 @@ public sealed class PlayerTacticalUnderstanding(IProcessMemory memory, OffsetPro
         var o = O;
         var list = new List<(ulong, int, int, int)>();
         if (!IsPlayer(player.Address)) return list;
-        ulong holder = Q(player.Address + (ulong)o.Holder);
+        ulong holder = Q(profile.PlayerField(player, o.Holder));
         if (holder == 0) return list;
         for (int i = 0; i < o.Count; i++)
         {

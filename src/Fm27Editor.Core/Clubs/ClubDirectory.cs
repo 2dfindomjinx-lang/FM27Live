@@ -43,7 +43,7 @@ public static class ClubDirectory
         var teams = new HashSet<ulong>();
         foreach (var p in players)
         {
-            if (TryQ(memory, p.Address + (ulong)t.PlayerTeam, out ulong pt) && pt != 0) teams.Add(pt);
+            if (TryQ(memory, profile.PlayerField(p, t.PlayerTeam), out ulong pt) && pt != 0) teams.Add(pt);
             if (p.Contract is { } k && TryQ(memory, k.Address + (ulong)c.Team, out ulong ct) && ct != 0) teams.Add(ct);
         }
         return Build(memory, profile, moduleBase, teams, clubs: null);
@@ -92,7 +92,7 @@ public static class ClubDirectory
             int count = (int)((end - begin) / 8);
             // First team: its first squad player is contracted to the team itself (one check per team keeps the scan fast).
             bool first = count > 0 && TryQ(memory, begin, out ulong player)
-                         && TryQ(memory, player + (ulong)c.PlayerContract, out ulong contract) && contract != 0
+                         && TryQ(memory, profile.PlayerField(memory, moduleBase, player, c.PlayerContract), out ulong contract) && contract != 0
                          && TryQ(memory, contract + (ulong)c.Team, out ulong contractTeam) && contractTeam == team;
             if (!teamsByClub.TryGetValue(club, out var list)) teamsByClub[club] = list = [];
             list.Add(new TeamEntry(team, club, begin, count, (int)((cap - begin) / 8), first));

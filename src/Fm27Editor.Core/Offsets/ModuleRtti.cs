@@ -317,9 +317,11 @@ public sealed class RttiIndex
     public static RttiIndex BuildMsvc(ModuleImage image)
     {
         var bytes = image.Bytes;
-        // 1. Type descriptors: ".?AV<name>\0" or ".?AU<name>\0" with a 16-byte header in front.
+        // 1. Type descriptors: ".?AV<name>\0" or ".?AU<name>\0" with a 16-byte header in front. MSVC puts them in .data
+        //    (they start with a pointer to type_info's vtable, which the loader writes), so the writable sections are
+        //    searched too: with .rdata alone, newbuild on Steam 27.1.0+2505117 found no class at all (19/11/2026).
         var descriptors = new Dictionary<uint, string>();
-        foreach (var (rangeStart, rangeEnd) in image.StringRanges)
+        foreach (var (rangeStart, rangeEnd) in image.StringRanges.Concat(image.WritableDataRanges).Distinct())
         {
             int start = Math.Max(16, rangeStart);
             int end = Math.Min(bytes.Length, rangeEnd);

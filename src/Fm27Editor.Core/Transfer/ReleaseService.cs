@@ -42,9 +42,9 @@ public sealed class ReleaseService(IProcessMemory memory, OffsetProfile profile,
         int captain = T.Captain ?? throw new InvalidOperationException("No captain offset");
         int vice = T.ViceCaptain ?? throw new InvalidOperationException("No vice captain offset");
         Capture(player.Address, 8, "player vtable");
-        Capture(player.Address + (ulong)(profile.Fields.Id ?? throw new InvalidOperationException("No player id offset")), 4, "player id");
-        Capture(player.Address + (ulong)C.PlayerContract, 8, "player contract");
-        Capture(player.Address + (ulong)T.PlayerTeam, 8, "playing team");
+        Capture(profile.PlayerField(player, (profile.Fields.Id ?? throw new InvalidOperationException("No player id offset"))), 4, "player id");
+        Capture(profile.PlayerField(player, C.PlayerContract), 8, "player contract");
+        Capture(profile.PlayerField(player, T.PlayerTeam), 8, "playing team");
         Capture(inspection.Contract, Math.Max((C.Job ?? throw new InvalidOperationException("No contract job offset")) + 1,
             (C.SeniorTeam ?? throw new InvalidOperationException("No contract senior team offset")) + 8), "contract");
         ulong[] ReadVector(ulong address, int max, string what, out ulong begin, out ulong end)
@@ -61,7 +61,7 @@ public sealed class ReleaseService(IProcessMemory memory, OffsetProfile profile,
         var teams = ReadVector(inspection.Club + (ulong)teamsOffset, 128, "teams", out _, out _);
         if (!teams.SequenceEqual(inspection.Teams.Select(t => t.Address))) throw new StaleObjectException("Club teams changed");
         int squads = 0, captaincies = 0;
-        ulong person = player.Address + (ulong)personOffset;
+        ulong person = profile.PlayerField(player, personOffset);
         foreach (var team in inspection.Teams)
         {
             var teamBytes = Capture(team.Address, Math.Max(vice + 8, captain + 8), "team");
@@ -88,8 +88,8 @@ public sealed class ReleaseService(IProcessMemory memory, OffsetProfile profile,
             writes.Add(new(end - 8, BitConverter.GetBytes(members[last]), new byte[8], "squad last slot"));
             squads++;
         }
-        writes.Add(new(player.Address + (ulong)T.PlayerTeam, BitConverter.GetBytes(inspection.PlayingTeam), new byte[8], "playing team"));
-        writes.Add(new(player.Address + (ulong)C.PlayerContract, BitConverter.GetBytes(inspection.Contract), new byte[8], "player contract"));
+        writes.Add(new(profile.PlayerField(player, T.PlayerTeam), BitConverter.GetBytes(inspection.PlayingTeam), new byte[8], "playing team"));
+        writes.Add(new(profile.PlayerField(player, C.PlayerContract), BitConverter.GetBytes(inspection.Contract), new byte[8], "player contract"));
         return new(player, inspection.Club, inspection.Contract, managers, teams, guards, writes, squads, captaincies);
     }
 
@@ -162,7 +162,7 @@ public sealed class ReleaseService(IProcessMemory memory, OffsetProfile profile,
     {
         if (player.Id is not > 0 || profile.Fields.Id is not { } id || !profile.PlayerVtableRvas.Contains(player.VtableRva) ||
             memory.ReadUInt64(player.Address) != moduleBase + player.VtableRva ||
-            BitConverter.ToInt32(memory.Read(player.Address + (ulong)id, 4)) != player.Id)
+            BitConverter.ToInt32(memory.Read(profile.PlayerField(player, id), 4)) != player.Id)
             throw new StaleObjectException("Player identity changed");
     }
 

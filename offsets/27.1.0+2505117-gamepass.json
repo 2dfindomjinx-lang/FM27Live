@@ -25,6 +25,13 @@
   ],
   "player": {
     "objectSize": "0x3C8",
+    "subtypeInsertions": [
+      {
+        "vtable": "0x4C9ECB8",
+        "at": "0x280",
+        "length": "0xF8"
+      }
+    ],
     "attributeScale": 5,
     "attributes": {
       "Crossing": "0x15F",
@@ -239,7 +246,9 @@
       "personGender": "0x19",
       "personGenderMask": "0x10",
       "retiredInternationalType": "0xA",
-      "otherNationalityType": "0x9"
+      "otherNationalityType": "0x9",
+      "retiredPersonPointersVtable": "0x4A495F8",
+      "retiredPersonStringsVtable": "0x4A48DE8"
     },
     "bans": {
       "vector": "0x18",

@@ -38,7 +38,7 @@ public sealed class FreeAgentSigning(IProcessMemory memory, OffsetProfile profil
         ulong vtable = Pointer(player.Address, "player vtable");
         if (!profile.PlayerVtableRvas.Any(v => moduleBase + v == vtable) || !owner.IsValid(memory, moduleBase))
             throw new StaleObjectException($"0x{player.Address:X} is no longer a player object");
-        GenderGuard.EnsureMalePlayer(memory, profile, player.Address);
+        GenderGuard.EnsureMalePlayer(memory, profile, player);
         GenderGuard.EnsureMenClub(memory, profile, buyer.Address);
         if (Pointer(owner.At(C.PlayerContract), "player contract") != 0)
             throw new InvalidOperationException("The player has a contract; use the normal transfer");

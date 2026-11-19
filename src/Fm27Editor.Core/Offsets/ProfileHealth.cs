@@ -34,7 +34,7 @@ public sealed class ProfileHealth(IProcessMemory memory, OffsetProfile profile, 
     }
 
     bool Named(PlayerRecord player) =>
-        profile.Fields is { } fields && memory.ReadUInt64(player.Address + (ulong)fields.FullName) != 0;
+        profile.Fields is { } fields && memory.ReadUInt64(profile.PlayerField(player, fields.FullName)) != 0;
 
     static bool Printable(string? text) =>
         !string.IsNullOrWhiteSpace(text) && text.Length <= 80 && text.All(c => c >= ' ' && c != '\u007f');
@@ -51,7 +51,7 @@ public sealed class ProfileHealth(IProcessMemory memory, OffsetProfile profile, 
         int badAbility = sample.Count(p => p.CurrentAbility is < 0 or > 200 || p.PotentialAbility is < 0 or > 200);
         int badName = sample.Count(p => !Printable(p.DisplayName));
         int badAttribute = sample.Count(p => attributes.Any(o => o < profile.PlayerObjectSize &&
-            memory.Read(p.Address + (ulong)o, 1)[0] > 100));
+            memory.Read(profile.PlayerField(p, o), 1)[0] > 100));
         if (badId + badAbility + badName + badAttribute > sample.Count / 20)
             return (false, $"{all.Count} players, bad id {badId}, ability {badAbility}, name {badName}, attribute {badAttribute} of {sample.Count}");
         return (true, $"{all.Count:N0} players");
@@ -65,7 +65,7 @@ public sealed class ProfileHealth(IProcessMemory memory, OffsetProfile profile, 
         int checkedContracts = 0, bad = 0;
         foreach (var player in sample)
         {
-            ulong contract = memory.ReadUInt64(player.Address + (ulong)offsets.PlayerContract);
+            ulong contract = memory.ReadUInt64(profile.PlayerField(player, offsets.PlayerContract));
             if (contract == 0) continue;
             checkedContracts++;
             if (memory.ReadUInt64(contract) != moduleBase + offsets.ContractVtableRva) bad++;

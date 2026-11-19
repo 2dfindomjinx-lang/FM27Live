@@ -23,6 +23,13 @@
   ],
   "player": {
     "objectSize": "0x3C8",
+    "subtypeInsertions": [
+      {
+        "vtable": "0x50EAC28",
+        "at": "0x280",
+        "length": "0xF8"
+      }
+    ],
     "attributeScale": 5,
     "attributes": {
       "Crossing": "0x15F",
@@ -237,7 +244,9 @@
       "personGender": "0x19",
       "personGenderMask": "0x10",
       "retiredInternationalType": "0xA",
-      "otherNationalityType": "0x9"
+      "otherNationalityType": "0x9",
+      "retiredPersonPointersVtable": "0x4E23BF8",
+      "retiredPersonStringsVtable": "0x4E233E8"
     },
     "bans": {
       "vector": "0x18",
@@ -1148,7 +1157,7 @@
       },
       {
         "personVtable": "0x50EB158",
-        "staffVtable": "0x4DF6298",
+        "staffVtable": "0x50EAC10",
         "staffPart": "0x100"
       },
       {

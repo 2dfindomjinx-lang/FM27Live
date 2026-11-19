@@ -18,7 +18,7 @@ public static class PlayingClub
     public static ulong Of(IProcessMemory memory, OffsetProfile profile, ulong moduleBase, PlayerRecord player)
     {
         if (profile.Team is { } team && profile.Contract is { } contract && profile.Club is { } club
-            && Pointer(memory, player.Address + (ulong)team.PlayerTeam) is { } playingTeam
+            && Pointer(memory, profile.PlayerField(player, team.PlayerTeam)) is { } playingTeam
             && Pointer(memory, playingTeam) == moduleBase + team.VtableRva
             && Pointer(memory, playingTeam + (ulong)contract.TeamClub) is { } playingClub
             && Pointer(memory, playingClub) == moduleBase + club.ClubVtableRva)

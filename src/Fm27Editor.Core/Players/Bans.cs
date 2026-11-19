@@ -65,7 +65,7 @@ public sealed class BanReader(IProcessMemory memory, OffsetProfile profile, ulon
         if (!memory.TryRead(player.Address, q)) return [];
         ulong vt = BitConverter.ToUInt64(q);
         if (!profile.PlayerVtableRvas.Any(r => vt == moduleBase + r)) return [];
-        if (!memory.TryRead(player.Address + (ulong)i.Pointer, q) || BitConverter.ToUInt64(q) is var holder && holder == 0) return [];
+        if (!memory.TryRead(profile.PlayerField(player, i.Pointer), q) || BitConverter.ToUInt64(q) is var holder && holder == 0) return [];
         var header = new byte[16];
         if (!memory.TryRead(holder + (ulong)o.Vector, header)) return [];
         ulong begin = BitConverter.ToUInt64(header), end = BitConverter.ToUInt64(header, 8);
@@ -104,9 +104,9 @@ public sealed class BanWriter(IProcessMemory memory, OffsetProfile profile, ulon
         var o = profile.Bans ?? throw new InvalidOperationException("Profile has no ban offsets");
         if (player.Id is not > 0 || profile.Fields.Id is not { } idOffset ||
             memory.ReadUInt64(player.Address) != moduleBase + player.VtableRva || !profile.PlayerVtableRvas.Contains(player.VtableRva) ||
-            BitConverter.ToInt32(memory.Read(player.Address + (ulong)idOffset, 4)) != player.Id)
+            BitConverter.ToInt32(memory.Read(profile.PlayerField(player, idOffset), 4)) != player.Id)
             throw new StaleObjectException("Player changed since it was read");
-        ulong holder = memory.ReadUInt64(player.Address + (ulong)i.Pointer);
+        ulong holder = memory.ReadUInt64(profile.PlayerField(player, i.Pointer));
         if (holder == 0) return null;
         ulong header = holder + (ulong)o.Vector;
         var vector = memory.Read(header, 24);
@@ -165,8 +165,8 @@ public sealed class BanWriter(IProcessMemory memory, OffsetProfile profile, ulon
         ulong header = plan.Holder + (ulong)o.Vector;
         if (p.Id is not > 0 || profile.Fields.Id is not { } idOffset ||
             memory.ReadUInt64(p.Address) != moduleBase + p.VtableRva || !profile.PlayerVtableRvas.Contains(p.VtableRva) ||
-            BitConverter.ToInt32(memory.Read(p.Address + (ulong)idOffset, 4)) != p.Id ||
-            memory.ReadUInt64(p.Address + (ulong)i.Pointer) != plan.Holder ||
+            BitConverter.ToInt32(memory.Read(profile.PlayerField(p, idOffset), 4)) != p.Id ||
+            memory.ReadUInt64(profile.PlayerField(p, i.Pointer)) != plan.Holder ||
             memory.ReadUInt64(header) != plan.Begin || memory.ReadUInt64(header + 8) != (plan.EndWritten ? plan.Begin + (ulong)plan.NewCount * 8 : plan.End) ||
             memory.ReadUInt64(header + 16) != plan.Capacity ||
             !memory.Read(plan.Begin, plan.Before.Length).AsSpan().SequenceEqual(plan.PointersWritten ? plan.After : plan.Before) ||
@@ -185,7 +185,7 @@ public sealed class BanWriter(IProcessMemory memory, OffsetProfile profile, ulon
         if (!profile.PlayerVtableRvas.Any(r => vt == moduleBase + r) || !IsMatchBan(ban)
             || before.Length != o.RecordSize || ban.Holder == 0 || ban.Begin == 0 || ban.End <= ban.Begin
             || ban.End - ban.Begin > 32 * 8 || (ban.End - ban.Begin) % 8 != 0
-            || memory.ReadUInt64(player.Address + (ulong)i.Pointer) != ban.Holder
+            || memory.ReadUInt64(profile.PlayerField(player, i.Pointer)) != ban.Holder
             || memory.ReadUInt64(ban.Holder + (ulong)o.Vector) != ban.Begin || memory.ReadUInt64(ban.Holder + (ulong)o.Vector + 8) != ban.End
             || !Enumerable.Range(0, (int)((ban.End - ban.Begin) / 8)).Any(k => memory.ReadUInt64(ban.Begin + (ulong)k * 8) == ban.Address)
             || !memory.Read(ban.Address, o.RecordSize).AsSpan().SequenceEqual(before)
@@ -235,7 +235,7 @@ public sealed class BanWriter(IProcessMemory memory, OffsetProfile profile, ulon
         var o = profile.Bans ?? throw new InvalidOperationException("Profile has no ban offsets");
         ulong vt = memory.ReadUInt64(player.Address);
         if (!profile.PlayerVtableRvas.Any(r => vt == moduleBase + r)) throw new StaleObjectException("The player changed since it was read");
-        ulong holder = memory.ReadUInt64(player.Address + (ulong)i.Pointer);
+        ulong holder = memory.ReadUInt64(profile.PlayerField(player, i.Pointer));
         if (holder == 0) throw new InvalidOperationException("This player has no injury/ban record holder yet");
         ulong header = holder + (ulong)o.Vector;
         var h = memory.Read(header, 24);
@@ -299,7 +299,7 @@ public sealed class BanWriter(IProcessMemory memory, OffsetProfile profile, ulon
         var b = ban;
         if (!profile.PlayerVtableRvas.Any(r => vt == moduleBase + r)
             || before.Length != o.RecordSize || b.Holder == 0 || b.Begin == 0 || b.End <= b.Begin || b.End - b.Begin > 32 * 8 || (b.End - b.Begin) % 8 != 0
-            || memory.ReadUInt64(player.Address + (ulong)i.Pointer) != b.Holder
+            || memory.ReadUInt64(profile.PlayerField(player, i.Pointer)) != b.Holder
             || memory.ReadUInt64(b.Holder + (ulong)o.Vector) != b.Begin || memory.ReadUInt64(b.Holder + (ulong)o.Vector + 8) != b.End
             || !Enumerable.Range(0, (int)((b.End - b.Begin) / 8)).Any(k => memory.ReadUInt64(b.Begin + (ulong)k * 8) == b.Address)
             || !memory.Read(b.Address, o.RecordSize).AsSpan().SequenceEqual(before))
@@ -320,7 +320,7 @@ public sealed class BanWriter(IProcessMemory memory, OffsetProfile profile, ulon
         var o = profile.Bans ?? throw new InvalidOperationException("Profile has no ban offsets");
         ulong vt = memory.ReadUInt64(player.Address);
         if (!profile.PlayerVtableRvas.Any(r => vt == moduleBase + r)) throw new StaleObjectException($"0x{player.Address:X} is no longer a player object");
-        ulong holder = memory.ReadUInt64(player.Address + (ulong)i.Pointer);
+        ulong holder = memory.ReadUInt64(profile.PlayerField(player, i.Pointer));
         if (holder == 0) return 0;
         ulong header = holder + (ulong)o.Vector;
         ulong begin = memory.ReadUInt64(header), end = memory.ReadUInt64(header + 8);

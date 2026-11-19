@@ -20,6 +20,13 @@
   ],
   "player": {
     "objectSize": "0x3C8",
+    "subtypeInsertions": [
+      {
+        "vtable": "0x50EAC28",
+        "at": "0x280",
+        "length": "0xF8"
+      }
+    ],
     "attributeScale": 5,
     "attributes": {
       "Crossing": "0x15F",
@@ -1145,7 +1152,7 @@
       },
       {
         "personVtable": "0x50EB158",
-        "staffVtable": "0x4DF6298",
+        "staffVtable": "0x50EAC10",
         "staffPart": "0x100"
       },
       {
@@ -1418,6 +1425,10 @@
       "class": "db::ACTUAL_PLAYER_AND_NON_PLAYER",
       "offset": 0
     },
+    "player.subtypeInsertions[0].vtable": {
+      "class": "db::ACTUAL_PLAYER_AND_NON_PLAYER",
+      "offset": 0
+    },
     "player.injuries.typeVtable": {
       "class": "db::INJURY",
       "offset": 0
@@ -1521,12 +1532,11 @@
       "offset": 0
     },
     "club.lists.cultureVtables[1]": {
-      "class": "GAME_CLUB_VISION_OBJECTIVE",
-      "offset": 0,
-      "optional": true
+      "class": "db::CLUB_COMPETITION_VISION_OBJECTIVE",
+      "offset": 0
     },
     "club.lists.cultureVtables[2]": {
-      "class": "GAME_CLUB_COMPETITION_VISION_OBJECTIVE",
+      "class": "db::VISION_OBJECTIVE",
       "offset": 0,
       "optional": true
     },
@@ -1552,7 +1562,7 @@
     },
     "gameDate.primary.objectVtable": {
       "class": "TRANSFER_MANAGER",
-      "offset": -1
+      "offset": 24
     },
     "nation.vtable": {
       "class": "db::NATION",

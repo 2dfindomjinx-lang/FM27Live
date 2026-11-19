@@ -29,18 +29,18 @@ public sealed class ReleaseInspector(IProcessMemory memory, OffsetProfile profil
         int viceOffset = t.ViceCaptain ?? throw new InvalidOperationException("Profile has no vice captain offset");
         if (player.Id is not > 0 || profile.Fields.Id is not { } idOffset ||
             !profile.PlayerVtableRvas.Contains(player.VtableRva) || memory.ReadUInt64(player.Address) != moduleBase + player.VtableRva ||
-            BitConverter.ToInt32(memory.Read(player.Address + (ulong)idOffset, 4)) != player.Id)
+            BitConverter.ToInt32(memory.Read(profile.PlayerField(player, idOffset), 4)) != player.Id)
             throw new StaleObjectException("Player identity changed since it was read");
         var contract = player.Contract ?? throw new InvalidOperationException("Player has no readable contract");
-        if (memory.ReadUInt64(player.Address + (ulong)c.PlayerContract) != contract.Address ||
+        if (memory.ReadUInt64(profile.PlayerField(player, c.PlayerContract)) != contract.Address ||
             memory.ReadUInt64(contract.Address) != moduleBase + c.ContractVtableRva)
             throw new StaleObjectException("Player contract changed since it was read");
-        ulong person = player.Address + (ulong)personOffset;
+        ulong person = profile.PlayerField(player, personOffset);
         ulong employer = memory.ReadUInt64(contract.Address + (ulong)c.Team);
         if (employer == 0 || memory.ReadUInt64(contract.Address + (ulong)seniorOffset) != employer ||
             memory.ReadUInt64(contract.Address + (ulong)ownerOffset) != person || memory.Read(contract.Address + (ulong)jobOffset, 1)[0] != 1)
             throw new InvalidOperationException("Not a plain player contract with one employer team");
-        ulong playing = memory.ReadUInt64(player.Address + (ulong)t.PlayerTeam);
+        ulong playing = memory.ReadUInt64(profile.PlayerField(player, t.PlayerTeam));
         if (playing == 0 || memory.ReadUInt64(playing) != moduleBase + t.VtableRva ||
             memory.ReadUInt64(employer) != moduleBase + t.VtableRva)
             throw new StaleObjectException("Playing or employer team is not valid");

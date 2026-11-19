@@ -207,7 +207,7 @@ public sealed class GameSession : IDisposable
     public bool RegisterForUefa(PlayerRecord player)
     {
         int offset = Profile.Team?.PlayerTeam ?? throw new InvalidOperationException("Profile has no player team offset");
-        ulong team = _memory.ReadUInt64(player.Address + (ulong)offset);
+        ulong team = _memory.ReadUInt64(Profile.PlayerField(player, offset));
         if (team == 0) throw new InvalidOperationException($"{player.DisplayName} has no team");
         return new RelationshipWriter(_memory, Profile, Game.ModuleBase).AddUefaRegistration(player, ReadStatuses(player), team, AllocateGameBlock);
     }
@@ -216,7 +216,7 @@ public sealed class GameSession : IDisposable
     public bool RegisterForDomestic(PlayerRecord player)
     {
         int offset = Profile.Team?.PlayerTeam ?? throw new InvalidOperationException("Profile has no player team offset");
-        ulong team = _memory.ReadUInt64(player.Address + (ulong)offset);
+        ulong team = _memory.ReadUInt64(Profile.PlayerField(player, offset));
         if (team == 0) throw new InvalidOperationException($"{player.DisplayName} has no team");
         return new RelationshipWriter(_memory, Profile, Game.ModuleBase).AddDomesticRegistration(player, ReadStatuses(player), team, AllocateGameBlock);
     }
@@ -365,7 +365,7 @@ public sealed class GameSession : IDisposable
 
     /// <summary>The person object a relationship to <paramref name="player"/> points at.</summary>
     public ulong PersonOf(PlayerRecord player) =>
-        player.Address + (ulong)(Profile.Relations?.PlayerPerson ?? throw new InvalidOperationException("Profile has no relation offsets"));
+        Profile.PlayerField(player, (Profile.Relations?.PlayerPerson ?? throw new InvalidOperationException("Profile has no relation offsets")));
 
     /// <summary>The player's bans / unavailability records, read only.</summary>
     public IReadOnlyList<PlayerBan> ReadBans(PlayerRecord player) => new BanReader(_memory, Profile, Game.ModuleBase).Read(player);

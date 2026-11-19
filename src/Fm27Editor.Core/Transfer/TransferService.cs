@@ -49,7 +49,7 @@ public sealed class TransferService(IProcessMemory memory, OffsetProfile profile
         var owner = PersonOwner.Of(player, profile);
         if (!owner.IsValid(memory, moduleBase))
             throw new StaleObjectException($"0x{player.Address:X} is no longer a player object");
-        GenderGuard.EnsureMalePlayer(memory, profile, player.Address);
+        GenderGuard.EnsureMalePlayer(memory, profile, player);
         GenderGuard.EnsureMenClub(memory, profile, buyer.Address);
         if (player.Club is { Address: not 0 } sellerClub)
             GenderGuard.EnsureMenClub(memory, profile, sellerClub.Address);

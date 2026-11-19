@@ -30,7 +30,7 @@ public class CompletedTransferRecordTests
         TestWorld.Set64(rootBytes, po.ListOffset + 8, offers + 8);
         TestWorld.Set64(rootBytes, po.ListOffset + 16, offers + (ulong)capacity * 8);
         TestWorld.Set64(memory.Map(offers, capacity * 8), 0, hole ? 0UL : 0x123456);
-        memory.Map(player, 0x1000);
+        TestWorld.Set64(memory.Map(player, 0x1000), 0, module + profile.PlayerVtableRvas[0]); // a real player starts with his vtable
         ulong next = 0x400000;
         ulong Allocate(int size) { ulong at = next; next += 0x10000; memory.Map(at, size); return at; }
         var record = new CompletedTransferRecord(memory, profile, module);
@@ -64,7 +64,7 @@ public class CompletedTransferRecordTests
         TestWorld.Set64(rootBytes, po.ListOffset + 8, offers);
         TestWorld.Set64(rootBytes, po.ListOffset + 16, offers + 16);
         memory.Map(offers, 16);
-        memory.Map(player, 0x1000);
+        TestWorld.Set64(memory.Map(player, 0x1000), 0, module + profile.PlayerVtableRvas[0]); // a real player starts with his vtable
         var sizes = new Dictionary<ulong, int>();
         ulong next = 0x400000;
         ulong Allocate(int size) { ulong at = next; next += 0x10000; memory.Map(at, size); sizes[at] = size; return at; }
@@ -97,7 +97,7 @@ public class CompletedTransferRecordTests
         TestWorld.Set64(rootBytes, po.ListOffset + 8, offers);
         TestWorld.Set64(rootBytes, po.ListOffset + 16, offers + 16);
         memory.Map(offers, 16);
-        memory.Map(player, 0x1000);
+        TestWorld.Set64(memory.Map(player, 0x1000), 0, module + profile.PlayerVtableRvas[0]); // a real player starts with his vtable
         var sizes = new Dictionary<ulong, int>();
         ulong next = 0x400000;
         ulong Allocate(int size) { ulong at = next; next += 0x10000; memory.Map(at, size); sizes[at] = size; return at; }

@@ -65,9 +65,9 @@ public sealed class InjuryWriter(IProcessMemory memory, OffsetProfile profile, u
         var o = profile.Injuries ?? throw new InvalidOperationException("Profile has no injury offsets");
         if (player.Id is not > 0 || profile.Fields.Id is not { } idOffset ||
             memory.ReadUInt64(player.Address) != moduleBase + player.VtableRva || !profile.PlayerVtableRvas.Contains(player.VtableRva) ||
-            BitConverter.ToInt32(memory.Read(player.Address + (ulong)idOffset, 4)) != player.Id)
+            BitConverter.ToInt32(memory.Read(profile.PlayerField(player, idOffset), 4)) != player.Id)
             throw new StaleObjectException("Player changed since it was read");
-        ulong holder = memory.ReadUInt64(player.Address + (ulong)o.Pointer);
+        ulong holder = memory.ReadUInt64(profile.PlayerField(player, o.Pointer));
         if (holder == 0) return null;
         var header = memory.Read(holder, 24);
         ulong begin = BitConverter.ToUInt64(header), end = BitConverter.ToUInt64(header, 8), capacity = BitConverter.ToUInt64(header, 16);
@@ -101,8 +101,8 @@ public sealed class InjuryWriter(IProcessMemory memory, OffsetProfile profile, u
         var p = plan.Player;
         if (p.Id is not > 0 || profile.Fields.Id is not { } idOffset ||
             memory.ReadUInt64(p.Address) != moduleBase + p.VtableRva || !profile.PlayerVtableRvas.Contains(p.VtableRva) ||
-            BitConverter.ToInt32(memory.Read(p.Address + (ulong)idOffset, 4)) != p.Id ||
-            memory.ReadUInt64(p.Address + (ulong)o.Pointer) != plan.Holder ||
+            BitConverter.ToInt32(memory.Read(profile.PlayerField(p, idOffset), 4)) != p.Id ||
+            memory.ReadUInt64(profile.PlayerField(p, o.Pointer)) != plan.Holder ||
             memory.ReadUInt64(plan.Holder) != plan.Begin || memory.ReadUInt64(plan.Holder + 8) != (removed ? plan.Begin : plan.End) ||
             memory.ReadUInt64(plan.Holder + 16) != plan.Capacity ||
             !memory.Read(plan.Begin, plan.Pointers.Length).AsSpan().SequenceEqual(plan.Pointers) ||
@@ -170,7 +170,7 @@ public sealed class InjuryWriter(IProcessMemory memory, OffsetProfile profile, u
         CheckType(type, o);
         var record = Convert.FromHexString(template.Snapshot);
         if (record.Length != o.RecordSize) throw new InvalidOperationException("The template injury has an unexpected size");
-        ulong holder = memory.ReadUInt64(player.Address + (ulong)o.Pointer);
+        ulong holder = memory.ReadUInt64(profile.PlayerField(player, o.Pointer));
         if (holder == 0) throw new InvalidOperationException($"{player.DisplayName} has no injury list to add to");
         var header = memory.Read(holder, 24);
         ulong begin = BitConverter.ToUInt64(header), end = BitConverter.ToUInt64(header, 8), capacity = BitConverter.ToUInt64(header, 16);
@@ -226,7 +226,7 @@ public sealed class InjuryWriter(IProcessMemory memory, OffsetProfile profile, u
     {
         if (player.Id is not > 0 || profile.Fields.Id is not { } idOffset ||
             memory.ReadUInt64(player.Address) != moduleBase + player.VtableRva || !profile.PlayerVtableRvas.Contains(player.VtableRva) ||
-            BitConverter.ToInt32(memory.Read(player.Address + (ulong)idOffset, 4)) != player.Id)
+            BitConverter.ToInt32(memory.Read(profile.PlayerField(player, idOffset), 4)) != player.Id)
             throw new StaleObjectException("Player changed since it was read");
     }
 
@@ -258,7 +258,7 @@ public sealed class InjuryWriter(IProcessMemory memory, OffsetProfile profile, u
             || injury.Holder == 0 || injury.Begin == 0 || injury.End <= injury.Begin
             || injury.End - injury.Begin > 32 * 8 || (injury.End - injury.Begin) % 8 != 0
             || before.Length != o.RecordSize
-            || memory.ReadUInt64(player.Address + (ulong)o.Pointer) != injury.Holder
+            || memory.ReadUInt64(profile.PlayerField(player, o.Pointer)) != injury.Holder
             || memory.ReadUInt64(injury.Holder) != injury.Begin || memory.ReadUInt64(injury.Holder + 8) != injury.End
             || !Enumerable.Range(0, (int)((injury.End - injury.Begin) / 8)).Any(i => memory.ReadUInt64(injury.Begin + (ulong)i * 8) == injury.Address)
             || !memory.Read(injury.Address, o.RecordSize).AsSpan().SequenceEqual(before)
@@ -274,7 +274,7 @@ public sealed class InjuryWriter(IProcessMemory memory, OffsetProfile profile, u
         var o = profile.Injuries ?? throw new InvalidOperationException("Profile has no injury offsets");
         ulong vt = memory.ReadUInt64(player.Address);
         if (!profile.PlayerVtableRvas.Any(r => vt == moduleBase + r)) throw new StaleObjectException($"0x{player.Address:X} is no longer a player object");
-        ulong holder = memory.ReadUInt64(player.Address + (ulong)o.Pointer);
+        ulong holder = memory.ReadUInt64(profile.PlayerField(player, o.Pointer));
         if (holder == 0) return 0;
         ulong begin = memory.ReadUInt64(holder), end = memory.ReadUInt64(holder + 8);
         if (begin == 0 || end == begin) return 0;
@@ -296,7 +296,7 @@ public sealed class InjuryReader(IProcessMemory memory, OffsetProfile profile, u
     public IReadOnlyList<PlayerInjury> Read(PlayerRecord player)
     {
         if (profile.Injuries is not { } o || !Q(player.Address, out ulong vt) || !profile.PlayerVtableRvas.Any(r => vt == moduleBase + r)) return [];
-        if (!Q(player.Address + (ulong)o.Pointer, out ulong holder) || holder == 0) return [];
+        if (!Q(profile.PlayerField(player, o.Pointer), out ulong holder) || holder == 0) return [];
         if (!Q(holder, out ulong begin) || !Q(holder + 8, out ulong end) || begin == 0) return [];
         if (end < begin || (end - begin) % 8 != 0 || (end - begin) / 8 > MaxInjuries) return [];
         var result = new List<PlayerInjury>();

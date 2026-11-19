@@ -211,6 +211,11 @@ public static class BuildVerifier
 
             int checkedCount = 0;
             var failures = new List<string>();
+            // "club.lists.cultureVtable" and "club.lists.cultureVtables[n]" form one family: readers test membership in the
+            // set, so a class that belongs anywhere in the family is accepted at any of its positions.
+            static string Family(string p) => System.Text.RegularExpressions.Regex.Replace(p, @"s?(\[\d+\])?$", "");
+            var familyClasses = specs.GroupBy(kv => Family(kv.Key))
+                .ToDictionary(g => g.Key, g => g.SelectMany(kv => new[] { kv.Value.Class }.Concat(kv.Value.FallbackClasses ?? [])).ToHashSet(StringComparer.Ordinal));
             foreach (var (path, spec) in specs.OrderBy(kv => kv.Key, StringComparer.Ordinal))
             {
                 var node = ProfileJsonResolver.GetByPath(resolvedNode, path);
@@ -221,14 +226,28 @@ public static class BuildVerifier
                     continue;
                 }
                 checkedCount++;
+                // A staff kind of players who are also staff (offset -1) is measured from the staff list, as newbuild does.
+                if (spec.Offset == -1 && System.Text.RegularExpressions.Regex.Match(path, @"^staff\.kinds\[(\d+)\]\.(staff|person)Vtable$") is { Success: true } kindMatch)
+                {
+                    var m = NewBuildDiscoverer.MeasurePlayerStaffKind(rtti, memory, game.ModuleBase, profile, int.Parse(kindMatch.Groups[1].Value), spec.Class);
+                    uint want = kindMatch.Groups[2].Value == "staff" ? m.EntryRva : m.PersonRva;
+                    if (!m.Ok || want != vtRva) failures.Add($"{path} (0x{vtRva:X}): live staff list gives 0x{want:X} ({m.Detail})");
+                    continue;
+                }
                 var entry = rtti.EntryOf(vtRva);
                 if (entry is null)
                 {
+                    // MSVC objects with virtual bases start with a virtual-base table, which has no RTTI (db::ACTUAL_NON_PLAYER on
+                    // Windows). Accept it when the live objects of the class, found by their RTTI vtable further in, start with it.
+                    if (spec.Offset == 0 && rtti.Vtables(spec.Class) is { Count: > 0 } inner &&
+                        NewBuildDiscoverer.DeriveFromLiveObjects(rtti, image, memory, spec.Class, inner, out uint derived, out _) && derived == vtRva)
+                        continue;
                     failures.Add($"{path} (0x{vtRva:X}): no RTTI entry");
                     continue;
                 }
                 bool classMatches = string.Equals(entry.CanonicalName, spec.Class, StringComparison.Ordinal) ||
-                                    (spec.FallbackClasses?.Any(fb => string.Equals(fb, entry.CanonicalName, StringComparison.Ordinal)) ?? false);
+                                    (spec.FallbackClasses?.Any(fb => string.Equals(fb, entry.CanonicalName, StringComparison.Ordinal)) ?? false) ||
+                                    familyClasses[Family(path)].Contains(entry.CanonicalName);
                 if (!classMatches)
                 {
                     failures.Add($"{path} (0x{vtRva:X}): expected {spec.Class}, got {entry.CanonicalName}");
@@ -554,7 +573,10 @@ public static class BuildVerifier
                 if (pr.ChangedFlag is { } cfOff)
                 {
                     ulong root = ReadU64Safe(memory, game.ModuleBase + pr.ListRootRva);
-                    bool rootValid = root != 0 && (pr.ManagerVtable is not { } mv || ReadU64Safe(memory, root) == game.ModuleBase + mv);
+                    // The manager's vtable only identifies the list root where the two are one object. On Windows they are not:
+                    // Steam 27.1.0 keeps the offer list at 0x586CA20 and TRANSFER_MANAGER at 0x586B520 (19/11/2026).
+                    bool sameObject = pr.ManagerRva is { } managerRva && managerRva == pr.ListRootRva;
+                    bool rootValid = root != 0 && (pr.ManagerVtable is not { } mv || !sameObject || ReadU64Safe(memory, root) == game.ModuleBase + mv);
                     bool overlapsList = cfOff >= pr.ListOffset && cfOff < pr.ListOffset + 24;
                     bool overlapsDate = profile.FutureTransfers is { } ft && cfOff >= ft.DateVector && cfOff < ft.DateVector + 24;
                     Span<byte> b = stackalloc byte[1];

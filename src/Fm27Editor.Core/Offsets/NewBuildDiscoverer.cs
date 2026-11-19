@@ -107,6 +107,8 @@ public static class NewBuildDiscoverer
         var vtableSpecs = resolvedProfileForMeta.VtableClasses ?? new Dictionary<string, VtableClassSpec>();
         var rootSpecs = resolvedProfileForMeta.RootSpecs ?? new Dictionary<string, RootDiscoverySpec>();
 
+        var secondaryVtablePaths = vtableSpecs.Where(kv => kv.Value.Offset > 0).Select(kv => kv.Key).ToHashSet(StringComparer.Ordinal);
+
         // Phase 1: Primary (offset == 0) vtables via RTTI + live static disambiguation.
         log?.Invoke($"resolving {vtableSpecs.Count} RTTI vtable paths...");
         foreach (var (path, spec) in vtableSpecs.Where(kv => kv.Value.Offset == 0).OrderBy(kv => kv.Key, StringComparer.Ordinal))
@@ -129,7 +131,7 @@ public static class NewBuildDiscoverer
 
         // Phase 2: Primary roots needed to sample parent objects for secondary subobject vtables + completeness checks.
         // We resolve direct vectors / objects / indirect vectors first, then promises & aliases.
-        ResolveRootPass(working, rootSpecs, image, memory, items, discoveredRootPaths, touchedArrayRoots, log, includeDependent: false);
+        ResolveRootPass(working, rootSpecs, image, memory, items, discoveredRootPaths, touchedArrayRoots, log, includeDependent: false, secondaryVtablePaths);
 
         // Phase 3: Secondary (offset > 0) subobject vtables (for example db::ACTUAL_PLAYER+904 or db::ACTUAL_NON_PLAYER+520).
         foreach (var (path, spec) in vtableSpecs.Where(kv => kv.Value.Offset > 0).OrderBy(kv => kv.Key, StringComparer.Ordinal))
@@ -152,13 +154,17 @@ public static class NewBuildDiscoverer
         }
 
         // Phase 4: Dependent roots (promises requiring INTERACTION_MANAGER overlap check, and aliases).
-        ResolveRootPass(working, rootSpecs, image, memory, items, discoveredRootPaths, touchedArrayRoots, log, includeDependent: true);
+        ResolveRootPass(working, rootSpecs, image, memory, items, discoveredRootPaths, touchedArrayRoots, log, includeDependent: true, secondaryVtablePaths);
 
         // Refresh @ references cleanly on working after vtables changed.
         working = ReapplyBaseRefsAndKeepResolved(rawBase, working, discoveredVtablePaths, discoveredRootPaths, touchedArrayRoots, resolveLayout);
         NormalizeGameUiTuple(working, rawBase, discoveredVtablePaths, discoveredRootPaths, structuralOverrides, items);
         bool seededCrossCheckDate = NormalizeOptionalSections(working, discoveredVtablePaths, discoveredRootPaths);
         bool seededCallUpNation = SeedCallUpContainerNationIfMissing(working);
+
+        // Phase 4b: staff kinds of players who are also staff (spec offset -1) come from the staff list itself.
+        ResolvePlayerStaffKinds(rtti, memory, game.ModuleBase, OffsetProfile.Load(working.ToJsonString(), resolveLayout), vtableSpecs,
+            working, items, discoveredVtablePaths, touchedArrayRoots);
 
         // Phase 5: Live structural & subtype completeness verification on the provisionally resolved profile.
         var provisional = OffsetProfile.Load(working.ToJsonString(), resolveLayout);
@@ -230,6 +236,40 @@ public static class NewBuildDiscoverer
         };
     }
 
+    /// <summary>
+    /// MSVC objects with virtual bases begin with a pointer to a virtual-base table, which has no RTTI; their vtable sits
+    /// further in. Steam 27.1.0+2505117 (19/11/2026): db::ACTUAL_NON_PLAYER and db::HUMAN_NON_PLAYER have RTTI vtables
+    /// only at +256/+296 and +1088/+1128, while the staff list's objects start with 0x4EECF08 and 0x4E2170C, the values the
+    /// calibrated profile holds. Finds the live objects by the vtable at the smallest offset and takes the qword at +0 that
+    /// at least 95% of them share, when it points into the module.
+    /// </summary>
+    internal static bool DeriveFromLiveObjects(RttiIndex rtti, ModuleImage image, IProcessMemory memory, string className,
+        IReadOnlyList<uint> vtables, out uint derived, out string detail)
+    {
+        derived = 0; detail = "";
+        if (memory is not IMemoryRegions) return false;
+        var inner = vtables.Select(v => (Vtable: v, Offset: rtti.EntryOf(v)?.SubobjectOffset ?? -1))
+            .Where(x => x.Offset > 0).OrderBy(x => x.Offset).FirstOrDefault();
+        if (inner.Offset <= 0) return false;
+        var hits = Memory.HeapVtableScanner.Scan(memory, image.ModuleBase + inner.Vtable);
+        var counts = new Dictionary<ulong, int>();
+        Span<byte> head = stackalloc byte[8];
+        foreach (var hit in hits)
+        {
+            if (hit.Address < (ulong)inner.Offset || !memory.TryRead(hit.Address - (ulong)inner.Offset, head)) continue;
+            ulong value = BitConverter.ToUInt64(head);
+            counts[value] = counts.GetValueOrDefault(value) + 1;
+        }
+        int total = counts.Values.Sum();
+        if (total == 0) return false;
+        var (top, n) = counts.OrderByDescending(kv => kv.Value).Select(kv => (kv.Key, kv.Value)).First();
+        ulong moduleEnd = image.ModuleBase + (ulong)image.Bytes.Length;
+        if (top < image.ModuleBase || top >= moduleEnd || n * 100 < total * 95) return false;
+        derived = (uint)(top - image.ModuleBase);
+        detail = $"{className}+0 has no RTTI vtable (virtual-base table); {n}/{total} live objects found by its +{inner.Offset} vtable {Hex(inner.Vtable)} start with {Hex(derived)}";
+        return true;
+    }
+
     static uint? ResolveVtableSpec(
         RttiIndex rtti,
         ModuleImage image,
@@ -259,6 +299,12 @@ public static class NewBuildDiscoverer
             {
                 var foundOffsets = anyOffset.Select(v => rtti.EntryOf(v)?.SubobjectOffset ?? -1).Distinct().OrderBy(x => x);
                 detail = $"No {spec.Class} vtable at subobject +{spec.Offset}; RTTI has offsets [{string.Join(", ", foundOffsets)}]";
+                if (spec.Offset == 0 && DeriveFromLiveObjects(rtti, image, memory, spec.Class, anyOffset, out uint derived, out string why))
+                {
+                    status = DiscoveryStatus.Pass;
+                    detail = why;
+                    return derived;
+                }
             }
             else
             {
@@ -309,13 +355,16 @@ public static class NewBuildDiscoverer
         List<string> discoveredRootPaths,
         HashSet<string> touchedArrayRoots,
         Action<string>? log,
-        bool includeDependent)
+        bool includeDependent,
+        ISet<string>? secondaryVtablePaths = null)
     {
         uint? sharedDbRoot = null;
         RttiIndex? holderRtti = null;
-        foreach (var (path, spec) in rootSpecs.OrderBy(kv => kv.Key, StringComparer.Ordinal))
+        // A root found through a secondary (offset > 0) subobject vtable waits for that vtable (phase 3), and an alias for its target.
+        foreach (var (path, spec) in rootSpecs.OrderBy(kv => kv.Value.Kind == "alias").ThenBy(kv => kv.Key, StringComparer.Ordinal))
         {
-            bool isDependent = spec.Kind is "promises" or "alias";
+            bool isDependent = spec.Kind is "promises" or "alias" ||
+                (spec.VtablePath is { } vp && secondaryVtablePaths?.Contains(vp) == true);
             if (isDependent != includeDependent) continue;
 
             switch (spec.Kind)
@@ -668,6 +717,86 @@ public static class NewBuildDiscoverer
         }
     }
 
+    internal sealed record PlayerStaffKindMeasurement(bool Ok, uint EntryRva, uint PersonRva, string Detail);
+
+    /// <summary>Measures staff kind <paramref name="kindIndex"/> from the staff-list entries of <paramref name="className"/> objects.</summary>
+    internal static PlayerStaffKindMeasurement MeasurePlayerStaffKind(RttiIndex rtti, IProcessMemory memory, ulong moduleBase,
+        OffsetProfile profile, int kindIndex, string className)
+    {
+        if (profile.Staff is not { } so || kindIndex >= so.Kinds.Count) return new(false, 0, 0, "profile has no such staff kind");
+        var kind = so.Kinds[kindIndex];
+        var insertion = profile.PlayerInsertions.Where(kv => rtti.EntryOf(kv.Key)?.CanonicalName == className).ToList();
+        if (insertion.Count != 1)
+            return new(false, 0, 0, $"needs exactly one player.subtypeInsertions entry of class {className}, found {insertion.Count}");
+        var (objectVt, ins) = (insertion[0].Key, insertion[0].Value);
+        var entryVts = new Dictionary<ulong, int>();
+        var personVts = new Dictionary<ulong, int>();
+        int matches = 0;
+        ulong root = so.DirectStaffVector ? moduleBase + so.PersonListRootRva : ReadU64Safe(memory, moduleBase + so.PersonListRootRva);
+        ulong begin = ReadU64Safe(memory, root + (ulong)so.PersonListOffset);
+        ulong end = ReadU64Safe(memory, root + (ulong)so.PersonListOffset + 8);
+        if (begin != 0 && end > begin && (end - begin) % 8 == 0 && (end - begin) / 8 <= 1_000_000)
+        {
+            var raw = memory.Read(begin, (int)(end - begin));
+            for (int i = 0; i < raw.Length; i += 8)
+            {
+                ulong entry = BitConverter.ToUInt64(raw, i);
+                if (entry <= (ulong)ins.At || ReadU64Safe(memory, entry - (ulong)ins.At) != moduleBase + objectVt) continue;
+                matches++;
+                ulong ev = ReadU64Safe(memory, entry), pv = ReadU64Safe(memory, entry + (ulong)kind.StaffPart);
+                entryVts[ev] = entryVts.GetValueOrDefault(ev) + 1;
+                personVts[pv] = personVts.GetValueOrDefault(pv) + 1;
+            }
+        }
+        if (matches == 0) return new(false, 0, 0, $"no staff-list entry at +{Hex((uint)ins.At)} of a {className} object");
+        var (entryVt, entryCount) = entryVts.MaxBy(kv => kv.Value);
+        var (personVt, personCount) = personVts.MaxBy(kv => kv.Value);
+        uint entryRva = (uint)(entryVt - moduleBase), personRva = (uint)(personVt - moduleBase);
+        var personEntry = rtti.EntryOf(personRva);
+        int expectedPerson = ins.At + kind.StaffPart;
+        bool personOk = personEntry is { } pe && pe.CanonicalName == className && pe.SubobjectOffset == expectedPerson
+            && profile.Relations is { } rel && pe.SubobjectOffset == rel.PlayerPerson + ins.Length;
+        bool dominant = entryCount * 100 >= matches * 95 && personCount * 100 >= matches * 95;
+        string detail = $"{matches} entries at +{Hex((uint)ins.At)} of {className}; entry {Hex(entryRva)}:{entryCount}, " +
+            $"person +{Hex((uint)kind.StaffPart)} {Hex(personRva)}:{personCount} = {personEntry?.CanonicalName ?? "no RTTI"}+{Hex((uint)(personEntry?.SubobjectOffset ?? 0))}" +
+            $" (expected +{Hex((uint)expectedPerson)} = plain person +{Hex((uint)(profile.Relations?.PlayerPerson ?? 0))} + insertion {Hex((uint)ins.Length)})";
+        return new(dominant && personOk, entryRva, personRva, detail);
+    }
+
+    /// <summary>
+    /// A player who is also staff is one object: player part, staff part at <c>player.subtypeInsertions.at</c> (where the
+    /// staff list points, a vbtable on Windows, so no RTTI), then the person part. A staff kind whose vtable specs have
+    /// offset -1 is measured from those staff-list entries: the entry's own vtable and the one <c>staffPart</c> further on.
+    /// The person part's RTTI offset must equal the plain player's person part plus the insertion length, which checks
+    /// the insertion too (Windows 27.1.0: person at +0x380 = 0x288 + 0xF8; Steam's hand-made profile had kept the
+    /// standalone db::NON_PLAYING_DATA vtable here and matched none of the 139 entries).
+    /// </summary>
+    internal static void ResolvePlayerStaffKinds(RttiIndex rtti, IProcessMemory memory, ulong moduleBase, OffsetProfile profile,
+        IReadOnlyDictionary<string, VtableClassSpec> specs, JsonObject working, List<DiscoveryItem> items,
+        List<string> discoveredVtablePaths, HashSet<string> touchedArrayRoots)
+    {
+        if (profile.Staff is not { } so) return;
+        for (int k = 0; k < so.Kinds.Count; k++)
+        {
+            string staffPath = $"staff.kinds[{k}].staffVtable", personPath = $"staff.kinds[{k}].personVtable";
+            if (!specs.TryGetValue(staffPath, out var spec) || spec.Offset != -1) continue;
+            PlayerStaffKindMeasurement m;
+            try { m = MeasurePlayerStaffKind(rtti, memory, moduleBase, profile, k, spec.Class); }
+            catch (Exception ex) { m = new(false, 0, 0, ex.Message); }
+            if (m.EntryRva == 0)
+            {
+                items.Add(new(staffPath, DiscoveryStatus.Manual, "MISSING", m.Detail, "Resolve player.subtypeInsertions[0] first, then measure with hybridprobe"));
+                continue;
+            }
+            var status = m.Ok ? DiscoveryStatus.Pass : DiscoveryStatus.Manual;
+            string? hint = m.Ok ? null : "Measure the object with hybridprobe; fix player.subtypeInsertions or staff.kinds staffPart";
+            SetWorkingPath(working, staffPath, Hex(m.EntryRva), discoveredVtablePaths, touchedArrayRoots);
+            SetWorkingPath(working, personPath, Hex(m.PersonRva), discoveredVtablePaths, touchedArrayRoots);
+            items.Add(new(staffPath, status, Hex(m.EntryRva), m.Detail, hint));
+            items.Add(new(personPath, status, Hex(m.PersonRva), m.Detail, hint));
+        }
+    }
+
     static void CheckPlayerAndStaffCompleteness(IProcessMemory memory, ulong moduleBase, OffsetProfile profile, List<DiscoveryItem> items)
     {
         try
@@ -995,7 +1124,10 @@ public static class NewBuildDiscoverer
             items.Add(new("player.proposals.changedFlag", DiscoveryStatus.Warn, "null", "TRANSFER_MANAGER root pointer is null"));
             return;
         }
-        if (pr.ManagerVtable is { } mv && ReadU64Safe(memory, root) != moduleBase + mv)
+        // The manager's vtable identifies the list root only where they are one object (macOS). Windows keeps the offer list
+        // and TRANSFER_MANAGER apart (Steam 27.1.0: 0x586CA20 and 0x586B520).
+        bool sameObject = pr.ManagerRva is { } managerRva && managerRva == pr.ListRootRva;
+        if (sameObject && pr.ManagerVtable is { } mv && ReadU64Safe(memory, root) != moduleBase + mv)
         {
             items.Add(new("player.proposals.changedFlag", DiscoveryStatus.Warn, "null", "TRANSFER_MANAGER vtable mismatch"));
             return;

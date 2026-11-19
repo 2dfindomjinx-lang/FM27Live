@@ -38,10 +38,21 @@ public static class GenderGuard
     /// Rejects players flagged Female and throws <see cref="MemoryAccessException"/> when the mapped gender byte cannot be read.
     /// Does nothing when the profile does not map person gender offsets (<c>personGender</c> / <c>personGenderMask</c>).
     /// </summary>
-    public static void EnsureMalePlayer(IProcessMemory memory, OffsetProfile profile, ulong playerAddress)
+    public static void EnsureMalePlayer(IProcessMemory memory, OffsetProfile profile, ulong playerAddress) =>
+        EnsureMale(memory, profile, at => playerAddress + (ulong)at);
+
+    /// <summary>As above, following the player's subtype layout (a player who is also staff keeps his person part further on).</summary>
+    public static void EnsureMalePlayer(IProcessMemory memory, OffsetProfile profile, Players.PlayerRecord player) =>
+        EnsureMale(memory, profile, at => profile.PlayerField(player, at));
+
+    /// <summary>As above for a player known only by address; his vtable picks the layout.</summary>
+    public static void EnsureMalePlayer(IProcessMemory memory, OffsetProfile profile, ulong moduleBase, ulong playerAddress) =>
+        EnsureMale(memory, profile, at => profile.PlayerField(memory, moduleBase, playerAddress, at));
+
+    static void EnsureMale(IProcessMemory memory, OffsetProfile profile, Func<int, ulong> field)
     {
         if (profile.Relations is not { PersonGender: { } at, PersonGenderMask: { } mask } || mask == 0) return;
-        if ((memory.Read(playerAddress + (ulong)(profile.Relations.PlayerPerson + at), 1)[0] & mask) != 0)
+        if ((memory.Read(field(profile.Relations.PlayerPerson + at), 1)[0] & mask) != 0)
             throw new InvalidOperationException("Only male players are supported");
     }
 

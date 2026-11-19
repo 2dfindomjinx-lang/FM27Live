@@ -69,7 +69,7 @@ public sealed class CompetitionRepository(IProcessMemory memory, OffsetProfile p
         var teams = new HashSet<ulong>();
         foreach (var player in players?.Invoke() ?? new PlayerRepository(memory, profile, moduleBase).LoadAll())
         {
-            if (TryPointer(player.Address + (ulong)team.PlayerTeam) is { } playing) teams.Add(playing);
+            if (TryPointer(profile.PlayerField(player, team.PlayerTeam)) is { } playing) teams.Add(playing);
             if (profile.Contract is { } contract && player.Contract is { } k && TryPointer(k.Address + (ulong)contract.Team) is { } contractTeam)
                 teams.Add(contractTeam);
         }

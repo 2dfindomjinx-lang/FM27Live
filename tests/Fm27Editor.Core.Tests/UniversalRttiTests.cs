@@ -100,6 +100,30 @@ public class UniversalRttiTests
         Assert.Equal(256, index.EntryOf(0x2108u)?.SubobjectOffset);
     }
 
+    /// <summary>
+    /// MSVC keeps type descriptors in .data (they start with type_info's vtable pointer, which the loader writes), not in the
+    /// read-only sections. Steam 27.1.0+2505117 (19/11/2026): the strings ".?AVACTUAL_PLAYER@db@@" etc. are in the writable
+    /// data, and with only the read-only sections searched newbuild resolved none of 62 classes.
+    /// </summary>
+    [Fact]
+    public void BuildMsvc_finds_type_descriptors_in_writable_data()
+    {
+        const ulong moduleBase = 0x140000000UL;
+        var bytes = new byte[0x4000];
+        Encoding.ASCII.GetBytes(".?AVACTUAL_PLAYER@db@@\0").CopyTo(bytes, 0x3010);   // descriptor at 0x3000, in .data
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(0x2000), 1);
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(0x200C), 0x3000);
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(0x2014), 0x2000);
+        BinaryPrimitives.WriteUInt64LittleEndian(bytes.AsSpan(0x2100), moduleBase + 0x2000);
+
+        var image = ModuleImage.FromBytes(moduleBase, bytes,
+            writableDataRanges: [(0x3000, 0x4000)],
+            constRanges: [(0x2000, 0x3000)],
+            stringRanges: [(0x1000, 0x1800)]);
+
+        Assert.Equal([0x2108u], RttiIndex.BuildMsvc(image).Vtables("db::ACTUAL_PLAYER", 0));
+    }
+
     [Theory]
     [InlineData("/Users/duong/Library/Application Support/Steam/steamapps/common/Football Manager 27/fm.app/Contents/PlugIns/game_plugin.bundle/Contents/MacOS/game_plugin", "layouts/macos.json")]
     [InlineData("/Applications/Football Manager Touch.app/Contents/PlugIns/game_plugin.bundle/Contents/MacOS/game_plugin", "layouts/touch-macos.json")]

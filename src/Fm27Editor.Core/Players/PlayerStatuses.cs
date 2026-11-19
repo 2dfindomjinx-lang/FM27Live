@@ -502,7 +502,7 @@ public sealed partial class RelationshipWriter(IProcessMemory memory, OffsetProf
         ulong begin = memory.ReadUInt64(holder), end = memory.ReadUInt64(holder + 8);
         if (begin == 0 || end <= begin || (end - begin) % (ulong)o.RecordSize != 0 || (end - begin) / (ulong)o.RecordSize > 512) return 0;
         var records = memory.Read(begin, (int)(end - begin));
-        ulong person = player.Address + (ulong)o.PlayerPerson;
+        ulong person = profile.PlayerField(player, o.PlayerPerson);
         int rewritten = 0;
         for (int i = 0; i < records.Length; i += o.RecordSize)
         {

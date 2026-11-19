@@ -26,13 +26,13 @@ public sealed class TeamCaptainService(IProcessMemory memory, OffsetProfile prof
         if (!Enum.IsDefined(role)) throw new ArgumentOutOfRangeException(nameof(role));
         int offset = Offset(role);
         ValidatePlayer(player);
-        ulong team = memory.ReadUInt64(player.Address + (ulong)T.PlayerTeam);
+        ulong team = memory.ReadUInt64(profile.PlayerField(player, T.PlayerTeam));
         if (team == 0 || memory.ReadUInt64(team) != moduleBase + T.VtableRva)
             throw new StaleObjectException("Player's team is not valid");
         ulong club = memory.ReadUInt64(team + (ulong)C.TeamClub);
         if (club == 0 || memory.ReadUInt64(club) != moduleBase + K.ClubVtableRva)
             throw new StaleObjectException("Player's club is not valid");
-        ulong person = player.Address + (ulong)R.PlayerPerson;
+        ulong person = profile.PlayerField(player, R.PlayerPerson);
         if (memory.ReadUInt64(person) != moduleBase + R.PersonVtable)
             throw new StaleObjectException("Player's person block is not valid");
         var squad = Squad(team);
@@ -79,7 +79,7 @@ public sealed class TeamCaptainService(IProcessMemory memory, OffsetProfile prof
     {
         if (player.Id is not > 0 || profile.Fields.Id is not { } id || !profile.PlayerVtableRvas.Contains(player.VtableRva) ||
             memory.ReadUInt64(player.Address) != moduleBase + player.VtableRva ||
-            BitConverter.ToInt32(memory.Read(player.Address + (ulong)id, 4)) != player.Id)
+            BitConverter.ToInt32(memory.Read(profile.PlayerField(player, id), 4)) != player.Id)
             throw new StaleObjectException("Player identity changed since it was read");
     }
 

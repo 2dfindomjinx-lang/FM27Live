@@ -76,7 +76,7 @@ public sealed class Fm27RegenSnapshotSource(IProcessMemory memory, OffsetProfile
             return null;
 
         Span<byte> qword = stackalloc byte[8];
-        if (!memory.TryRead(player.Address + (ulong)team.PlayerTeam, qword)) return null;
+        if (!memory.TryRead(profile.PlayerField(player, team.PlayerTeam), qword)) return null;
         ulong teamAt = BitConverter.ToUInt64(qword);
         if (teamAt == 0 || !memory.TryRead(teamAt, qword) || BitConverter.ToUInt64(qword) != moduleBase + team.VtableRva)
             return null;

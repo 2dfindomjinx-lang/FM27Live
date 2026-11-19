@@ -45,6 +45,27 @@ public sealed class OffsetProfile
 
     public int PlayerOffset(uint vtable, int canonicalOffset) =>
         PlayerInsertions.TryGetValue(vtable, out var insertion) ? insertion.Translate(canonicalOffset) : canonicalOffset;
+
+    /// <summary>
+    /// Address of a player field given at its offset in a plain player (<c>db::ACTUAL_PLAYER</c>). A player who is also a
+    /// member of staff (<c>db::ACTUAL_PLAYER_AND_NON_PLAYER</c>) keeps the same fields, but his staff part sits at +0x280 and
+    /// moves the person part (names, ID, contract, relations…) 0xF8 further on (Game Pass and Steam 27.1.0, macOS 27.0.1+).
+    /// Every read or write of a player field goes through this or <see cref="PlayerOffset"/>.
+    /// </summary>
+    public ulong PlayerField(PlayerRecord player, int canonicalOffset) =>
+        checked(player.Address + (ulong)PlayerOffset(player.VtableRva, canonicalOffset));
+
+    /// <summary><see cref="PlayerField(PlayerRecord,int)"/> for a player known only by address: reads his vtable.</summary>
+    public ulong PlayerField(Memory.IProcessMemory memory, ulong moduleBase, ulong player, int canonicalOffset)
+    {
+        if (PlayerInsertions.Count == 0 || canonicalOffset < PlayerInsertions.Values.Min(i => i.At))
+            return checked(player + (ulong)canonicalOffset);
+        Span<byte> vt = stackalloc byte[8];
+        if (!memory.TryRead(player, vt)) throw new Memory.MemoryAccessException($"Cannot read the player at 0x{player:X}");
+        ulong value = BitConverter.ToUInt64(vt);
+        uint rva = value >= moduleBase && value - moduleBase <= uint.MaxValue ? (uint)(value - moduleBase) : 0;
+        return checked(player + (ulong)PlayerOffset(rva, canonicalOffset));
+    }
     public required int AttributeScale { get; init; }
     public required IReadOnlyDictionary<PlayerAttribute, int> Attributes { get; init; }
     public required IReadOnlyDictionary<PlayerPosition, int> Positions { get; init; }

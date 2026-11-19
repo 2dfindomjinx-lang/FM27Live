@@ -30,7 +30,7 @@ public sealed class PlayerSwapService(IProcessMemory memory, OffsetProfile profi
     public SwapTarget Target(PlayerRecord player)
     {
         if (!IsPlayer(player.Address)) throw new StaleObjectException($"0x{player.Address:X} is no longer a player object");
-        ulong team = memory.ReadUInt64(player.Address + (ulong)T.PlayerTeam);
+        ulong team = memory.ReadUInt64(profile.PlayerField(player, T.PlayerTeam));
         if (team == 0 || memory.ReadUInt64(team) != moduleBase + T.VtableRva)
             throw new StaleObjectException($"{player.DisplayName} has no valid playing team");
         ulong club = memory.ReadUInt64(team + (ulong)C.TeamClub);
@@ -47,8 +47,8 @@ public sealed class PlayerSwapService(IProcessMemory memory, OffsetProfile profi
     {
         if (player.Contract is null) throw new InvalidOperationException($"{player.DisplayName} has no contract (free agent)");
         if (target.PlayerAddress == player.Address) throw new ArgumentException("A player cannot be swapped with himself", nameof(target));
-        GenderGuard.EnsureMalePlayer(memory, profile, player.Address);
-        GenderGuard.EnsureMalePlayer(memory, profile, target.PlayerAddress);
+        GenderGuard.EnsureMalePlayer(memory, profile, player);
+        GenderGuard.EnsureMalePlayer(memory, profile, moduleBase, target.PlayerAddress);
         GenderGuard.EnsureMenClub(memory, profile, target.ClubAddress);
         if (new LoanEditor(memory, profile, moduleBase).Read(player) is not null)
             throw new InvalidOperationException($"{player.DisplayName} is on loan; recall him before swapping");

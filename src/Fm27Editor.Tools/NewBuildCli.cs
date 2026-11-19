@@ -110,3 +110,44 @@ internal static class NewBuildCli
         }
     }
 }
+
+/// <summary>
+/// <c>profilediff &lt;a.json&gt; &lt;b.json&gt;</c>: both profiles resolved (layout <c>extends</c> applied) and compared value by
+/// value, for a <c>newbuild --ignore-profiles</c> rehearsal against a committed profile. Prints every key that differs or that
+/// only one side has; exit 1 when any does.
+/// </summary>
+static class ProfileDiffCli
+{
+    public static int Run(string a, string b)
+    {
+        var left = Flatten(System.Text.Json.Nodes.JsonNode.Parse(Fm27Editor.Core.Offsets.OffsetProfile.LoadFile(a).ToJson()));
+        var right = Flatten(System.Text.Json.Nodes.JsonNode.Parse(Fm27Editor.Core.Offsets.OffsetProfile.LoadFile(b).ToJson()));
+        int differences = 0;
+        foreach (string key in left.Keys.Union(right.Keys).Order(StringComparer.Ordinal))
+        {
+            left.TryGetValue(key, out var l); right.TryGetValue(key, out var r);
+            if (l == r) continue;
+            differences++;
+            Console.WriteLine($"{key,-60} {l ?? "(absent)",-24} {r ?? "(absent)"}");
+        }
+        Console.WriteLine($"{differences} difference(s), {left.Count} vs {right.Count} values");
+        return differences == 0 ? 0 : 1;
+    }
+
+    static Dictionary<string, string> Flatten(System.Text.Json.Nodes.JsonNode? node)
+    {
+        var result = new Dictionary<string, string>(StringComparer.Ordinal);
+        void Walk(System.Text.Json.Nodes.JsonNode? n, string path)
+        {
+            switch (n)
+            {
+                case System.Text.Json.Nodes.JsonObject o: foreach (var (k, v) in o) Walk(v, path.Length == 0 ? k : $"{path}.{k}"); break;
+                case System.Text.Json.Nodes.JsonArray arr: for (int i = 0; i < arr.Count; i++) Walk(arr[i], $"{path}[{i}]"); break;
+                case null: result[path] = "null"; break;
+                default: result[path] = n.ToJsonString(); break;
+            }
+        }
+        Walk(node, "");
+        return result;
+    }
+}

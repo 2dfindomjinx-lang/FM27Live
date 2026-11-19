@@ -107,10 +107,24 @@ public sealed class OffsetProfile
     public Staff.StaffOffsets? Staff { get; init; }
     /// <summary>Profile <c>contract.unhappiness</c>.</summary>
     public UnhappinessOffsets? Unhappiness { get; init; }
+    /// <summary>Base layout name if this profile uses <c>extends</c>.</summary>
+    public string? Extends { get; init; }
+    /// <summary>Feature groups documented as genuinely absent on this platform/save shape.</summary>
+    public IReadOnlyList<string> ExpectedEmpty { get; init; } = [];
+    /// <summary>Canonical C++ class specifications per vtable JSON path from the base layout.</summary>
+    public IReadOnlyDictionary<string, VtableClassSpec>? VtableClasses { get; init; }
+    /// <summary>Declarative root-discovery specs per root RVA JSON path from the base layout.</summary>
+    public IReadOnlyDictionary<string, RootDiscoverySpec>? RootSpecs { get; init; }
 
-    public static OffsetProfile Load(string json)
+    public static System.Text.Json.Nodes.JsonObject ResolveJson(string json, Func<string, string?>? resolveLayout = null) =>
+        ProfileJsonResolver.Resolve(json, resolveLayout);
+
+    public static OffsetProfile Load(string json) => Load(json, resolveLayout: null);
+
+    public static OffsetProfile Load(string json, Func<string, string?>? resolveLayout)
     {
-        using var doc = JsonDocument.Parse(json);
+        var resolvedNode = ProfileJsonResolver.Resolve(json, resolveLayout, out string? extendsName);
+        using var doc = JsonDocument.Parse(resolvedNode.ToJsonString());
         var root = doc.RootElement;
         var list = root.GetProperty("playerList");
         var player = root.GetProperty("player");
@@ -131,11 +145,15 @@ public sealed class OffsetProfile
                     insertion.Length <= 0 || insertion.Length > int.MaxValue - objectSize || !insertions.TryAdd(vt, insertion))
                     throw new FormatException("Invalid player subtype insertion");
             }
+        string build = root.GetProperty("build").GetString() ?? throw new FormatException("build is missing");
+        uint buildStringRva = build.StartsWith("layout-", StringComparison.OrdinalIgnoreCase) && !root.TryGetProperty("buildStringRva", out _)
+            ? 0u
+            : (uint)Hex(root, "buildStringRva");
         return new OffsetProfile
         {
-            Build = root.GetProperty("build").GetString() ?? throw new FormatException("build is missing"),
+            Build = build,
             Module = root.GetProperty("module").GetString() ?? throw new FormatException("module is missing"),
-            BuildStringRva = (uint)Hex(root, "buildStringRva"),
+            BuildStringRva = buildStringRva,
             MatchBuild = root.TryGetProperty("matchBuild", out var mb) ? mb.GetString() : null,
         Variant = root.TryGetProperty("variant", out var va) ? va.GetString() : null,
             Architecture = root.TryGetProperty("architecture", out var arch) ? arch.GetString() : null,
@@ -248,6 +266,8 @@ public sealed class OffsetProfile
                 AgeLimit = OptHex(tm, "ageLimit"),
                 Captain = OptHex(tm, "captain"),
                 ViceCaptain = OptHex(tm, "viceCaptain"),
+                PlayerParentTeam = OptHex(tm, "playerParentTeam"),
+                WritePlayerParentTeam = !tm.TryGetProperty("writePlayerParentTeam", out var wpt) || wpt.GetBoolean(),
             } : null,
             PendingContract = root.TryGetProperty("pendingContract", out var pc) ? new PendingContractOffsets
             {
@@ -384,7 +404,52 @@ public sealed class OffsetProfile
                 WinnerWorldReputation = Hex(aw, "winnerWorldReputation"),
             } : null,
             Officials = root.TryGetProperty("officials", out var off) ? OfficialsOffsets.Load(off) : null,
+            Extends = extendsName,
+            ExpectedEmpty = root.TryGetProperty("expectedEmpty", out var ee) && ee.ValueKind == JsonValueKind.Array
+                ? ee.EnumerateArray().Select(x => x.GetString()!).ToArray()
+                : [],
+            VtableClasses = root.TryGetProperty("vtableClasses", out var vc) && vc.ValueKind == JsonValueKind.Object
+                ? ParseVtableClasses(vc) : null,
+            RootSpecs = root.TryGetProperty("rootSpecs", out var rs) && rs.ValueKind == JsonValueKind.Object
+                ? ParseRootSpecs(rs) : null,
         };
+    }
+
+    static IReadOnlyDictionary<string, VtableClassSpec> ParseVtableClasses(JsonElement obj)
+    {
+        var map = new Dictionary<string, VtableClassSpec>(StringComparer.Ordinal);
+        foreach (var p in obj.EnumerateObject())
+        {
+            var e = p.Value;
+            string cls = e.GetProperty("class").GetString() ?? throw new FormatException($"vtableClasses.{p.Name}: class missing");
+            int off = e.TryGetProperty("offset", out var ov) ? ov.GetInt32() : 0;
+            string[]? fallbacks = e.TryGetProperty("fallbackClasses", out var fb) && fb.ValueKind == JsonValueKind.Array
+                ? fb.EnumerateArray().Select(x => x.GetString()!).ToArray() : null;
+            bool optional = e.TryGetProperty("optional", out var op) && op.GetBoolean();
+            map[p.Name] = new VtableClassSpec(cls, off, fallbacks, optional);
+        }
+        return map;
+    }
+
+    static IReadOnlyDictionary<string, RootDiscoverySpec> ParseRootSpecs(JsonElement obj)
+    {
+        var map = new Dictionary<string, RootDiscoverySpec>(StringComparer.Ordinal);
+        foreach (var p in obj.EnumerateObject())
+        {
+            var e = p.Value;
+            string kind = e.GetProperty("kind").GetString() ?? throw new FormatException($"rootSpecs.{p.Name}: kind missing");
+            string? vt = e.TryGetProperty("vtablePath", out var vp) ? vp.GetString() : null;
+            string? vts = e.TryGetProperty("vtablesPath", out var vps) ? vps.GetString() : null;
+            string? offPath = e.TryGetProperty("offsetPath", out var op) ? op.GetString() : null;
+            int min = e.TryGetProperty("min", out var mn) ? mn.GetInt32() : 1;
+            int max = e.TryGetProperty("max", out var mx) ? mx.GetInt32() : 1_000_000;
+            int maxOffset = e.TryGetProperty("maxOffset", out var mo) ? ParseHex(mo.GetString()) : 0x2000;
+            bool optional = e.TryGetProperty("optional", out var opt) && opt.GetBoolean();
+            string? note = e.TryGetProperty("note", out var nt) ? nt.GetString() : null;
+            string? holderClass = e.TryGetProperty("holderClass", out var hc) ? hc.GetString() : null;
+            map[p.Name] = new RootDiscoverySpec(kind, vt, vts, offPath, min, max, maxOffset, optional, note, holderClass);
+        }
+        return map;
     }
 
     /// <summary>Field maps share one shape; player fields have no root (the player object), club fields name club or team.</summary>
@@ -413,7 +478,12 @@ public sealed class OffsetProfile
             Hex(e, "dateOffset"),
             e.TryGetProperty("objectVtable", out _) ? (uint)Hex(e, "objectVtable") : null);
 
-    public static OffsetProfile LoadFile(string path) => Load(File.ReadAllText(path));
+    public static OffsetProfile LoadFile(string path)
+    {
+        string full = Path.GetFullPath(path);
+        string dir = Path.GetDirectoryName(full) ?? AppContext.BaseDirectory;
+        return Load(File.ReadAllText(full), ProfileJsonResolver.DirectoryLayoutResolver(dir));
+    }
 
     /// <summary>Same shape that <see cref="Load"/> reads, offsets written as hex strings.</summary>
     public string ToJson()
@@ -564,6 +634,8 @@ public sealed class OffsetProfile
                 if (tm.AgeLimit is { } ta) H("ageLimit", ta);
                 if (tm.Captain is { } captain) H("captain", captain);
                 if (tm.ViceCaptain is { } viceCaptain) H("viceCaptain", viceCaptain);
+                if (tm.PlayerParentTeam is { } parentTeam) H("playerParentTeam", parentTeam);
+                if (!tm.WritePlayerParentTeam) w.WriteBoolean("writePlayerParentTeam", false);
                 w.WriteEndObject();
             }
             if (Club is { } k)
@@ -791,6 +863,15 @@ public readonly record struct PlayerInsertion(int At, int Length)
 {
     public int Translate(int canonicalOffset) => canonicalOffset >= At ? checked(canonicalOffset + Length) : canonicalOffset;
 }
+
+public sealed record VtableClassSpec(string Class, int Offset = 0, string[]? FallbackClasses = null, bool Optional = false);
+
+/// <param name="VtablePath">One profile path, or several separated by <c>|</c>; a vector holding more of them ranks first.</param>
+/// <param name="HolderClass">For <c>indirectVector</c>: RTTI class the holder object must have (for example the award
+/// list FMRTE shows lives in <c>AWARD_MANAGER</c>, not in the database's larger award vector).</param>
+public sealed record RootDiscoverySpec(string Kind, string? VtablePath = null, string? VtablesPath = null,
+    string? OffsetPath = null, int Min = 1, int Max = 1_000_000, int MaxOffset = 0x2000, bool Optional = false, string? Note = null,
+    string? HolderClass = null);
 
 public sealed class PlayerFieldOffsets
 {

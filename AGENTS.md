@@ -79,11 +79,31 @@ dotnet run --project src/Fm27Editor.Tools -c Release -- players "Kobbie Mainoo"
 - Opening an FMRTE page or using Load Game is not an operation that reveals how a change works. Never ask the user to open a page or load game as an investigation step or as evidence of a change.
 - Do not infer FMRTE behaviour from page navigation, loading, or assumptions about caching; base conclusions on the captured operation and observed results.
 
-## 8. Measuring offsets for a new build
+## 8. Supporting a new game build
 
-1. Attach with the CLI and survey vtables by RTTI name (`vtsurvey`, `slotsbyname`), vectors (`vectorroot`, `heapvectors`) and pointer paths (`ptrpath`, `heapfind`).
-2. Find an entity by its ID, not its name (names repeat).
-3. Add the values to the profile for that build, then run the profile-parity and no-single-build tests.
-4. Verify with `gamecheck`/`gamewrites` (or the equivalent) on that build, then compare a few screens against the game's own UI.
+Full design and runbook: `docs/NEW-BUILD-PROFILE.md`. It is written so that a person or a small agent can follow it step by
+step; every step ends in a PASS/WARN/MANUAL or PASS/FAIL line, never a judgement call.
+
+1. Load a save in the new build (a throwaway calibration save).
+2. Discover: `newbuild --out offsets/<build>.json` (add `--layout macos|touch-macos|windows` if the layout is not detected).
+   It reads class names from the module's RTTI, finds every vtable and static root, probes the offsets that have drifted
+   before, and writes a small profile that `extends` `offsets/layouts/<layout>.json`. About 30 seconds.
+   - Every `MANUAL` line must be fixed with the hint printed under it. Treat each `WARN` as work: read its detail.
+   - The written profile is always `"readOnly": true`.
+3. Verify read-only: `verify-build --profile offsets/<build>.json --expect-players N --expect-staff N --expect-humans N --negative-test`.
+   Take the counts from the game or a reference editor, never from this editor.
+4. Verify writes and the crash gate: `verify-build ... --writes`, then `verify-build ... --crash-gate <state.json>`.
+   Press Continue and Load Game in FM, then `verify-build ... --crash-gate-verify <state.json> --release-gate --receipt <out.json>`.
+   Only a `VERDICT: PASS` receipt justifies removing `readOnly`.
+5. Compare a few screens with the game UI, run `dotnet test`, and keep the receipt with the pull request.
+
+Rehearse on a supported build with `newbuild --ignore-profiles`: the generated profile must match the committed one, or the
+difference must be explained (the Steam macOS rehearsal of 19/11/2026 found a wrong Corporate Facilities offset this way).
+
+What the gate checks, and the failures it was built from, are in `docs/NEW-BUILD-PROFILE.md`. Never report a build as
+supported from `gamecheck` alone: a group there counts as filled when any one field reads.
+
+Lower-level survey commands remain for the MANUAL cases: `vtsurvey`, `slotsbyname`, `vectorroot`, `heapvectors`, `ptrpath`,
+`heapfind`. Find entities by ID, not name.
 
 Known limits: the team-wide Tactical Understanding bars are not supported. A reader that reports success can still have thrown on some records; read the `threw` counts in `gamecheck`, not only the `ok` lines.

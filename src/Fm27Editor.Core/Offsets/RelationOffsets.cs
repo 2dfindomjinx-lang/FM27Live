@@ -71,6 +71,10 @@ public sealed class TeamOffsets
     public int? AgeLimit { get; init; }
     public int? Captain { get; init; }
     public int? ViceCaptain { get; init; }
+    /// <summary>Optional second slot at PlayerTeam+8 updated during loan creation; null defaults to PlayerTeam+8.</summary>
+    public int? PlayerParentTeam { get; init; }
+    /// <summary>False when PlayerTeam+8 holds non-team state on this build and must not be written by LoanCreator.</summary>
+    public bool WritePlayerParentTeam { get; init; } = true;
 }
 
 /// <summary>

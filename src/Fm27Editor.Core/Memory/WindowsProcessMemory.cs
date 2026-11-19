@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 namespace Fm27Editor.Core.Memory;
 
 /// <summary>ReadProcessMemory / WriteProcessMemory on an opened process handle.</summary>
-public sealed partial class WindowsProcessMemory : IConcurrentMemoryReads, IMemoryRegions, IRemoteAllocator, IMemoryWriteObserver, IWriteGate, IDisposable
+public sealed partial class WindowsProcessMemory : IConcurrentMemoryReads, IMemoryRegions, IRemoteAllocator, IMemoryWriteObserver, IMemoryAllocationObserver, IWriteGate, IDisposable
 {
     const uint QueryInformation = 0x0400, VmRead = 0x0010, VmWrite = 0x0020, VmOperation = 0x0008;
 
@@ -36,6 +36,9 @@ public sealed partial class WindowsProcessMemory : IConcurrentMemoryReads, IMemo
 
     /// <summary>Called with the address and size of each fresh block, so the history can ignore writes into it.</summary>
     public Action<ulong, int>? OnAllocate { get; set; }
+
+    /// <summary>Called with allocation origin (<see cref="AllocationOrigin.RawVm"/> vs <see cref="AllocationOrigin.GameHeap"/>).</summary>
+    public Action<ulong, int, AllocationOrigin>? OnAllocateWithOrigin { get; set; }
 
     /// <summary>Called before each write; throws to refuse it while the game loads a save or has none loaded.</summary>
     public Action? BeforeWrite { get; set; }
@@ -82,7 +85,7 @@ public sealed partial class WindowsProcessMemory : IConcurrentMemoryReads, IMemo
     /// Fresh zeroed read/write memory inside the game process (VirtualAllocEx). The game's own allocator does
     /// not know it, so the game may fail when it later frees or regrows a container pointing here.
     /// </summary>
-    public ulong Allocate(int bytes) => AllocateWith(bytes, 0x04);
+    public ulong Allocate(int bytes) => AllocateWith(bytes, 0x04, AllocationOrigin.RawVm);
 
     /// <summary>Executable page as close as possible to <paramref name="near"/> so a rel32 jump can reach it.</summary>
     public ulong AllocateNear(ulong near, int bytes)
@@ -100,13 +103,14 @@ public sealed partial class WindowsProcessMemory : IConcurrentMemoryReads, IMemo
         throw new Win32Exception(Marshal.GetLastWin32Error(), "no executable page within rel32 reach");
     }
     /// <summary>Fresh executable page inside the game process, used for a hook trampoline.</summary>
-    public ulong AllocateExecutable(int bytes) => AllocateWith(bytes, 0x40);
+    public ulong AllocateExecutable(int bytes) => AllocateWith(bytes, 0x40, AllocationOrigin.Unknown);
 
-    ulong AllocateWith(int bytes, uint protect)
+    ulong AllocateWith(int bytes, uint protect, AllocationOrigin origin)
     {
         if (!CanWrite) throw new InvalidOperationException("Process was opened read-only");
         nint p = VirtualAllocEx(_handle, 0, bytes, 0x3000, protect);
         if (p == 0) throw new Win32Exception(Marshal.GetLastWin32Error(), "VirtualAllocEx failed");
+        if (origin != AllocationOrigin.Unknown) OnAllocateWithOrigin?.Invoke((ulong)p, bytes, origin);
         OnAllocate?.Invoke((ulong)p, bytes);
         return (ulong)p;
     }

@@ -1,0 +1,20 @@
+{
+  "clubs": [
+    { "id": 680, "nameContains": "Man", "yearFounded": 1878 },
+    { "id": 602, "nameContains": "Arsenal", "yearFounded": 1886 },
+    { "id": 1736, "nameContains": "Madrid", "yearFounded": 1902 },
+    { "id": 1708, "nameContains": "Barcelona", "yearFounded": 1899 }
+  ],
+  "stadiums": [
+    { "id": 680, "nameContains": "Old Trafford", "capacityMin": 65000, "capacityMax": 85000, "buildYear": 1909 }
+  ],
+  "nations": [
+    { "id": 765, "nameContains": "England", "yearAssociationFormed": 1863, "yearAffiliatedToFifa": 1905 }
+  ],
+  "players": [
+    { "id": 2000123586, "nameContains": "Mainoo", "dob": "2005-04-19", "optional": true },
+    { "id": 61031523, "nameContains": "Robertson", "dob": "1994-03-11", "optional": true },
+    { "id": 14084699, "nameContains": "Ledesma", "dob": "1993-02-13", "optional": true },
+    { "id": 12061213, "nameContains": "Onana", "dob": "1996-04-02", "optional": true }
+  ]
+}

@@ -803,7 +803,7 @@
       },
       "CorporateFacilities": {
         "root": "club",
-        "path": "0x150->0x8A9",
+        "path": "0x150->0x8AD",
         "type": "byte",
         "objectVtables": [
           "0x566A398"

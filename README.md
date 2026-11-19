@@ -140,7 +140,7 @@ Download from [Releases](../../releases):
 | File | For |
 |---|---|
 | **`Fm27Editor.exe`** | The editor app. Most people only need this one. |
-| `Fm27Editor.Tools.exe` | Command-line tools (see below), including `find-offsets` for a new game build |
+| `Fm27Editor.Tools.exe` | Command-line tools (see below), including `newbuild`, `verify-build` and `find-offsets` for a new game build |
 
 Each exe runs on its own from any folder. Nothing needs installing, not even .NET.
 
@@ -201,7 +201,9 @@ src/Fm27Editor.Tools/bin/Release/net10.0/Fm27Editor.Tools.exe verify tests/golde
 | `players [name]` | Lists matching players: in-game date, age, club, wage, contract expiry, CA/PA |
 | `set <name> <field> <value>` | Writes one value. The field is an attribute (`Pace`), a position (`Striker`), a personality value (`Ambition`), `CA` or `PA` |
 | `verify <golden.json>` | Compares live memory with values copied from the game UI |
-| `find-offsets <golden.json> <out.json> [--date yyyy-MM-dd]` | Rebuilds the offset profile for a new game build |
+| `find-offsets <golden.json> <out.json> [--date yyyy-MM-dd]` | Rebuilds the player layout from values copied from the game UI |
+| `newbuild [--out <path>] [--layout macos\|touch-macos\|windows] [--ignore-profiles]` | Discovers a whole profile for a new game build (see [After a game patch](#after-a-game-patch)) |
+| `verify-build --profile <path> [--expect-players N ...] [--writes] [--negative-test] [--crash-gate ...]` | Release gate for a profile: one PASS/FAIL verdict |
 
 Many more commands (staff, clubs, nations, presets, promises, transfers, future transfers) are listed at the top of
 `src/Fm27Editor.Tools/Program.cs`. Commands that write need `--write`; without it they only print the plan.
@@ -227,19 +229,21 @@ fits the player's CA, in both directions. So raising attributes without raising 
 
 The editor will not attach to a build it has no profile for. This keeps it from writing to the wrong addresses.
 
-To make a profile for a new build:
+To make a profile for a new build, load a throwaway save and run (with `dotnet run --project src/Fm27Editor.Tools -c Release --`
+in front, or `Fm27Editor.Tools.exe` on Windows):
 
-1. Load a save. Copy the exact attributes, height and date of birth of a few players into a new golden file.
-   - At least one player must have a common name, and at least one must have none.
-   - Leave out scouted ranges such as `9-12`.
-2. Run `find-offsets <golden.json> offsets/<build>.json --date <in-game date>`. It takes about 25 seconds.
-   Profiles in an `offsets` folder next to the exe are used in addition to the built-in ones, and replace a
-   built-in profile for the same build.
-3. Run `verify` with the same golden file.
+1. `newbuild --out offsets/<build>.json` finds every class, list and drifted offset by itself, from the game's own class
+   names, and writes the profile (read-only). About 30 seconds. Fix any `MANUAL` line with the hint it prints.
+2. `verify-build --profile offsets/<build>.json --expect-players N --expect-staff N --expect-humans N --negative-test --writes`
+   checks the profile against the live game: class names, counts against numbers you copy from the game, field values that
+   only real data has, known facts (Man Utd founded 1878, Old Trafford's capacity...), writes that restore every byte, and
+   that every new block comes from the game's own heap.
+3. `verify-build ... --crash-gate state.json`, then press Continue and Load Game in FM, then
+   `verify-build ... --crash-gate-verify state.json --release-gate --receipt receipt.json`. A `VERDICT: PASS` receipt means the
+   build is ready; open a pull request with the profile and the receipt.
 
-`find-offsets` finds the player layout only. The other screens need their own offsets; rebuilding the whole profile with
-one command is on the roadmap. For Xbox / Game Pass, `re/tools/gamepass-rva-map.ps1` builds a profile from the Steam one
-by matching class names (RTTI), in a few seconds.
+The full runbook, written so that a person or a coding agent can follow it, is `docs/NEW-BUILD-PROFILE.md`. Profiles in an
+`offsets` folder next to the exe are used in addition to the built-in ones, and replace a built-in profile for the same build.
 
 ## Not supported: women's football
 

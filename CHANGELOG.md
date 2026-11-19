@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- **New game builds:** `newbuild` discovers a whole profile from the game's own class names (RTTI) and the live save in
+  about 30 seconds, and writes a small read-only profile that extends a per-platform layout. `verify-build` is the release
+  gate: class names, counts against reference numbers, field values only real data has, known facts, byte-exact write
+  round trips, game-heap allocations, a Continue + Load Game crash check, and a self-test that corrupts the profile on
+  purpose and must fail. Runbook: `docs/NEW-BUILD-PROFILE.md`.
+- macOS Steam `27.1.0+2505117`: Corporate Facilities read 0 for every club (offset `0x8A9`); it is at `0x8AD`. Found by
+  rehearsing `newbuild` with the profiles hidden.
+
 ## 1.5.0
 
 Support for **Steam and Game Pass `27.1.0+2505117`** has been measured on the live game. Calibration passed 595 checks

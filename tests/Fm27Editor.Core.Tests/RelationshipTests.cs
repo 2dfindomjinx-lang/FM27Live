@@ -463,4 +463,77 @@ public class RelationshipTests
         Assert.Equal(writes, _w.Memory.Writes);
         Assert.Equal(Convert.FromHexString("99010000015700008B00000002430000"), _w.Bytes(cohesion, 16));
     }
+
+    [Fact]
+    public void PersonName_decodes_retired_person_pointers_and_strings_and_ignores_unknown_vtable()
+    {
+        const uint retiredPtrVt = 0x57E4E08, retiredStrVt = 0x57E4E28, unknownVt = 0x57FFFF0;
+        var node = System.Text.Json.Nodes.JsonNode.Parse(_w.Profile.ToJson())!;
+        node["player"]!["relations"]!["retiredPersonPointersVtable"] = $"0x{retiredPtrVt:X}";
+        node["player"]!["relations"]!["retiredPersonStringsVtable"] = $"0x{retiredStrVt:X}";
+        var profile = Fm27Editor.Core.Offsets.OffsetProfile.Load(node.ToJsonString());
+        var reader = new PlayerStatusReader(_w.Memory, profile, TestWorld.ModuleBase);
+        var rel = profile.Relations!;
+
+        // 1. RETIRED_PERSON_NAME_POINTERS with name-entry indirection (+0x20 -> entry -> FM string, +0x28 -> entry -> FM string)
+        ulong retiredPtrIndirect = _next; _next += 0x100;
+        var p1 = _w.Memory.Map(retiredPtrIndirect, 0x40);
+        TestWorld.Set64(p1, 0, TestWorld.ModuleBase + retiredPtrVt);
+        TestWorld.Set64(p1, rel.RetiredPersonFirstName, Entry("Bobby"));
+        TestWorld.Set64(p1, rel.RetiredPersonLastName, Entry("Charlton"));
+        Assert.Equal("Bobby Charlton", reader.PersonName(retiredPtrIndirect, rel));
+
+        // 2. RETIRED_PERSON_NAME_POINTERS with direct FM strings at +0x20 / +0x28
+        ulong retiredPtrDirect = _next; _next += 0x100;
+        var p2 = _w.Memory.Map(retiredPtrDirect, 0x40);
+        TestWorld.Set64(p2, 0, TestWorld.ModuleBase + retiredPtrVt);
+        TestWorld.Set64(p2, rel.RetiredPersonFirstName, Text("George"));
+        TestWorld.Set64(p2, rel.RetiredPersonLastName, Text("Best"));
+        Assert.Equal("George Best", reader.PersonName(retiredPtrDirect, rel));
+
+        // 3. RETIRED_PERSON_NAME_STRINGS with direct FM strings
+        ulong retiredStrings = _next; _next += 0x100;
+        var p3 = _w.Memory.Map(retiredStrings, 0x40);
+        TestWorld.Set64(p3, 0, TestWorld.ModuleBase + retiredStrVt);
+        TestWorld.Set64(p3, rel.RetiredPersonFirstName, Text("Denis"));
+        TestWorld.Set64(p3, rel.RetiredPersonLastName, Text("Law"));
+        Assert.Equal("Denis Law", reader.PersonName(retiredStrings, rel));
+
+        // 4. Unknown vtable returns null
+        ulong unknown = _next; _next += 0x100;
+        TestWorld.Set64(_w.Memory.Map(unknown, 0x40), 0, TestWorld.ModuleBase + unknownVt);
+        Assert.Null(reader.PersonName(unknown, rel));
+    }
+
+    [Fact]
+    public void ClubRelationshipReader_decodes_retired_club_legend_name()
+    {
+        const uint retiredPtrVt = 0x57E4E08;
+        var node = System.Text.Json.Nodes.JsonNode.Parse(_w.Profile.ToJson())!;
+        node["player"]!["relations"]!["retiredPersonPointersVtable"] = $"0x{retiredPtrVt:X}";
+        var profile = Fm27Editor.Core.Offsets.OffsetProfile.Load(node.ToJsonString());
+
+        ulong retiredLegend = _next; _next += 0x100;
+        var leg = _w.Memory.Map(retiredLegend, 0x40);
+        TestWorld.Set64(leg, 0, TestWorld.ModuleBase + retiredPtrVt);
+        TestWorld.Set64(leg, profile.Relations!.RetiredPersonFirstName, Entry("Duncan"));
+        TestWorld.Set64(leg, profile.Relations.RetiredPersonLastName, Entry("Edwards"));
+
+        ulong club = _next; _next += 0x200;
+        ulong rowsBuf = _next; _next += 0x100;
+        var clubBytes = _w.Memory.Map(club, 0x100);
+        TestWorld.Set64(clubBytes, 0, TestWorld.ModuleBase + ClubVt);
+        int vecAt = profile.Club!.Relationships!.Vector;
+        TestWorld.Set64(clubBytes, vecAt, rowsBuf);
+        TestWorld.Set64(clubBytes, vecAt + 8, rowsBuf + 16);
+        TestWorld.Set64(clubBytes, vecAt + 16, rowsBuf + 16);
+        var row = _w.Memory.Map(rowsBuf, 16);
+        TestWorld.Set64(row, 0, retiredLegend);
+        Convert.FromHexString("01000301644F00FF").CopyTo(row, 8);
+
+        var rows = new Fm27Editor.Core.Clubs.ClubRelationshipReader(_w.Memory, profile, TestWorld.ModuleBase).Read(club);
+        Assert.Single(rows);
+        Assert.Equal("Duncan Edwards", rows[0].Name);
+        Assert.Equal(Fm27Editor.Core.Clubs.ClubRelationshipKind.LikesPerson, rows[0].Kind);
+    }
 }

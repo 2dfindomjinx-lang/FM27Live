@@ -46,14 +46,15 @@ public sealed class TransferService(IProcessMemory memory, OffsetProfile profile
     public TransferPlan Plan(PlayerRecord player, IReadOnlyList<ClubEntry> clubs, ClubEntry buyer, int fee, TeamEntry? intoTeam = null)
     {
         if (fee < 0) throw new ArgumentOutOfRangeException(nameof(fee));
-        if (!profile.PlayerVtableRvas.Any(v => moduleBase + v == memory.ReadUInt64(player.Address)))
+        var owner = PersonOwner.Of(player, profile);
+        if (!owner.IsValid(memory, moduleBase))
             throw new StaleObjectException($"0x{player.Address:X} is no longer a player object");
         GenderGuard.EnsureMalePlayer(memory, profile, player.Address);
         GenderGuard.EnsureMenClub(memory, profile, buyer.Address);
         if (player.Club is { Address: not 0 } sellerClub)
             GenderGuard.EnsureMenClub(memory, profile, sellerClub.Address);
         var contract = player.Contract ?? throw new InvalidOperationException("The player has no contract (free agent)");
-        if (memory.ReadUInt64(player.Address + (ulong)C.PlayerContract) != contract.Address)
+        if (memory.ReadUInt64(owner.At(C.PlayerContract)) != contract.Address)
             throw new StaleObjectException("The player's contract changed since it was read");
         if (memory.ReadUInt64(contract.Address) != moduleBase + C.ContractVtableRva)
             throw new StaleObjectException("The player's contract is no longer a contract object");
@@ -61,7 +62,8 @@ public sealed class TransferService(IProcessMemory memory, OffsetProfile profile
         ulong contractTeam = memory.ReadUInt64(contract.Address + (ulong)C.Team);
         if (memory.ReadUInt64(contract.Address + (ulong)seniorTeamOffset) != contractTeam)
             throw new InvalidOperationException("The contract's employer and senior team differ; this move is not supported");
-        ulong fromTeam = memory.ReadUInt64(player.Address + (ulong)T.PlayerTeam);
+        ulong playingSlot = owner.At(T.PlayerTeam);
+        ulong fromTeam = memory.ReadUInt64(playingSlot);
         var seller = clubs.FirstOrDefault(c => c.Teams.Any(t => t.Address == contractTeam))
                      ?? throw new InvalidOperationException("Seller club not found for the contract team");
         if (seller.Address == buyer.Address) throw new InvalidOperationException("Player already belongs to that club");
@@ -73,7 +75,7 @@ public sealed class TransferService(IProcessMemory memory, OffsetProfile profile
         var guards = new List<PlannedWrite>();
         if (profile.FutureTransfers?.CurrentLoanHolder is { } holderOffset)
         {
-            ulong holderSlot = player.Address + (ulong)holderOffset;
+            ulong holderSlot = owner.At(holderOffset);
             var holderBytes = memory.Read(holderSlot, 8);
             guards.Add(new(holderSlot, holderBytes, holderBytes, "loan holder"));
             ulong holder = BitConverter.ToUInt64(holderBytes);
@@ -102,7 +104,7 @@ public sealed class TransferService(IProcessMemory memory, OffsetProfile profile
         AddMoney(writes, seller, F.WageBill, -wage, "seller wage bill");
         writes.Add(Pointer(contract.Address + (ulong)C.Team, firstTeam.Address, "contract team"));
         writes.Add(Pointer(contract.Address + (ulong)seniorTeamOffset, firstTeam.Address, "contract senior team"));
-        writes.Add(Pointer(player.Address + (ulong)T.PlayerTeam, to.Address, "playing team"));
+        writes.Add(Pointer(playingSlot, to.Address, "playing team"));
 
         // Old squad: shift the tail left over the player and move end back by one.
         ulong squad = fromTeam + (ulong)T.Squad;
@@ -146,8 +148,9 @@ public sealed class TransferService(IProcessMemory memory, OffsetProfile profile
     public (IReadOnlyList<PlannedWrite> Guards, IReadOnlyList<PlannedWrite> Writes) Prepare(TransferPlan plan, Func<int, ulong>? allocate = null)
     {
         var contract = plan.Player.Contract ?? throw new StaleObjectException("The player has no contract snapshot");
-        if (!profile.PlayerVtableRvas.Any(v => moduleBase + v == memory.ReadUInt64(plan.Player.Address)) ||
-            memory.ReadUInt64(plan.Player.Address + (ulong)C.PlayerContract) != contract.Address ||
+        var owner = PersonOwner.Of(plan.Player, profile);
+        ulong contractSlot = owner.At(C.PlayerContract);
+        if (!owner.IsValid(memory, moduleBase) || memory.ReadUInt64(contractSlot) != contract.Address ||
             memory.ReadUInt64(contract.Address) != moduleBase + C.ContractVtableRva)
             throw new StaleObjectException("The player or contract changed since the plan was made; nothing written");
         foreach (var guard in plan.Guards)
@@ -172,7 +175,7 @@ public sealed class TransferService(IProcessMemory memory, OffsetProfile profile
                 "new squad begin/end/capacity"));
         }
         var guards = plan.Guards.ToList();
-        foreach (var address in new[] { plan.Player.Address, plan.Player.Address + (ulong)C.PlayerContract, contract.Address })
+        foreach (var address in new[] { plan.Player.Address, contractSlot, contract.Address })
             guards.Add(new(address, memory.Read(address, 8), [], "player/contract identity"));
         return (guards, writes);
     }

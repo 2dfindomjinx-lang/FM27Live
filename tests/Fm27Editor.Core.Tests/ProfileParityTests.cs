@@ -21,7 +21,10 @@ public class ProfileParityTests
                 default: result[path] = e.ToString(); break;
             }
         }
-        using var doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "offsets", file)),
+        using var doc = JsonDocument.Parse(
+            Fm27Editor.Core.Offsets.OffsetProfile.ResolveJson(
+                File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "offsets", file)),
+                Fm27Editor.Core.Offsets.ProfileJsonResolver.DirectoryLayoutResolver(Path.Combine(AppContext.BaseDirectory, "offsets"))).ToJsonString(),
             new JsonDocumentOptions { CommentHandling = JsonCommentHandling.Skip });
         Walk(doc.RootElement, "");
         return result;
@@ -60,7 +63,10 @@ public class ProfileParityTests
         var dir = Path.Combine(AppContext.BaseDirectory, "offsets");
         foreach (var path in Directory.GetFiles(dir, "*.json").OrderBy(p => p, StringComparer.Ordinal))
         {
-            using var doc = JsonDocument.Parse(File.ReadAllText(path), new JsonDocumentOptions { CommentHandling = JsonCommentHandling.Skip });
+            var resolved = Fm27Editor.Core.Offsets.OffsetProfile.ResolveJson(
+                File.ReadAllText(path),
+                Fm27Editor.Core.Offsets.ProfileJsonResolver.DirectoryLayoutResolver(dir));
+            using var doc = JsonDocument.Parse(resolved.ToJsonString(), new JsonDocumentOptions { CommentHandling = JsonCommentHandling.Skip });
             yield return (Path.GetFileName(path), doc.RootElement.Clone());
         }
     }

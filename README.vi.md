@@ -125,7 +125,7 @@ Tải ở [Releases](../../releases):
 | File | Dùng để |
 |---|---|
 | **`Fm27Editor.exe`** | App editor. Đa số người dùng chỉ cần file này. |
-| `Fm27Editor.Tools.exe` | Công cụ dòng lệnh (xem bên dưới), có `find-offsets` cho bản game mới |
+| `Fm27Editor.Tools.exe` | Công cụ dòng lệnh (xem bên dưới), có `newbuild` và `verify-build` cho bản game mới |
 
 Mỗi file exe chạy độc lập từ thư mục nào cũng được. Không cần cài đặt, kể cả .NET.
 
@@ -184,7 +184,9 @@ src/Fm27Editor.Tools/bin/Release/net10.0/Fm27Editor.Tools.exe verify tests/golde
 | `players [tên]` | Liệt kê cầu thủ khớp: ngày trong game, tuổi, CLB, lương, ngày hết hạn hợp đồng, CA/PA |
 | `set <tên> <trường> <giá trị>` | Ghi một giá trị. Trường là chỉ số (`Pace`), vị trí (`Striker`), tính cách (`Ambition`), `CA` hoặc `PA` |
 | `verify <golden.json>` | So bộ nhớ đang chạy với giá trị chép từ giao diện game |
-| `find-offsets <golden.json> <out.json> [--date yyyy-MM-dd]` | Dựng lại profile offset cho bản game mới |
+| `find-offsets <golden.json> <out.json> [--date yyyy-MM-dd]` | Dựng lại cấu trúc cầu thủ từ giá trị chép trong giao diện game |
+| `newbuild [--out <path>] [--layout macos\|touch-macos\|windows] [--ignore-profiles]` | Tự dò toàn bộ profile cho bản game mới (xem [Khi game có patch](#khi-game-có-patch)) |
+| `verify-build --profile <path> [--expect-players N ...] [--writes] [--negative-test] [--crash-gate ...]` | Cổng phát hành cho một profile: một kết luận PASS/FAIL |
 
 Còn nhiều lệnh khác (nhân sự, CLB, quốc gia, preset, lời hứa, chuyển nhượng, chuyển nhượng tương lai) được liệt kê ở đầu
 `src/Fm27Editor.Tools/Program.cs`. Lệnh ghi cần `--write`; không có thì chỉ in kế hoạch.
@@ -210,18 +212,21 @@ hướng. Vì vậy tăng chỉ số mà không tăng CA có thể không giữ 
 
 App không gắn vào bản game mà nó chưa có profile. Điều này tránh ghi nhầm địa chỉ.
 
-Để tạo profile cho bản mới:
+Để tạo profile cho bản mới, nạp một save dùng để thử rồi chạy (thêm `dotnet run --project src/Fm27Editor.Tools -c Release --`
+phía trước, hoặc dùng `Fm27Editor.Tools.exe` trên Windows):
 
-1. Nạp một save. Chép đúng chỉ số, chiều cao và ngày sinh của vài cầu thủ vào một file golden mới.
-   - Ít nhất một cầu thủ có tên thường gọi, và ít nhất một người không có.
-   - Bỏ qua các khoảng do scout đoán như `9-12`.
-2. Chạy `find-offsets <golden.json> offsets/<build>.json --date <ngày trong game>`. Mất khoảng 25 giây.
-   Profile trong thư mục `offsets` cạnh file exe được dùng thêm vào các profile có sẵn, và thay profile có sẵn của cùng bản.
-3. Chạy `verify` với cùng file golden.
+1. `newbuild --out offsets/<build>.json` tự tìm mọi class, danh sách và offset bị dịch, dựa vào tên class của chính game, rồi
+   ghi profile (ở chế độ chỉ đọc). Mất khoảng 30 giây. Dòng nào báo `MANUAL` thì sửa theo gợi ý in kèm.
+2. `verify-build --profile offsets/<build>.json --expect-players N --expect-staff N --expect-humans N --negative-test --writes`
+   kiểm profile trên game thật: tên class, số lượng so với con số bạn chép từ game, giá trị field mà chỉ dữ liệu thật mới có,
+   các sự kiện đã biết (Man Utd thành lập 1878, sức chứa Old Trafford...), thao tác ghi phải trả lại đúng từng byte, và mọi
+   block mới phải lấy từ heap của game.
+3. `verify-build ... --crash-gate state.json`, rồi bấm Continue và Load Game trong FM, rồi
+   `verify-build ... --crash-gate-verify state.json --release-gate --receipt receipt.json`. Biên nhận `VERDICT: PASS` nghĩa là bản
+   đó đã sẵn sàng; mở pull request kèm profile và biên nhận.
 
-`find-offsets` chỉ tìm cấu trúc cầu thủ. Các màn khác cần offset riêng; dựng lại toàn bộ profile bằng một lệnh nằm trong
-lộ trình. Với Xbox / Game Pass, `re/tools/gamepass-rva-map.ps1` dựng profile từ profile Steam bằng cách khớp tên class
-(RTTI), trong vài giây.
+Hướng dẫn đầy đủ, viết để người hay coding agent đều làm theo được, nằm ở `docs/NEW-BUILD-PROFILE.md`. Profile trong thư mục
+`offsets` cạnh file exe được dùng thêm vào các profile có sẵn, và thay profile có sẵn của cùng bản.
 
 ## Chưa hỗ trợ: bóng đá nữ
 

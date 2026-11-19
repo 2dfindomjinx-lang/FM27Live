@@ -34,13 +34,15 @@ public sealed class FreeAgentSigning(IProcessMemory memory, OffsetProfile profil
         byte[] Guard(ulong at, int length, string what) { var b = memory.Read(at, length); guards.Add(new(at, b, [], what)); return b; }
         ulong Pointer(ulong at, string what) => BitConverter.ToUInt64(Guard(at, 8, what));
 
+        var owner = PersonOwner.Of(player, profile);
         ulong vtable = Pointer(player.Address, "player vtable");
-        if (!profile.PlayerVtableRvas.Any(v => moduleBase + v == vtable)) throw new StaleObjectException($"0x{player.Address:X} is no longer a player object");
+        if (!profile.PlayerVtableRvas.Any(v => moduleBase + v == vtable) || !owner.IsValid(memory, moduleBase))
+            throw new StaleObjectException($"0x{player.Address:X} is no longer a player object");
         GenderGuard.EnsureMalePlayer(memory, profile, player.Address);
         GenderGuard.EnsureMenClub(memory, profile, buyer.Address);
-        if (Pointer(player.Address + (ulong)C.PlayerContract, "player contract") != 0)
+        if (Pointer(owner.At(C.PlayerContract), "player contract") != 0)
             throw new InvalidOperationException("The player has a contract; use the normal transfer");
-        if (profile.FutureTransfers?.CurrentLoanHolder is { } loan && Pointer(player.Address + (ulong)loan, "loan holder") != 0)
+        if (profile.FutureTransfers?.CurrentLoanHolder is { } loan && Pointer(owner.At(loan), "loan holder") != 0)
             throw new InvalidOperationException("The player is on loan");
 
         var firstTeam = buyer.FirstTeam ?? throw new InvalidOperationException($"{buyer.DisplayName} has no first team");
@@ -59,9 +61,10 @@ public sealed class FreeAgentSigning(IProcessMemory memory, OffsetProfile profil
         var members = Enumerable.Range(0, squad.Length / 8).Select(i => BitConverter.ToUInt64(squad, i * 8)).ToList();
         if (members.Contains(player.Address)) throw new InvalidOperationException("The player is already in that squad");
         ulong first = members[0];
-        if (!profile.PlayerVtableRvas.Any(v => moduleBase + v == Pointer(first, "template player vtable")))
+        ulong firstVt = Pointer(first, "template player vtable");
+        if (!profile.PlayerVtableRvas.Any(v => moduleBase + v == firstVt))
             throw new StaleObjectException("The first squad member is not a player");
-        ulong source = Pointer(first + (ulong)C.PlayerContract, "template contract pointer");
+        ulong source = Pointer(first + (ulong)profile.PlayerOffset((uint)(firstVt - moduleBase), C.PlayerContract), "template contract pointer");
         if (source == 0) throw new InvalidOperationException("The first player in that squad has no contract to copy");
         var contract = (byte[])Guard(source, ContractSize, "template contract").Clone();   // the guard keeps the original bytes
         if (BitConverter.ToUInt64(contract) != moduleBase + C.ContractVtableRva) throw new StaleObjectException("Template contract changed");
@@ -71,7 +74,7 @@ public sealed class FreeAgentSigning(IProcessMemory memory, OffsetProfile profil
         int personAt = profile.Relations?.PlayerPerson ?? throw new InvalidOperationException("Profile has no person offsets");
         int seniorAt = C.SeniorTeam ?? throw new InvalidOperationException("Profile has no contract senior team offset");
         int joinedAt = C.PlayerJoinedClub ?? throw new InvalidOperationException("Profile has no joined club offset");
-        ulong person = player.Address + (ulong)personAt;
+        ulong person = owner.At(personAt);
         BitConverter.GetBytes(person).CopyTo(contract, 0x08);
         BitConverter.GetBytes(firstTeam.Address).CopyTo(contract, C.Team);
         BitConverter.GetBytes(firstTeam.Address).CopyTo(contract, seniorAt);
@@ -79,14 +82,14 @@ public sealed class FreeAgentSigning(IProcessMemory memory, OffsetProfile profil
         Date(today).CopyTo(contract, SignedDate);
         ContractCopy.ClearOwned(contract);   // FMRTE copied these too; FM then frees them twice when it unloads the save
 
-        ulong parentTeamAt = (ulong)(T.PlayerTeam + 8), joinedSecondAt = (ulong)(joinedAt + 4);
         var writes = new List<PlannedWrite>
         {
-            Write(player.Address + (ulong)T.PlayerTeam, BitConverter.GetBytes(to.Address), "playing team"),
-            Write(player.Address + parentTeamAt, BitConverter.GetBytes(firstTeam.Address), "parent team"),
-            Write(player.Address + (ulong)joinedAt, Date(today), "joined club"),
-            Write(player.Address + joinedSecondAt, Date(today), "joined date"),
+            Write(owner.At(T.PlayerTeam), BitConverter.GetBytes(to.Address), "playing team"),
         };
+        if (T.WritePlayerParentTeam)
+            writes.Add(Write(owner.At(T.PlayerParentTeam ?? (T.PlayerTeam + 8)), BitConverter.GetBytes(firstTeam.Address), "parent team"));
+        writes.Add(Write(owner.At(joinedAt), Date(today), "joined club"));
+        writes.Add(Write(owner.At(joinedAt + 4), Date(today), "joined date"));
         IReadOnlyList<ulong>? newSquad = null;
         if (end < cap)
         {
@@ -126,7 +129,7 @@ public sealed class FreeAgentSigning(IProcessMemory memory, OffsetProfile profil
         }
         writes.AddRange(plan.Writes);
         // The contract pointer goes last: until then the player is still a free agent to the game.
-        writes.Add(new(plan.Player.Address + (ulong)C.PlayerContract, new byte[8], BitConverter.GetBytes(contract), "player contract"));
+        writes.Add(new(PersonOwner.Of(plan.Player, profile).At(C.PlayerContract), new byte[8], BitConverter.GetBytes(contract), "player contract"));
         FutureTransferTransaction.Apply(memory, plan.Guards, writes);
     }
 

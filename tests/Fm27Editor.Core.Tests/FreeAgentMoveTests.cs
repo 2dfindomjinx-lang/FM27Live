@@ -199,4 +199,24 @@ public class FreeAgentMoveTests
             0x1E96EE78CA0, Today, new DateOnly(2026, 12, 16));
         Assert.Equal(0UL, BitConverter.ToUInt64(offer, 0x50));
     }
+
+    [Fact]
+    public void WritePlayerParentTeam_false_leaves_parent_team_slot_untouched()
+    {
+        const ulong sentinel = 0xCAFE_BABE_1234_5678;
+        Assert.True(_w.Memory.TryWrite(TestWorld.Mainoo + PlayerTeam + 8, BitConverter.GetBytes(sentinel)));
+
+        var node = System.Text.Json.Nodes.JsonNode.Parse(_profile.ToJson())!;
+        node["team"]!["writePlayerParentTeam"] = false;
+        var profile = OffsetProfile.Load(node.ToJsonString());
+
+        var free = new PlayerRepository(_w.Memory, profile, TestWorld.ModuleBase).Reload(TestWorld.Mainoo)!;
+        var signing = new FreeAgentSigning(_w.Memory, profile, TestWorld.ModuleBase);
+        var plan = signing.Plan(free, City(), Today);
+        signing.Apply(plan, Alloc);
+
+        Assert.Equal(Team, Q(TestWorld.Mainoo + PlayerTeam));
+        Assert.Equal(sentinel, Q(TestWorld.Mainoo + PlayerTeam + 8));
+        Assert.NotEqual(0UL, Q(TestWorld.Mainoo + PlayerContract));
+    }
 }

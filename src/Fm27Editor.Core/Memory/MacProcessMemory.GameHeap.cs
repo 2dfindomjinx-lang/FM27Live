@@ -31,21 +31,50 @@ public sealed partial class MacProcessMemory : IGameHeapAllocator
     const int ArmThreadState64 = 6, ArmThreadState64Count = 68;
 
     readonly object _callocLock = new();
-    ulong _callocData, _callocCode, _callocStackTop;
+    ulong _callocData, _callocCode, _callocStackTop, _callocFn, _mallocSizeFn;
 
     public ulong AllocateFromGameHeap(int bytes)
     {
         if (!CanWrite) throw new InvalidOperationException("Process was opened read-only");
         if (bytes is <= 0 or > 16 * 1024 * 1024) throw new ArgumentOutOfRangeException(nameof(bytes));
+        ulong address = RunWorker(_callocFn == 0 ? null : _callocFn, 1UL, (ulong)bytes);
+        if (address == 0) throw new MemoryAccessException($"calloc({bytes}) inside the game returned NULL");
+        OnAllocateWithOrigin?.Invoke(address, bytes, AllocationOrigin.GameHeap);
+        OnAllocate?.Invoke(address, bytes);
+        return address;
+    }
+
+    public bool TryQueryMallocSize(ulong address, out ulong mallocSize)
+    {
+        mallocSize = 0;
+        if (!CanWrite || address == 0) return false;
+        try
+        {
+            EnsureCallocCave(_task);
+            if (_mallocSizeFn == 0) return false;
+            mallocSize = RunWorker(_mallocSizeFn, address, 0UL);
+            return mallocSize > 0;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    ulong RunWorker(ulong? fnOverride, ulong arg0, ulong arg1)
+    {
         uint task = _task;
         if (task == 0) throw new MemoryAccessException("The process is no longer attached");
         lock (_callocLock)
         {
             EnsureCallocCave(task);
+            ulong targetFn = fnOverride ?? _callocFn;
+            if (!TryWrite(_callocData, BitConverter.GetBytes(targetFn)))
+                throw new MemoryAccessException("Could not write target function pointer");
             var args = new byte[48];
-            BitConverter.GetBytes(1UL).CopyTo(args, 0);
-            BitConverter.GetBytes((ulong)bytes).CopyTo(args, 8);
-            if (!TryWrite(_callocData + 0x10, args)) throw new MemoryAccessException("Could not write the calloc arguments");
+            BitConverter.GetBytes(arg0).CopyTo(args, 0);
+            BitConverter.GetBytes(arg1).CopyTo(args, 8);
+            if (!TryWrite(_callocData + 0x10, args)) throw new MemoryAccessException("Could not write the remote call arguments");
 
             var state = new ulong[ArmThreadState64Count / 2];
             state[0] = _callocData;   // x0
@@ -77,12 +106,9 @@ public sealed partial class MacProcessMemory : IGameHeapAllocator
             {
                 // A late worker could still store into this data block; never reuse it.
                 _callocCode = 0;
-                throw new MemoryAccessException("calloc inside the game timed out (is the game paused?)");
+                throw new MemoryAccessException("remote call inside the game timed out (is the game paused?)");
             }
-            ulong address = BitConverter.ToUInt64(block, 0);
-            if (address == 0) throw new MemoryAccessException($"calloc({bytes}) inside the game returned NULL");
-            OnAllocate?.Invoke(address, bytes);
-            return address;
+            return BitConverter.ToUInt64(block, 0);
         }
     }
 
@@ -92,6 +118,7 @@ public sealed partial class MacProcessMemory : IGameHeapAllocator
         nint libSystem = NativeLibrary.Load(LibSystem);
         ulong calloc = (ulong)NativeLibrary.GetExport(libSystem, "calloc");
         ulong create = (ulong)NativeLibrary.GetExport(libSystem, "pthread_create_from_mach_thread");
+        ulong mallocSize = NativeLibrary.TryGetExport(libSystem, "malloc_size", out nint msPtr) ? (ulong)msPtr : 0;
         foreach (var (name, address) in new[] { ("calloc", calloc), ("pthread_create_from_mach_thread", create) })
         {
             var local = new byte[32];
@@ -100,6 +127,16 @@ public sealed partial class MacProcessMemory : IGameHeapAllocator
             if (!TryRead(address, remote) || !remote.AsSpan().SequenceEqual(local))
                 throw new MemoryAccessException($"{name} is not at the same address in the game");
         }
+        if (mallocSize != 0)
+        {
+            var local = new byte[32];
+            Marshal.Copy((nint)mallocSize, local, 0, local.Length);
+            var remote = new byte[32];
+            if (!TryRead(mallocSize, remote) || !remote.AsSpan().SequenceEqual(local))
+                mallocSize = 0;
+        }
+        _callocFn = calloc;
+        _mallocSizeFn = mallocSize;
 
         ulong data = 0, code = 0, stack = 0;
         int kr = mach_vm_allocate(task, ref data, CallocPage, VmFlagsAnywhere);

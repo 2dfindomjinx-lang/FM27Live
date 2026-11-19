@@ -36,11 +36,21 @@ public sealed class GameSession : IDisposable
     {
         LoadState.EnsureWritable();
         ulong at;
-        if (_memory is WindowsProcessMemory wpm) at = RemoteCrtAllocator.Allocate(wpm, size);
-        else if (_memory is IGameHeapAllocator heap) at = heap.AllocateFromGameHeap(size);
+        if (_memory is WindowsProcessMemory wpm)
+        {
+            at = RemoteCrtAllocator.Allocate(wpm, size);
+            wpm.OnAllocateWithOrigin?.Invoke(at, size, AllocationOrigin.GameHeap);
+            wpm.OnAllocate?.Invoke(at, size);
+            return at;
+        }
+        else if (_memory is IGameHeapAllocator heap)
+        {
+            at = heap.AllocateFromGameHeap(size);
+            if (_memory is not IMemoryAllocationObserver)
+                (_memory as IMemoryWriteObserver)?.OnAllocate?.Invoke(at, size);
+            return at;
+        }
         else throw new NotSupportedException("This process memory cannot allocate blocks the game can free");
-        (_memory as IMemoryWriteObserver)?.OnAllocate?.Invoke(at, size);
-        return at;
     }
 
     /// <summary>
@@ -673,10 +683,10 @@ public sealed class GameSession : IDisposable
     public IReadOnlyList<ContractClause> ReadClauses(PlayerRecord player) =>
         new PendingContractReader(_memory, Profile).ReadClauses(player.PendingContractAddress);
 
-    internal GameSession(IProcessMemory memory, GameProcess game, OffsetProfile profile)
+    internal GameSession(IProcessMemory memory, GameProcess game, OffsetProfile profile, bool ownMemory = true)
     {
         _memory = memory;
-        _disposable = memory as IDisposable;
+        _disposable = ownMemory ? memory as IDisposable : null;
         Game = game;
         Profile = profile;
         LoadState = new GameLoadState(memory, profile, game.ModuleBase);
@@ -792,7 +802,7 @@ public sealed class GameSession : IDisposable
     {
         var asm = typeof(GameSession).Assembly;
         return asm.GetManifestResourceNames()
-            .Where(n => n.StartsWith("offsets/", StringComparison.Ordinal))
+            .Where(n => n.StartsWith("offsets/", StringComparison.Ordinal) && n.IndexOf('/', "offsets/".Length) < 0)
             .Select(n =>
             {
                 using var reader = new StreamReader(asm.GetManifestResourceStream(n)!);

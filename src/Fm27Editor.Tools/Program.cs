@@ -43,6 +43,8 @@ try
     return args.FirstOrDefault() switch
     {
         "status" => Status(),
+        "newbuild" => NewBuildCli.Run(args[1..], offsetsDir),
+        "verify-build" => VerifyBuildCli.Run(args[1..], offsetsDir),
         "accelerate" => AccelerateCli.Run(args[1..], Attach),
         "golden" => GoldenCli.Run(args[1..], Attach),
         "academy-check" or "academy" => AcademyCheckCli.Run(args[1..], Attach),
@@ -8346,20 +8348,10 @@ int VtSurveyCommand()
     var p = session.Profile;
     ulong module = session.ModuleBase;
     ulong Q(ulong at) { try { return session.Memory.ReadUInt64(at); } catch { return 0; } }
-    string Name(ulong vtableAbs)
-    {
-        ulong col = Q(vtableAbs - 8);
-        if (col < module || col > module + 0x20000000) return "?";
-        try
-        {
-            if (BitConverter.ToUInt32(session.Memory.Read(col, 4)) != 1) return "?";
-            uint typeRva = BitConverter.ToUInt32(session.Memory.Read(col + 12, 4));
-            var raw = session.Memory.Read(module + typeRva + 16, 120);
-            int end = Array.IndexOf(raw, (byte)0);
-            return System.Text.Encoding.ASCII.GetString(raw, 0, end < 0 ? raw.Length : end);
-        }
-        catch { return "?"; }
-    }
+    string Name(ulong vtableAbs) =>
+        RttiIndex.TryReadClass(session.Memory, module, session.Game.ModuleEnd, vtableAbs, out var rtti)
+            ? (rtti.SubobjectOffset == 0 ? rtti.CanonicalName : $"{rtti.CanonicalName}+0x{rtti.SubobjectOffset:X}")
+            : "?";
     void Print(string title, Dictionary<ulong, int> tally, IEnumerable<uint> known)
     {
         Console.WriteLine(title);
@@ -8570,20 +8562,10 @@ int SlotsByNameCommand(string text)
     using var session = Attach(writable: false);
     var mem = session.Memory; ulong b = session.Game.ModuleBase;
     ulong Q(ulong at) { try { return mem.ReadUInt64(at); } catch { return 0; } }
-    string Name(ulong vtableAbs)
-    {
-        ulong col = Q(vtableAbs - 8);
-        if (col < b || col > b + 0x20000000) return "";
-        try
-        {
-            if (BitConverter.ToUInt32(mem.Read(col, 4)) != 1) return "";
-            uint typeRva = BitConverter.ToUInt32(mem.Read(col + 12, 4));
-            var raw = mem.Read(b + typeRva + 16, 120);
-            int end = Array.IndexOf(raw, (byte)0);
-            return System.Text.Encoding.ASCII.GetString(raw, 0, end < 0 ? raw.Length : end);
-        }
-        catch { return ""; }
-    }
+    string Name(ulong vtableAbs) =>
+        RttiIndex.TryReadClass(mem, b, session.Game.ModuleEnd, vtableAbs, out var rtti)
+            ? (rtti.SubobjectOffset == 0 ? rtti.CanonicalName : $"{rtti.CanonicalName}+0x{rtti.SubobjectOffset:X}")
+            : "";
     var seen = new HashSet<ulong>();
     foreach (var region in ((IMemoryRegions)session.Memory).EnumerateWritableRegions(b, session.Game.ModuleEnd).Where(r => r.IsModuleData))
         for (ulong off = 0; off < region.Size; off += 0x10000)
@@ -8611,19 +8593,10 @@ int AgrSurveyCommand()
     using var session = Attach(writable: false);
     var mem = session.Memory; ulong b = session.ModuleBase;
     ulong Q(ulong at) { try { return mem.ReadUInt64(at); } catch { return 0; } }
-    string Name(ulong vtableAbs)
-    {
-        ulong col = Q(vtableAbs - 8);
-        if (col < b || col > b + 0x20000000) return "?";
-        try
-        {
-            if (BitConverter.ToUInt32(mem.Read(col, 4)) != 1) return "?";
-            uint typeRva = BitConverter.ToUInt32(mem.Read(col + 12, 4));
-            var raw = mem.Read(b + typeRva + 16, 120); int end = Array.IndexOf(raw, (byte)0);
-            return System.Text.Encoding.ASCII.GetString(raw, 0, end < 0 ? raw.Length : end);
-        }
-        catch { return "?"; }
-    }
+    string Name(ulong vtableAbs) =>
+        RttiIndex.TryReadClass(mem, b, session.Game.ModuleEnd, vtableAbs, out var rtti)
+            ? (rtti.SubobjectOffset == 0 ? rtti.CanonicalName : $"{rtti.CanonicalName}+0x{rtti.SubobjectOffset:X}")
+            : "?";
     var tally = new Dictionary<(int Vector, int Slot, ulong Vt), int>();
     foreach (var nation in session.Nations.LoadAll())
         foreach (int vector in new[] { 0xA8, 0x90 })

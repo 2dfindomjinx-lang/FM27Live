@@ -59,6 +59,22 @@ public interface IMemoryWriteObserver
     Action<ulong, int>? OnAllocate { get; set; }
 }
 
+public enum AllocationOrigin { Unknown = 0, RawVm = 1, GameHeap = 2 }
+
+public sealed record HeapBlockCheck(bool Passed, string Mode, int? UserTag, ulong? MallocSize, string Detail);
+
+/// <summary>Optional capability distinguishing raw VM blocks from game-allocator (<c>calloc</c>) blocks.</summary>
+public interface IMemoryAllocationObserver
+{
+    Action<ulong, int, AllocationOrigin>? OnAllocateWithOrigin { get; set; }
+}
+
+/// <summary>Optional capability checking whether a pointer actually lives on the game's C heap.</summary>
+public interface IGameHeapVerifier
+{
+    HeapBlockCheck VerifyGameHeapBlock(ulong address, int requestedBytes);
+}
+
 /// <summary>
 /// Optional capability: a hook called before every write; it throws to refuse the write (the session uses it while the
 /// game is loading a save or has none loaded). Implementations must call it before taking a lock that the hook's reads

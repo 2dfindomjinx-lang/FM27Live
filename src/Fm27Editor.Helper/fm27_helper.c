@@ -86,7 +86,8 @@ enum
     OP_PAUSE = 11,
     OP_RESUME = 12,
     OP_READ_MANY = 13,
-    OP_REMOTE_CALLOC = 14
+    OP_REMOTE_CALLOC = 14,
+    OP_HEAP_CHECK = 15
 };
 
 typedef struct
@@ -342,8 +343,8 @@ static void close_client_tasks(int client_id)
 
 /* ------------------------------------------------------------ Mach regions */
 
-static int query_region(task_t task, mach_vm_address_t *address, mach_vm_size_t *size,
-                        int *protection, int *is_submap, natural_t *depth)
+static int query_region_info(task_t task, mach_vm_address_t *address, mach_vm_size_t *size,
+                             int *protection, int *is_submap, uint32_t *user_tag, natural_t *depth)
 {
     vm_region_submap_info_data_64_t info;
     mach_msg_type_number_t count = VM_REGION_SUBMAP_INFO_COUNT_64;
@@ -354,7 +355,47 @@ static int query_region(task_t task, mach_vm_address_t *address, mach_vm_size_t 
         return 0;
     *protection = (int)info.protection;
     *is_submap = info.is_submap ? 1 : 0;
+    if (user_tag != NULL)
+        *user_tag = info.user_tag;
     return 1;
+}
+
+static int query_region(task_t task, mach_vm_address_t *address, mach_vm_size_t *size,
+                        int *protection, int *is_submap, natural_t *depth)
+{
+    return query_region_info(task, address, size, protection, is_submap, NULL, depth);
+}
+
+static int query_address_tag(task_t task, uint64_t address, uint32_t *user_tag,
+                             uint64_t *region_start, uint64_t *region_size)
+{
+    mach_vm_address_t addr = (mach_vm_address_t)address;
+    natural_t depth = 1;
+    for (int step = 0; step < SUBMAP_MAX_DEPTH + 4; step++)
+    {
+        mach_vm_size_t size = 0;
+        int prot = 0;
+        int sub = 0;
+        uint32_t tag = 0;
+        if (!query_region_info(task, &addr, &size, &prot, &sub, &tag, &depth))
+            return 0;
+        if (sub)
+        {
+            if (depth >= SUBMAP_MAX_DEPTH)
+                return 0;
+            depth++;
+            continue;
+        }
+        uint64_t s = (uint64_t)addr;
+        uint64_t sz = (uint64_t)size;
+        if (address < s || address >= s + sz)
+            return 0;
+        *user_tag = tag;
+        *region_start = s;
+        *region_size = sz;
+        return 1;
+    }
+    return 0;
 }
 
 static int current_protection(task_t task, uint64_t address, int *protection)
@@ -923,20 +964,30 @@ static int ensure_calloc_cave(task_slot *s, char *error, size_t error_len)
     return 1;
 }
 
-static int remote_calloc(task_slot *s, uint32_t bytes, uint64_t *result, char *error, size_t error_len)
+static int remote_call2(task_slot *s, void *fn, const char *fn_name, uint64_t arg0, uint64_t arg1,
+                        uint64_t *result, char *error, size_t error_len)
 {
     if (s->paused)
     {
-        snprintf(error, error_len, "the game is paused; calloc could wait on a suspended thread's lock");
+        snprintf(error, error_len, "the game is paused; %s could wait on a suspended thread's lock", fn_name);
         return 0;
     }
     if (!ensure_calloc_cave(s, error, error_len))
         return 0;
-    uint64_t args[6] = {1, bytes, 0, 0, 0, 0}; /* nmemb, size, result, flags, pthread_t */
-    kern_return_t kr = mach_vm_write(s->task, s->calloc_data + 0x10, (vm_offset_t)args, (mach_msg_type_number_t)sizeof args);
+    if (!same_code(s->task, fn, error, error_len, fn_name))
+        return 0;
+    uint64_t fn_ptr = (uint64_t)(uintptr_t)fn;
+    kern_return_t kr = mach_vm_write(s->task, s->calloc_data, (vm_offset_t)&fn_ptr, (mach_msg_type_number_t)sizeof fn_ptr);
     if (kr != KERN_SUCCESS)
     {
-        snprintf(error, error_len, "remote calloc arguments: kern_return_t %d", (int)kr);
+        snprintf(error, error_len, "remote %s fn pointer: kern_return_t %d", fn_name, (int)kr);
+        return 0;
+    }
+    uint64_t args[6] = {arg0, arg1, 0, 0, 0, 0}; /* arg0, arg1, result, flags, pthread_t */
+    kr = mach_vm_write(s->task, s->calloc_data + 0x10, (vm_offset_t)args, (mach_msg_type_number_t)sizeof args);
+    if (kr != KERN_SUCCESS)
+    {
+        snprintf(error, error_len, "remote %s arguments: kern_return_t %d", fn_name, (int)kr);
         return 0;
     }
     arm_thread_state64_t state;
@@ -969,16 +1020,68 @@ static int remote_calloc(task_slot *s, uint32_t bytes, uint64_t *result, char *e
     if (!done)
     {
         s->calloc_code = 0; /* a late worker could still store into this data block; never reuse it */
-        snprintf(error, error_len, "remote calloc timed out");
-        return 0;
-    }
-    if (block[0] == 0)
-    {
-        snprintf(error, error_len, "remote calloc(%u) returned NULL", (unsigned)bytes);
+        snprintf(error, error_len, "remote %s timed out", fn_name);
         return 0;
     }
     *result = block[0];
     return 1;
+}
+
+static int remote_calloc(task_slot *s, uint32_t bytes, uint64_t *result, char *error, size_t error_len)
+{
+    void *calloc_fn = dlsym(RTLD_DEFAULT, "calloc");
+    if (calloc_fn == NULL)
+    {
+        snprintf(error, error_len, "calloc not found");
+        return 0;
+    }
+    if (!remote_call2(s, calloc_fn, "calloc", 1, bytes, result, error, error_len))
+        return 0;
+    if (*result == 0)
+    {
+        snprintf(error, error_len, "remote calloc(%u) returned NULL", (unsigned)bytes);
+        return 0;
+    }
+    return 1;
+}
+
+static void op_heap_check(int fd, reader *r)
+{
+    int32_t handle;
+    uint64_t addr;
+    if (!rd_i32(r, &handle) || !rd_u64(r, &addr) || addr == 0)
+    {
+        send_error(fd, 1, "malformed HeapCheck request");
+        return;
+    }
+    task_slot *slot = slot_for(handle);
+    if (slot == NULL)
+    {
+        send_error(fd, 5, "invalid task handle");
+        return;
+    }
+    uint32_t user_tag = 0;
+    uint64_t reg_start = 0, reg_size = 0, malloc_sz = 0;
+    if (!query_address_tag(slot->task, addr, &user_tag, &reg_start, &reg_size))
+    {
+        send_errorf(fd, 7, "no VM region mapped for 0x%llx", (unsigned long long)addr);
+        return;
+    }
+    if (!slot->paused)
+    {
+        void *ms_fn = dlsym(RTLD_DEFAULT, "malloc_size");
+        char error[256];
+        if (ms_fn != NULL)
+            (void)remote_call2(slot, ms_fn, "malloc_size", addr, 0, &malloc_sz, error, sizeof error);
+    }
+    buffer out = {0};
+    buf_u32(&out, 0);
+    buf_u32(&out, user_tag);
+    buf_u64(&out, malloc_sz);
+    buf_u64(&out, reg_start);
+    buf_u64(&out, reg_size);
+    send_frame(fd, out.data, (uint32_t)out.len);
+    free(out.data);
 }
 
 static void op_remote_calloc(int fd, reader *r)
@@ -1301,6 +1404,9 @@ static void handle_request(int fd, int client_id, const uint8_t *request, uint32
         break;
     case OP_REMOTE_CALLOC:
         op_remote_calloc(fd, &r);
+        break;
+    case OP_HEAP_CHECK:
+        op_heap_check(fd, &r);
         break;
     case OP_WRITE:
         op_write(fd, &r);

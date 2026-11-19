@@ -90,17 +90,18 @@ public sealed class LoanCreator(IProcessMemory memory, OffsetProfile profile, ul
         if (offer.Expires < offer.Start) throw new ArgumentOutOfRangeException(nameof(offer), "The loan cannot end before it starts");
         GenderGuard.EnsureMalePlayer(memory, profile, player.Address);
         GenderGuard.EnsureMenClubOfTeamIfPresent(memory, profile, moduleBase, borrowingTeam);
-        if (!IsPlayer(player.Address)) throw new StaleObjectException($"0x{player.Address:X} is no longer a player object");
+        var owner = PersonOwner.Of(player, profile);
+        if (!owner.IsValid(memory, moduleBase)) throw new StaleObjectException($"0x{player.Address:X} is no longer a player object");
         if (!IsTeam(borrowingTeam)) throw new StaleObjectException("The destination is not a team object");
-        if (!Q(player.Address + (ulong)C.PlayerContract, out var contract) ||
+        if (!Q(owner.At(C.PlayerContract), out var contract) ||
             !Q(contract, out var contractVtable) || contractVtable != moduleBase + C.ContractVtableRva)
             throw new StaleObjectException("The player's contract is missing or is no longer a contract object");
         if (!Q(contract + (ulong)C.Team, out var parent) || !IsTeam(parent))
             throw new StaleObjectException("The contract team is missing or is no longer a team object");
         if (parent == borrowingTeam) throw new InvalidOperationException("The player is contracted to that team; a loan needs another team");
-        if (!Q(player.Address + (ulong)T.PlayerTeam, out var playing) || !IsTeam(playing))
+        if (!Q(owner.At(T.PlayerTeam), out var playing) || !IsTeam(playing))
             throw new StaleObjectException("The playing team is missing or is no longer a team object");
-        ulong holderSlot = player.Address + (ulong)F.CurrentLoanHolder!.Value;
+        ulong holderSlot = owner.At(F.CurrentLoanHolder!.Value);
         if (memory.ReadUInt64(holderSlot) != 0)
             throw new InvalidOperationException("The player already has a loan (or a loan record); recall it first");
 
@@ -119,7 +120,7 @@ public sealed class LoanCreator(IProcessMemory memory, OffsetProfile profile, ul
         // is one of the remaining differences between the FMRTE loan (reloaded fine) and ours (FM exited on load).
         bytes[0x54] = 0;
         Put64(bytes, 0, moduleBase + F.LoanContractVtable);
-        Put64(bytes, ContractPerson, player.Address + (ulong)rel.PlayerPerson);
+        Put64(bytes, ContractPerson, owner.At(rel.PlayerPerson));
         Put64(bytes, ContractTeam, borrowingTeam);
         Put64(bytes, ContractSeniorTeam, borrowingTeam);
         Put32(bytes, F.Wage, offer.Wage);
@@ -152,15 +153,20 @@ public sealed class LoanCreator(IProcessMemory memory, OffsetProfile profile, ul
             }
             else newSquad = [.. current, player.Address];
         }
-        writes.Add(new PlannedWrite(player.Address + (ulong)T.PlayerTeam, memory.Read(player.Address + (ulong)T.PlayerTeam, 8), BitConverter.GetBytes(borrowingTeam), "playing team"));
-        ulong parentTeamAt = (ulong)(T.PlayerTeam + 8);
-        writes.Add(new PlannedWrite(player.Address + parentTeamAt, memory.Read(player.Address + parentTeamAt, 8), BitConverter.GetBytes(parent), "parent team"));
+        ulong playingSlot = owner.At(T.PlayerTeam);
+        writes.Add(new PlannedWrite(playingSlot, memory.Read(playingSlot, 8), BitConverter.GetBytes(borrowingTeam), "playing team"));
+        if (T.WritePlayerParentTeam)
+        {
+            ulong parentTeamSlot = owner.At(T.PlayerParentTeam ?? (T.PlayerTeam + 8));
+            writes.Add(new PlannedWrite(parentTeamSlot, memory.Read(parentTeamSlot, 8), BitConverter.GetBytes(parent), "parent team"));
+        }
         foreach (var at in new[] { joinedAt, joinedAt + 4 })
         {
-            var now = memory.Read(player.Address + (ulong)at, 4);
+            ulong dateSlot = owner.At(at);
+            var now = memory.Read(dateSlot, 4);
             var next = (byte[])now.Clone();
             Date(next, 0, offer.Start);
-            writes.Add(new PlannedWrite(player.Address + (ulong)at, now, next, $"joined club date 0x{at:X}"));
+            writes.Add(new PlannedWrite(dateSlot, now, next, $"joined club date 0x{at:X}"));
         }
         // The pointer that makes the loan visible goes last, so a failure before it leaves the player as he was.
         writes.Add(new PlannedWrite(holderSlot, memory.Read(holderSlot, 8), [], "loan holder"));
@@ -174,7 +180,7 @@ public sealed class LoanCreator(IProcessMemory memory, OffsetProfile profile, ul
     /// </summary>
     public void Apply(LoanCreatePlan plan, Func<int, ulong> allocate)
     {
-        if (!IsPlayer(plan.Player.Address)) throw new StaleObjectException("The player object changed since the plan was made");
+        if (!PersonOwner.Of(plan.Player, profile).IsValid(memory, moduleBase)) throw new StaleObjectException("The player object changed since the plan was made");
         foreach (var w in plan.Writes)
             if (w.Value.Length > 0 && !memory.Read(w.Address, w.Expected.Length).AsSpan().SequenceEqual(w.Expected))
                 throw new StaleObjectException($"{w.What} changed since the plan was made; nothing written");
@@ -215,7 +221,6 @@ public sealed class LoanCreator(IProcessMemory memory, OffsetProfile profile, ul
         BitConverter.GetBytes((short)d.Year).CopyTo(b, at + 2);
     }
 
-    bool IsPlayer(ulong address) => Q(address, out var vt) && profile.PlayerVtableRvas.Any(r => vt == moduleBase + r);
     bool IsTeam(ulong team) => Q(team, out var vt) && vt == moduleBase + T.VtableRva;
 
     bool Q(ulong address, out ulong value)

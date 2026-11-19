@@ -38,7 +38,7 @@ using Fm27Editor.Core.Presets;
 
 namespace Fm27Editor.Core.Memory;
 
-public sealed class MacHelperProcessMemory : IMacMemory, IMemoryRegions, IRemoteAllocator, IGameHeapAllocator, IMemoryWriteObserver, IWriteGate, ICodePatchHost, IScatterReadMemory, IDisposable
+public sealed class MacHelperProcessMemory : IMacMemory, IMemoryRegions, IRemoteAllocator, IGameHeapAllocator, IMemoryWriteObserver, IMemoryAllocationObserver, IGameHeapVerifier, IWriteGate, ICodePatchHost, IScatterReadMemory, IDisposable
 {
     private const string SocketPath = "/var/run/fm27editor.sock";
 
@@ -69,7 +69,10 @@ public sealed class MacHelperProcessMemory : IMacMemory, IMemoryRegions, IRemote
         Resume = 12,
         ReadMany = 13,
         RemoteCalloc = 14,
+        HeapCheck = 15,
     }
+
+    static readonly HashSet<int> MallocUserTags = [1, 2, 3, 4, 7, 8, 9, 11, 12, 13];
 
     private readonly object _gate = new();
     private readonly Dictionary<ulong, int> _allocations = [];
@@ -77,10 +80,12 @@ public sealed class MacHelperProcessMemory : IMacMemory, IMemoryRegions, IRemote
     private int _handle;
     private bool _disposed;
     private bool? _nativeScatter;
+    private bool? _nativeHeapCheck;
 
     // The write observer events are set by the edit history; the helper fires them through the client.
     public Action<ulong, byte[], byte[]>? OnWrite { get; set; }
     public Action<ulong, int>? OnAllocate { get; set; }
+    public Action<ulong, int, AllocationOrigin>? OnAllocateWithOrigin { get; set; }
 
     /// <summary>Called before each write; throws to refuse it while the game loads a save or has none loaded. Kept
     /// outside <see cref="_gate"/> so the hook's own reads through this client can take the lock.</summary>
@@ -437,6 +442,7 @@ public sealed class MacHelperProcessMemory : IMacMemory, IMemoryRegions, IRemote
             if (ReadInt32(response, 0) != 0)
                 throw new MemoryAccessException($"Game heap allocation of {bytes} bytes failed: {ReadMessage(response)}");
             ulong address = ReadUInt64(response, 4);
+            OnAllocateWithOrigin?.Invoke(address, bytes, AllocationOrigin.GameHeap);
             OnAllocate?.Invoke(address, bytes);
             return address;
         }
@@ -459,9 +465,80 @@ public sealed class MacHelperProcessMemory : IMacMemory, IMemoryRegions, IRemote
             if (ReadInt32(response, 0) != 0)
                 throw new MemoryAccessException($"Allocate({bytes}) failed: {ReadMessage(response)}");
             ulong address = ReadUInt64(response, 4);
+            OnAllocateWithOrigin?.Invoke(address, bytes, AllocationOrigin.RawVm);
             OnAllocate?.Invoke(address, bytes);
             return address;
         }
+    }
+
+    public HeapBlockCheck VerifyGameHeapBlock(ulong address, int requestedBytes)
+    {
+        if (address == 0)
+            return new(false, "mach-tag+malloc_size", null, null, "null pointer");
+
+        bool tryNative;
+        lock (_gate) tryNative = _nativeHeapCheck != false;
+        if (tryNative)
+        {
+            lock (_gate)
+            {
+                if (_socket is not null && !_disposed)
+                {
+                    var payload = new byte[13];
+                    payload[0] = (byte)Op.HeapCheck;
+                    WriteInt32(payload, 1, _handle);
+                    WriteUInt64(payload, 5, address);
+                    var response = Exchange(payload);
+                    if (ReadInt32(response, 0) == 0 && response.Length >= 32)
+                    {
+                        _nativeHeapCheck = true;
+                        int userTag = (int)ReadUInt32(response, 4);
+                        ulong mallocSize = ReadUInt64(response, 8);
+                        ulong regStart = ReadUInt64(response, 16);
+                        ulong regSize = ReadUInt64(response, 24);
+                        if (!MallocUserTags.Contains(userTag))
+                            return new(false, "mach-tag+malloc_size", userTag, mallocSize > 0 ? mallocSize : null,
+                                $"VM region 0x{regStart:X}+0x{regSize:X} has user_tag={userTag} (not VM_MEMORY_MALLOC*)");
+                        if (mallocSize == 0)
+                            return new(false, "mach-tag+malloc_size", userTag, 0,
+                                $"malloc_size(0x{address:X}) returned 0 (user_tag={userTag})");
+                        if (mallocSize < (ulong)requestedBytes)
+                            return new(false, "mach-tag+malloc_size", userTag, mallocSize,
+                                $"malloc_size={mallocSize} < requested={requestedBytes} (user_tag={userTag})");
+                        return new(true, "mach-tag+malloc_size", userTag, mallocSize,
+                            $"user_tag={userTag}, malloc_size={mallocSize} >= {requestedBytes}");
+                    }
+                    int code = response.Length >= 8 ? ReadInt32(response, 4) : 0;
+                    if (code == 14) // unknown opcode on older installed daemon
+                    {
+                        _nativeHeapCheck = false;
+                    }
+                    else
+                    {
+                        _nativeHeapCheck = true;
+                        return new(false, "mach-tag+malloc_size", null, null, ReadMessage(response));
+                    }
+                }
+            }
+        }
+
+        // Fallback when running against a helper daemon built prior to OP_HEAP_CHECK:
+        // verify 16-byte malloc alignment and writable non-module region not matching a raw 16 KB mach_vm_allocate page.
+        if (address < 0x1_0000_0000UL || (address & 0xF) != 0)
+            return new(false, "helper-origin+region", null, null, $"address 0x{address:X} is not a 16-byte aligned heap pointer");
+        foreach (var r in EnumerateWritableRegions())
+        {
+            if (r.IsModuleData || address < r.Start || address >= r.Start + r.Size) continue;
+            if (address == r.Start && r.Size == 0x4000)
+                return new(false, "helper-origin+region", null, null,
+                    $"0x{address:X} sits at offset 0 of a standalone 16KB VM page (raw mach_vm_allocate signature)");
+            if (address + (ulong)requestedBytes > r.Start + r.Size)
+                return new(false, "helper-origin+region", null, null,
+                    $"0x{address:X}+{requestedBytes} crosses end of region 0x{r.Start + r.Size:X}");
+            return new(true, "helper-origin+region", null, null,
+                $"aligned block inside 0x{r.Start:X}+0x{r.Size:X} (daemon lacks OP_HEAP_CHECK; origin-gated)");
+        }
+        return new(false, "helper-origin+region", null, null, $"0x{address:X} not found in any writable heap region");
     }
 
     ulong ICodePatchHost.AllocateNear(ulong near, int bytes)

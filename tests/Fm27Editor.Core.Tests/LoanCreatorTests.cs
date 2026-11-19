@@ -269,6 +269,92 @@ public class LoanCreatorTests
         Assert.Equal(BorrowSquad + 8, Q(BorrowTeam + 0x40));
     }
 
+    [Fact]
+    public void WritePlayerParentTeam_false_leaves_parent_team_slot_untouched()
+    {
+        const ulong sentinel = 0xDEAD_BEEF_CAFE_BABE;
+        Set(TestWorld.Mainoo + PlayerTeam + 8, sentinel);
+
+        var node = System.Text.Json.Nodes.JsonNode.Parse(_profile.ToJson())!;
+        node["team"]!["writePlayerParentTeam"] = false;
+        var profile = OffsetProfile.Load(node.ToJsonString());
+
+        var creator = new LoanCreator(_w.Memory, profile, TestWorld.ModuleBase);
+        var plan = creator.Plan(new PlayerRepository(_w.Memory, profile, TestWorld.ModuleBase).Reload(TestWorld.Mainoo)!,
+            BorrowTeam, new LoanOffer(50_000, Today, NextYear), All());
+        creator.Apply(plan, Alloc);
+
+        Assert.Equal(BorrowTeam, Q(TestWorld.Mainoo + PlayerTeam));
+        Assert.Equal(sentinel, Q(TestWorld.Mainoo + PlayerTeam + 8));
+        Assert.Equal(NewHolder, Q(TestWorld.Mainoo + LoanHolder));
+    }
+
+    [Fact]
+    public void Explicit_PlayerParentTeam_writes_parent_at_custom_offset_instead_of_PlayerTeam_plus_8()
+    {
+        const ulong sentinel = 0x1122_3344_5566_7788;
+        const int customParentAt = 0x150;
+        Set(TestWorld.Mainoo + PlayerTeam + 8, sentinel);
+
+        var node = System.Text.Json.Nodes.JsonNode.Parse(_profile.ToJson())!;
+        node["team"]!["playerParentTeam"] = $"0x{customParentAt:X}";
+        var profile = OffsetProfile.Load(node.ToJsonString());
+
+        var creator = new LoanCreator(_w.Memory, profile, TestWorld.ModuleBase);
+        var plan = creator.Plan(new PlayerRepository(_w.Memory, profile, TestWorld.ModuleBase).Reload(TestWorld.Mainoo)!,
+            BorrowTeam, new LoanOffer(50_000, Today, NextYear), All());
+        creator.Apply(plan, Alloc);
+
+        Assert.Equal(sentinel, Q(TestWorld.Mainoo + PlayerTeam + 8));
+        Assert.Equal(ParentTeam, Q(TestWorld.Mainoo + (ulong)customParentAt));
+    }
+
+    [Fact]
+    public void SubtypeInsertion_translates_offsets_in_FindTemplate_Plan_and_Apply()
+    {
+        const int insAt = 0x100, insLen = 0x20;
+        uint shiftedVt = _profile.PlayerVtableRvas[0] + 0x4444;
+        var node = System.Text.Json.Nodes.JsonNode.Parse(_profile.ToJson())!;
+        ((System.Text.Json.Nodes.JsonArray)node["playerVtables"]!).Add($"0x{shiftedVt:X}");
+        var ins = new System.Text.Json.Nodes.JsonArray
+        {
+            new System.Text.Json.Nodes.JsonObject
+            {
+                ["vtable"] = $"0x{shiftedVt:X}",
+                ["at"] = $"0x{insAt:X}",
+                ["length"] = $"0x{insLen:X}",
+            }
+        };
+        node["player"]!["subtypeInsertions"] = ins;
+        var profile = OffsetProfile.Load(node.ToJsonString());
+
+        const ulong shiftedMainoo = 0x6700_0000, shiftedYamal = 0x6710_0000;
+        var m = _w.Memory.Map(shiftedMainoo, 0x500);
+        TestWorld.Set64(m, 0, TestWorld.ModuleBase + shiftedVt);
+        TestWorld.Set64(m, PlayerContract + insLen, Contract);
+        TestWorld.Set64(m, PlayerTeam + insLen, ParentTeam);
+        TestWorld.Set64(m, 0x10 + 4, 0);
+        var y = _w.Memory.Map(shiftedYamal, 0x500);
+        TestWorld.Set64(y, 0, TestWorld.ModuleBase + shiftedVt);
+        TestWorld.Set64(y, LoanHolder + insLen, TemplateHolder);
+
+        var repo = new PlayerRepository(_w.Memory, profile, TestWorld.ModuleBase);
+        var mainooRec = repo.Reload(shiftedMainoo)!;
+        var yamalRec = repo.Reload(shiftedYamal)!;
+
+        var creator = new LoanCreator(_w.Memory, profile, TestWorld.ModuleBase);
+        var plan = creator.Plan(mainooRec, BorrowTeam, new LoanOffer(60_000, Today, NextYear), [yamalRec]);
+        creator.Apply(plan, Alloc);
+
+        ulong holder = Q(shiftedMainoo + LoanHolder + insLen);
+        ulong loan = Q(holder);
+        Assert.Equal(NewHolder, holder);
+        Assert.Equal(shiftedMainoo + (ulong)(0x288 + insLen), Q(loan + LoanCreator.ContractPerson));
+        Assert.Equal(BorrowTeam, Q(shiftedMainoo + PlayerTeam + insLen));
+        Assert.Equal(ParentTeam, Q(shiftedMainoo + PlayerTeam + 8 + insLen));
+        Assert.Equal(0UL, Q(shiftedMainoo + LoanHolder)); // unshifted slot untouched
+    }
+
     sealed class FailingMemory(IProcessMemory inner, ulong failAt) : IProcessMemory
     {
         public bool TryRead(ulong address, Span<byte> buffer) => inner.TryRead(address, buffer);

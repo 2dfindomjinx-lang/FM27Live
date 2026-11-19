@@ -15,7 +15,9 @@ public sealed record RelationOffsets(int Pointer, int RecordSize, int Target, in
     int RegistrationType, int TrainedAtClubType, int TrainedAtNationType,
     int Reason, int Flags, int LikesPersonType, int DislikesPersonType, int LikesTeamType, uint PersonVtable, uint StaffPersonVtable, int PersonName, int PersonFirstName, int PersonLastName, int PersonCommonName,
     int TargetKind, int PlayerPerson, int RetiredInternationalType, int OtherNationalityType,
-    int? PersonGender = null, int? PersonGenderMask = null)
+    int? PersonGender = null, int? PersonGenderMask = null,
+    uint? RetiredPersonPointersVtable = null, uint? RetiredPersonStringsVtable = null,
+    int RetiredPersonFirstName = 0x20, int RetiredPersonLastName = 0x28)
 {
     static readonly string[] Keys = ["pointer", "recordSize", "target", "type", "code", "registrationType", "trainedAtClubType", "trainedAtNationType",
         "reason", "flags", "likesPersonType", "dislikesPersonType", "likesTeamType", "personVtable", "staffPersonVtable", "personName", "personFirstName", "personLastName", "personCommonName", "targetKind", "playerPerson", "retiredInternationalType", "otherNationalityType"];
@@ -29,7 +31,9 @@ public sealed record RelationOffsets(int Pointer, int RecordSize, int Target, in
         int[] v = Keys.Select(key => Convert.ToInt32(e.GetProperty(key).GetString() is { } s && s.StartsWith("0x")
             ? s[2..] : throw new FormatException($"player.relations.{key}: expected hex"), 16)).ToArray();
         return new(v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7], v[8], v[9], v[10], v[11], v[12], (uint)v[13], (uint)v[14], v[15], v[16], v[17], v[18], v[19], v[20], v[21], v[22],
-            OptHex(e, "personGender"), OptHex(e, "personGenderMask"));
+            OptHex(e, "personGender"), OptHex(e, "personGenderMask"),
+            (uint?)OptHex(e, "retiredPersonPointersVtable"), (uint?)OptHex(e, "retiredPersonStringsVtable"),
+            OptHex(e, "retiredPersonFirstName") ?? 0x20, OptHex(e, "retiredPersonLastName") ?? 0x28);
     }
 
     internal void Write(Utf8JsonWriter w)
@@ -40,6 +44,10 @@ public sealed record RelationOffsets(int Pointer, int RecordSize, int Target, in
         for (int i = 0; i < Keys.Length; i++) w.WriteString(Keys[i], $"0x{v[i]:X}");
         if (PersonGender is { } pg) w.WriteString("personGender", $"0x{pg:X}");
         if (PersonGenderMask is { } pm) w.WriteString("personGenderMask", $"0x{pm:X}");
+        if (RetiredPersonPointersVtable is { } rpp) w.WriteString("retiredPersonPointersVtable", $"0x{rpp:X}");
+        if (RetiredPersonStringsVtable is { } rps) w.WriteString("retiredPersonStringsVtable", $"0x{rps:X}");
+        if (RetiredPersonFirstName != 0x20) w.WriteString("retiredPersonFirstName", $"0x{RetiredPersonFirstName:X}");
+        if (RetiredPersonLastName != 0x28) w.WriteString("retiredPersonLastName", $"0x{RetiredPersonLastName:X}");
         w.WriteEndObject();
     }
 }
@@ -162,7 +170,12 @@ public sealed class PlayerStatusReader(IProcessMemory memory, OffsetProfile prof
     /// <summary>Common name, else first + last, else full name: persons not in play keep only the name entries (+0x40 is null).</summary>
     internal string? PersonName(ulong person, RelationOffsets o)
     {
-        if (!Q(person, out ulong vt) || !IsPersonVtable(vt, o)) return null;
+        if (!Q(person, out ulong vt)) return null;
+        if (o.RetiredPersonPointersVtable is { } rpp && vt == moduleBase + rpp)
+            return ReadRetiredPersonName(person, o, stringsDirectFirst: false);
+        if (o.RetiredPersonStringsVtable is { } rps && vt == moduleBase + rps)
+            return ReadRetiredPersonName(person, o, stringsDirectFirst: true);
+        if (!IsPersonVtable(vt, o)) return null;
         string? ReadAt(ulong baseAddress)
         {
             string? Entry(int at) => Q(baseAddress + (ulong)at, out ulong e) && e != 0 ? StringAt(e) : null;
@@ -178,6 +191,20 @@ public sealed class PlayerStatusReader(IProcessMemory memory, OffsetProfile prof
         }
         return ReadAt(person);
     }
+
+    string? ReadRetiredPersonName(ulong person, RelationOffsets o, bool stringsDirectFirst)
+    {
+        string? Indirect(int at) => Q(person + (ulong)at, out ulong e) && e != 0 ? PlausibleName(StringAt(e)) : null;
+        string? Direct(int at) => PlausibleName(StringAt(person + (ulong)at));
+        string? Part(int at) => stringsDirectFirst ? (Direct(at) ?? Indirect(at)) : (Indirect(at) ?? Direct(at));
+        var parts = new[] { Part(o.RetiredPersonFirstName), Part(o.RetiredPersonLastName) }
+            .Where(s => !string.IsNullOrEmpty(s))
+            .ToArray();
+        return parts.Length > 0 ? string.Join(' ', parts) : null;
+    }
+
+    static string? PlausibleName(string? s) =>
+        !string.IsNullOrEmpty(s) && s.Length <= MaxName && !s.Any(char.IsControl) ? s : null;
 
     /// <summary>Player persons and every staff class carry their own person vtable; a person target can be any of them.</summary>
     bool IsPersonVtable(ulong vt, RelationOffsets o) =>

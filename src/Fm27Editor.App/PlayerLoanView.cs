@@ -28,7 +28,7 @@ public sealed partial class MainWindow
                 ? new DateBox { Text = original, Width = 140, HorizontalContentAlignment = HorizontalAlignment.Right }
                 : new TextBox { Text = original, Width = 140, HorizontalContentAlignment = right ? HorizontalAlignment.Right : HorizontalAlignment.Left };
             box.IsReadOnly = !(session.CanWrite || verifiedFee && session.CanEdit(VerifiedWrite.LoanPlayingMonthlyFee));
-            box.TextChanged += (_, _) => save.IsVisible = save.IsEnabled = fields.Any(f => (f.Box.Text ?? "") != f.Original);
+            box.TextChanged += (_, _) => save.IsEnabled = fields.Any(f => (f.Box.Text ?? "") != f.Original);
             fields.Add((box, original));
             return box;
         }

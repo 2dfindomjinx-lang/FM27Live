@@ -8,6 +8,7 @@ public sealed record CompletedTransferPlan(ulong Player, ulong Person, ulong Buy
     ulong Root, int OfferId, int Serial, FutureTransferVectorSnapshot? Ids, FutureTransferVectorSnapshot? Links, IReadOnlyList<PlannedWrite> Guards)
 {
     public required FutureTransferVectorSnapshot Offers { get; init; }
+    public uint PlayerVtableRva { get; init; }
 
     /// <summary>The offer's terms, including a sell-on; null or all zero writes the empty terms object.</summary>
     public TransferTerms? Terms { get; init; }
@@ -33,20 +34,30 @@ public sealed class CompletedTransferRecord(IProcessMemory memory, OffsetProfile
         var guards = new List<PlannedWrite>();
         byte[] Guard(ulong at, int length, string what) { var b = memory.Read(at, length); guards.Add(new(at, b, [], what)); return b; }
         ulong Pointer(ulong at, string what) => BitConverter.ToUInt64(Guard(at, 8, what));
+        uint playerVtable = 0;
+        if (profile.PlayerInsertions.Count > 0)
+        {
+            ulong vtable = Pointer(player, "player vtable");
+            if (!profile.PlayerVtableRvas.Any(rva => moduleBase + rva == vtable))
+                throw new StaleObjectException("Player vtable changed");
+            playerVtable = (uint)(vtable - moduleBase);
+        }
         ulong root = Pointer(moduleBase + po.ListRootRva, "offer root");
         if (root == 0) throw new StaleObjectException("Offer root missing");
+        if (po.ListIsIndexed && Pointer(root, "offer manager vtable") != moduleBase + po.ManagerVtable!.Value)
+            throw new StaleObjectException("Offer manager vtable changed");
         int serial = BitConverter.ToInt32(Guard(root + (ulong)po.OfferSerial, 4, "offer serial"));
         var offers = FutureTransferVectorSnapshot.Capture(memory, root + (ulong)po.ListOffset, 8, MaxOffers);
         guards.AddRange(offers.Guards);
         int slot = offers.IndexOf(x => BitConverter.ToUInt64(x) == 0);
         if (slot < 0) slot = offers.Count;
         if (slot >= MaxOffers) throw new InvalidOperationException("The game's offer list reached the supported limit");
-        ulong ids = Pointer(player + (ulong)po.PlayerIds, "player offer IDs");
-        ulong links = Pointer(player + (ulong)fo.PlayerOffers, "player offers");
-        return new(player, player + (ulong)rel.PlayerPerson, buyerTeam, sellerTeam, fee, today, root, slot, serial,
+        ulong ids = Pointer(player + (ulong)profile.PlayerOffset(playerVtable, po.PlayerIds), "player offer IDs");
+        ulong links = Pointer(player + (ulong)profile.PlayerOffset(playerVtable, fo.PlayerOffers), "player offers");
+        return new(player, player + (ulong)profile.PlayerOffset(playerVtable, rel.PlayerPerson), buyerTeam, sellerTeam, fee, today, root, slot, serial,
             ids == 0 ? null : FutureTransferVectorSnapshot.Capture(memory, ids, 4, MaxPersonOffers),
             links == 0 ? null : FutureTransferVectorSnapshot.Capture(memory, links, 8, MaxPersonOffers), guards)
-            { Offers = offers, Terms = terms };
+            { Offers = offers, Terms = terms, PlayerVtableRva = playerVtable };
     }
 
     /// <summary>
@@ -105,8 +116,8 @@ public sealed class CompletedTransferRecord(IProcessMemory memory, OffsetProfile
         ulong address = Fresh(Offer(moduleBase + po.TransferVtable, plan.Person, plan.Buyer, plan.Seller, plan.Fee, plan.OfferId, plan.Serial, plan.Today, aux), "offer");
         var link = Staff.FreeStaffSigning.Link(plan.OfferId); link[0x41] = 1;   // the game's player link had 01 01 at +0x40
         ulong linkAddress = Fresh(link, "offer link");
-        Vector(plan.Player + (ulong)po.PlayerIds, plan.Ids, BitConverter.GetBytes(plan.OfferId));
-        Vector(plan.Player + (ulong)fo.PlayerOffers, plan.Links, BitConverter.GetBytes(linkAddress));
+        Vector(plan.Player + (ulong)profile.PlayerOffset(plan.PlayerVtableRva, po.PlayerIds), plan.Ids, BitConverter.GetBytes(plan.OfferId));
+        Vector(plan.Player + (ulong)profile.PlayerOffset(plan.PlayerVtableRva, fo.PlayerOffers), plan.Links, BitConverter.GetBytes(linkAddress));
         if (plan.OfferId == plan.Offers.Count)
         {
             var append = plan.Offers.Append(memory, BitConverter.GetBytes(address), allocate);

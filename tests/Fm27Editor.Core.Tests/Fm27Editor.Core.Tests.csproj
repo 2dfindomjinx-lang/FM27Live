@@ -16,6 +16,8 @@
 
   <ItemGroup>
     <None Include="..\..\offsets\*.json" Link="offsets\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\offsets\layouts\*.json" Link="offsets\layouts\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\offsets\fixtures\*.json" Link="offsets\fixtures\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

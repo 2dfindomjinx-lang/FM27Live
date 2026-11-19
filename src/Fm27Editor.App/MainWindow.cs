@@ -161,7 +161,7 @@ public sealed partial class MainWindow : Window
 
     public MainWindow()
     {
-        Title = "Football Manager 27 Editor";
+        Title = "FM27 Live";
         Icon = new Avalonia.Controls.WindowIcon(Avalonia.Platform.AssetLoader.Open(new Uri("avares://Fm27Editor/Assets/icon.png")));
         Width = 1100;
         Height = 820;
@@ -190,12 +190,13 @@ public sealed partial class MainWindow : Window
         status.PropertyChanged += (_, e) => { if (e.Property == TextBlock.TextProperty && e.NewValue is string t && t.Length > 0) FlightRecorder.Current?.Log("status", t); };
         Opened += (_, _) => _ = NotifyIfUpdateAsync();
         _ = graphics.LoadAsync();
-        Opened += async (_, _) => { if (graphics.Folder is null) await ChooseGraphicsAsync(); };
 
         gameDateBadge.Child = gameDateText;
         InitializeFilterControls();
 
         var root = new DockPanel();
+        var liveBar = BuildLiveBar();
+        DockPanel.SetDock(liveBar, Dock.Top); root.Children.Add(liveBar);
 
         var topBar = BuildTopBar();
         DockPanel.SetDock(topBar, Dock.Top); root.Children.Add(topBar);

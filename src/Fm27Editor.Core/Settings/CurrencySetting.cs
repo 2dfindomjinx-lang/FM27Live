@@ -68,7 +68,7 @@ public static class CurrencySetting
         new("VND", "Vietnamese Dong", "₫", 682962047353),
     ];
 
-    static string SettingPath => SettingPathOverride ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Fm27Editor", "currency.txt");
+    static string SettingPath => SettingPathOverride ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FM27Live", "currency.txt");
 
     /// <summary>Tests point this at a temporary file so they never touch the player's saved choice.</summary>
     public static string? SettingPathOverride { get; set; }

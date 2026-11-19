@@ -9,7 +9,7 @@ public enum AppLanguage { English, Vietnamese }
 public static class LanguageSetting
 {
     static readonly string[] Codes = ["en", "vi"];
-    static string SettingPath => SettingPathOverride ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Fm27Editor", "language.txt");
+    static string SettingPath => SettingPathOverride ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FM27Live", "language.txt");
 
     /// <summary>Tests point this at a temporary file so they never touch the user's saved choice.</summary>
     public static string? SettingPathOverride { get; set; }

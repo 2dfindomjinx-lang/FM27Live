@@ -33,7 +33,7 @@ public sealed class FlightRecorder : IDisposable
     /// </summary>
     public static bool Enabled { get; set; } = true;
 
-    public static string DefaultDirectory => System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Fm27Editor", "logs");
+    public static string DefaultDirectory => System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FM27Live", "logs");
 
     public FlightRecorder(string directory, string appVersion, DateTimeOffset? now = null)
     {

@@ -18,7 +18,7 @@ public static class AppTheme
     static readonly object gate = new();
     /// <summary>Tests point this at a temporary file so they never touch the user's saved choice.</summary>
     internal static string? SettingPathOverride { get; set; }
-    static string SettingPath => SettingPathOverride ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Fm27Editor", "theme.txt");
+    static string SettingPath => SettingPathOverride ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FM27Live", "theme.txt");
 
     public static ThemeMode Mode { get; private set; } = ThemeMode.Dark;
     public static ThemeVariant Variant => Mode == ThemeMode.Light ? ThemeVariant.Light : ThemeVariant.Dark;

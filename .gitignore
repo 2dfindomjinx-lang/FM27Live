@@ -60,3 +60,7 @@ re/*.md
 re/scratch-offline/
 __pycache__/
 calibration/findings-*.md
+
+release-live/
+*.private.pem
+update-private.pem

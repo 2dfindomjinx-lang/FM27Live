@@ -11,7 +11,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <ServerGarbageCollection>false</ServerGarbageCollection>
     <AssemblyName>Fm27Editor</AssemblyName>
-    <Product>Football Manager 27 Editor</Product>
+    <Product>FM27 Live</Product>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
@@ -19,6 +19,7 @@
 
   <ItemGroup>
     <AvaloniaResource Include="Assets\**" />
+    <EmbeddedResource Include="Live\update-public.pem" LogicalName="FM27Live.UpdatePublicKey" />
   </ItemGroup>
 
   <ItemGroup>

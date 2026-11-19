@@ -16,7 +16,7 @@ public sealed class App : Application
 {
     public override void Initialize()
     {
-        Name = "FM27 Editor";
+        Name = "FM27 Live";
         AppTheme.Load();
         Fm27Editor.Core.Settings.LanguageSetting.Load();
         Fm27Editor.Core.Settings.DateSetting.Load();

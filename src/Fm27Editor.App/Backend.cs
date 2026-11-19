@@ -24,7 +24,7 @@ public sealed class EditorBackend : IEditorBackend, IDisposable
     internal LoadedGameData? Data { get; private set; }
     public FreezeRunner? Freezer { get; private set; }
     public string? FreezeError { get; private set; }
-    static string FreezePath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Fm27Editor", "frozen.json");
+    static string FreezePath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FM27Live", "frozen.json");
     public GameSession Session => session ?? throw new InvalidOperationException("Not connected");
     public ConnectionState State { get; private set; } = new(ConnectionStatus.Disconnected, "Disconnected");
     public DateOnly? GameDate => session?.ReadGameDate();

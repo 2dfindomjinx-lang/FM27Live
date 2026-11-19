@@ -24,7 +24,7 @@ sealed class GraphicsCatalog
     int viewsPruneAt = 256;
     GraphicsIndex index = GraphicsIndex.Empty;
     int generation;
-    static string SettingsPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Fm27Editor", "graphics.json");
+    static string SettingsPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FM27Live", "graphics.json");
     public string? Folder { get; private set; }
 
     static IEnumerable<string> DefaultCandidateFolders()

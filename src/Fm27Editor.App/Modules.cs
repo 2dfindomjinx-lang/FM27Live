@@ -207,7 +207,7 @@ public static class FilterPresetStore
     ];
 
     public static string DefaultFilePath =>
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Fm27Editor", "filter-presets.json");
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FM27Live", "filter-presets.json");
 
     public static IReadOnlyList<FilterPreset> LoadOrDefaults(string? path = null)
     {

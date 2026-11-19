@@ -21,7 +21,7 @@ public static partial class GameCurrency
         "Sports Interactive", "Football Manager 27", "Preferences", "version 6", "selected_currency.xml");
 
     static string MapPath => MapPathOverride ?? Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Fm27Editor", "currency-map.json");
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FM27Live", "currency-map.json");
 
     /// <summary>Tests point these at temporary files.</summary>
     public static string? PreferencePathOverride { get; set; }

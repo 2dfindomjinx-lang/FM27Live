@@ -14,7 +14,7 @@ public static class DateSetting
 {
     static readonly string[] Patterns = ["dd-MM-yyyy", "MM-dd-yyyy", "yyyy-MM-dd"];
     static readonly string[] Hints = ["DD-MM-YYYY", "MM-DD-YYYY", "YYYY-MM-DD"];
-    static string SettingPath => SettingPathOverride ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Fm27Editor", "dateformat.txt");
+    static string SettingPath => SettingPathOverride ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FM27Live", "dateformat.txt");
 
     /// <summary>Tests point this at a temporary file so they never touch the player's saved choice.</summary>
     public static string? SettingPathOverride { get; set; }

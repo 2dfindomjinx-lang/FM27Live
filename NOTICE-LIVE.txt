@@ -1,0 +1,12 @@
+FM27 Live
+Copyright 2026 FM27 Live contributors.
+
+Derived from Football Manager 27 Editor by Quy Duong Vu and contributors:
+https://github.com/Jackhamerp24/Football-Manager-27-Editor
+Upstream starting commit: d92eb90 (19 November 2026 checkout).
+
+This modified distribution adds a Windows overlay, tray access, signed automatic
+updates, rollback on startup failure, and an independent settings directory.
+Distributed under GNU GPL version 3 or later; see LICENSE.
+Corresponding source: https://github.com/2dfindomjinx-lang/FM27Live
+Not affiliated with Sports Interactive or SEGA.

@@ -6,78 +6,49 @@ using Fm27Editor.Core.Settings;
 namespace Fm27Editor.App;
 
 /// <summary>
-/// Centralized UI text and game-term localization table (English default / Tiếng Việt).
+/// Centralized UI text and game-term localization table (English / Türkçe).
 /// Strings stay indexed by English key so English defaults and existing callers read naturally.
 /// </summary>
 public static partial class Loc
 {
-    static readonly Lazy<Dictionary<string, string>> AllViLazy = new(BuildAll);
-    static readonly Lazy<Dictionary<string, string>> ViMapCiLazy = new(BuildCaseInsensitive);
-    static Dictionary<string, string> AllVi => AllViLazy.Value;
-    static Dictionary<string, string> ViMapCi => ViMapCiLazy.Value;
-
-    static Dictionary<string, string> BuildAll()
+    static readonly Lazy<Dictionary<string, string>> Table = new(() =>
     {
-        var map = new Dictionary<string, string>(ViMap, StringComparer.Ordinal);
-        RegisterLabels(map);
-        RegisterMotives(map);
-        RegisterShell(map);
-        RegisterPlayers(map);
-        RegisterEntities(map);
-        return map;
-    }
-
-    static partial void RegisterLabels(Dictionary<string, string> m);
-    static partial void RegisterMotives(Dictionary<string, string> m);
-    static partial void RegisterShell(Dictionary<string, string> m);
-    static partial void RegisterPlayers(Dictionary<string, string> m);
-    static partial void RegisterEntities(Dictionary<string, string> m);
-
-    static Dictionary<string, string> BuildCaseInsensitive()
+        using var stream = typeof(Loc).Assembly.GetManifestResourceStream("FM27Live.Turkish")!;
+        return System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(stream)!;
+    });
+    static readonly Lazy<Dictionary<string, string>> Insensitive = new(() =>
     {
         var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var (k, v) in AllVi)
-            map.TryAdd(k, v);
+        foreach (var (key, value) in Table.Value) map.TryAdd(key, value);
         return map;
-    }
-
-    public static bool IsVi => LanguageSetting.IsVietnamese;
-
-    public static CultureInfo FormatCulture => IsVi ? CultureInfo.GetCultureInfo("vi-VN") : CultureInfo.InvariantCulture;
-
-    public static string T(string english, string vietnamese) => IsVi ? vietnamese : english;
-
-    public static string S(string english)
-    {
-        if (!IsVi || string.IsNullOrEmpty(english)) return english;
-        if (AllVi.TryGetValue(english, out var exact)) return exact;
-        if (ViMapCi.TryGetValue(english, out var ci)) return ci;
-        return english;
-    }
-
-    // A financial balance and a player's balance are different FM concepts.
-    public static string Attribute(string english) => english == "Balance" ? T(english, "Thăng bằng") : S(english);
-
+    });
+    public static bool IsTr => LanguageSetting.IsTurkish;
+    public static CultureInfo FormatCulture => IsTr ? CultureInfo.GetCultureInfo("tr-TR") : CultureInfo.InvariantCulture;
+    static string Lookup(string english) => IsTr && Insensitive.Value.TryGetValue(english, out var value) ? value : english;
+    public static string S(string english) => LiveText.Remember(Lookup(english), () => Lookup(english));
+    public static string T(string english, string turkish) => LiveText.Remember(new string((IsTr ? turkish : english).AsSpan()), () => IsTr ? turkish : english);
+    public static string Attribute(string english) => english == "Balance" ? T(english, "Denge") : S(english);
     public static string KitColour(string english) => english switch
     {
-        "Foreground" => T(english, "Màu chính"),
-        "Background" => T(english, "Màu nền"),
+        "Foreground" => T(english, "Ana renk"),
+        "Background" => T(english, "Arka plan rengi"),
         _ => S(english),
     };
-
-    public static string ClubField(string english) => english == "Training" ? T(english, "Cơ sở tập luyện") : S(english);
-
+    public static string ClubField(string english) => english == "Training" ? T(english, "Antrenman tesisleri") : S(english);
     public static string F(string englishTemplate, params object?[] args)
-        => string.Format(FormatCulture, S(englishTemplate), args);
-
-    public static IReadOnlyDictionary<string, string> VietnameseTable => AllVi;
+    {
+        string Render() => string.Format(FormatCulture, Lookup(englishTemplate), args.Select(LiveText.CurrentArgument).ToArray());
+        return LiveText.Remember(Render(), Render);
+    }
+    public static IReadOnlyDictionary<string, string> TurkishTable => Table.Value;
 
     /// <summary>Keeps a control property synced with language changes while attached to the visual tree.</summary>
     public static T Bind<T>(T control, Action apply) where T : Visual
     {
         apply();
-        control.AttachedToVisualTree += (_, _) => { apply(); LanguageSetting.Changed += apply; };
-        control.DetachedFromVisualTree += (_, _) => LanguageSetting.Changed -= apply;
+        void Refresh() => LiveText.OnUi(apply);
+        control.AttachedToVisualTree += (_, _) => { apply(); LanguageSetting.Changed += Refresh; };
+        control.DetachedFromVisualTree += (_, _) => LanguageSetting.Changed -= Refresh;
         return control;
     }
 

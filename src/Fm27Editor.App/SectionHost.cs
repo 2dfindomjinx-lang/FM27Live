@@ -53,17 +53,17 @@ static class SectionHost
 
     static readonly string[] SaveLabels = ["Save changes", "Save contract", "Save loan", "Save"];
     internal static bool IsSaveButton(Button button) => button.Content is string label &&
-        SaveLabels.Any(key => label == key || (Loc.VietnameseTable.TryGetValue(key, out var vi) && label == vi));
+        SaveLabels.Any(key => label == key || (Loc.TurkishTable.TryGetValue(key, out var translated) && label == translated));
     static bool IsPendingSave(Button b) => !b.IsVisible && b.IsEnabled && IsSaveButton(b);
 
     static SectionHost()
     {
         InputElement.IsEnabledProperty.Changed.AddClassHandler<Button>((button, _) => OnSaveButtonChanged(button));
-        Fm27Editor.Core.Settings.LanguageSetting.Changed += () =>
+        Fm27Editor.Core.Settings.LanguageSetting.Changed += () => LiveText.OnUi(() =>
         {
             foreach (var (_, items, _) in Rails.Values)
                 foreach (var entry in items) entry.NotifyLabelChanged();
-        };
+        });
     }
 
     static void OnSaveButtonChanged(Button button)

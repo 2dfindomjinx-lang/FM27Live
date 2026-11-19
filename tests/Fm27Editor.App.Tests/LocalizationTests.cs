@@ -20,33 +20,33 @@ public sealed class LocalizationTests : IDisposable
     }
 
     [Fact]
-    public void Defaults_to_english_and_switches_to_vietnamese_for_strings_formatting_and_pairs()
+    public void Defaults_to_english_and_switches_to_turkish_for_strings_formatting_and_pairs()
     {
-        Assert.False(Loc.IsVi);
+        Assert.False(Loc.IsTr);
         Assert.Equal("Players", Loc.S("Players"));
         Assert.Equal("Nothing changed (3 checked)", Loc.F("Nothing changed ({0:N0} checked)", 3));
-        Assert.Equal("Save", Loc.T("Save", "Lưu"));
+        Assert.Equal("Save", Loc.T("Save", "Kaydet"));
 
-        LanguageSetting.Set(AppLanguage.Vietnamese);
-        Assert.True(Loc.IsVi);
-        Assert.Equal("Cầu thủ", Loc.S("Players"));
-        Assert.Equal("Không có gì thay đổi (3 cầu thủ đã kiểm tra)", Loc.F("Nothing changed ({0:N0} checked)", 3));
-        Assert.Equal("Lưu", Loc.T("Save", "Lưu"));
+        LanguageSetting.Set(AppLanguage.Turkish);
+        Assert.True(Loc.IsTr);
+        Assert.Equal("Oyuncular", Loc.S("Players"));
+        Assert.Equal("Değişiklik yok (3 kontrol edildi)", Loc.F("Nothing changed ({0:N0} checked)", 3));
+        Assert.Equal("Kaydet", Loc.T("Save", "Kaydet"));
 
         LanguageSetting.Set(AppLanguage.English);
-        Assert.False(Loc.IsVi);
+        Assert.False(Loc.IsTr);
         Assert.Equal("Players", Loc.S("Players"));
     }
 
     [Fact]
     public void Language_setting_persists_choice_and_defaults_to_english_when_missing()
     {
-        LanguageSetting.Set(AppLanguage.Vietnamese);
-        Assert.Equal("vi", File.ReadAllText(file).Trim());
+        LanguageSetting.Set(AppLanguage.Turkish);
+        Assert.Equal("tr", File.ReadAllText(file).Trim());
 
         LanguageSetting.Load();
-        Assert.Equal(AppLanguage.Vietnamese, LanguageSetting.Current);
-        Assert.Equal("Tiếng Việt", LanguageSetting.DisplayName(AppLanguage.Vietnamese));
+        Assert.Equal(AppLanguage.Turkish, LanguageSetting.Current);
+        Assert.Equal("Türkçe", LanguageSetting.DisplayName(AppLanguage.Turkish));
 
         File.Delete(file);
         LanguageSetting.Load();
@@ -55,13 +55,13 @@ public sealed class LocalizationTests : IDisposable
     }
 
     [Fact]
-    public void Vietnamese_table_entries_are_populated_without_blank_translations_and_include_retire_and_bulk_keys()
+    public void Turkish_table_entries_are_populated_without_blank_translations_and_include_retire_and_bulk_keys()
     {
-        Assert.True(Loc.VietnameseTable.Count > 2000);
-        foreach (var (key, value) in Loc.VietnameseTable)
+        Assert.True(Loc.TurkishTable.Count > 2000);
+        foreach (var (key, value) in Loc.TurkishTable)
         {
             Assert.False(string.IsNullOrWhiteSpace(key), $"Blank localization key found (value='{value}')");
-            Assert.False(string.IsNullOrWhiteSpace(value), $"Blank Vietnamese translation for '{key}'");
+            Assert.False(string.IsNullOrWhiteSpace(value), $"Blank Turkish translation for '{key}'");
         }
 
         string[] requiredKeys =
@@ -75,6 +75,6 @@ public sealed class LocalizationTests : IDisposable
             "Save changes",
         ];
         foreach (var key in requiredKeys)
-            Assert.True(Loc.VietnameseTable.ContainsKey(key), $"Missing Vietnamese key: {key}");
+            Assert.True(Loc.TurkishTable.ContainsKey(key), $"Missing Turkish key: {key}");
     }
 }

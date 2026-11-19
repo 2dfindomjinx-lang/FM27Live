@@ -200,6 +200,8 @@ public sealed partial class MainWindow : Window
 
         var topBar = BuildTopBar();
         DockPanel.SetDock(topBar, Dock.Top); root.Children.Add(topBar);
+        var quickClubs = BuildQuickClubsBar();
+        DockPanel.SetDock(quickClubs, Dock.Top); root.Children.Add(quickClubs);
 
         var statusRight = new StackPanel
         {
@@ -1969,7 +1971,6 @@ public sealed partial class MainWindow : Window
         suppressFilterEvents = false;
 
         RefreshQuickPresetCombo();
-        PopulateFilterDropdowns();
         ConfigureColumns();
         RenderAttrChips();
         if (backend.State.Status != ConnectionStatus.Connected && !string.IsNullOrEmpty(backend.State.Message))
@@ -1980,8 +1981,6 @@ public sealed partial class MainWindow : Window
         ApplyFutureFilter();
         foreach (var screen in screens)
             screen.RefreshLanguage();
-        if (selected is not null)
-            RenderEditor();
         if (searchOverlay.IsVisible)
             RenderCurrentUnifiedResults();
     }

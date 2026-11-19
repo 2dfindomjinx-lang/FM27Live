@@ -10,23 +10,23 @@ namespace Fm27Editor.App.Tests;
 public class ReviewSafetyTests
 {
     [Fact]
-    public void Every_known_vision_objective_has_a_Vietnamese_translation()
+    public void Every_known_vision_objective_has_a_Turkish_translation()
     {
-        LanguageSetting.Set(AppLanguage.Vietnamese);
+        LanguageSetting.Set(AppLanguage.Turkish);
         try
         {
             foreach (var name in ClubVisionTypes.All.Values.Concat(ContractLabels.Terms.Values).Concat(RelationCatalog.All.Select(t => t.Name)))
-                Assert.True(name != Loc.S(name), $"Missing Vietnamese: {name}");
+                Assert.True(name != Loc.S(name), $"Missing Turkish: {name}");
             foreach (var value in Enum.GetValues<PlayingTime>())
             {
                 string translated = ContractLabels.Of(value);
                 LanguageSetting.Set(AppLanguage.English);
                 string english = ContractLabels.Of(value);
-                LanguageSetting.Set(AppLanguage.Vietnamese);
-                Assert.True(english != translated, $"Missing Vietnamese: {english}");
+                LanguageSetting.Set(AppLanguage.Turkish);
+                Assert.True(english != translated, $"Missing Turkish: {english}");
             }
             Assert.NotEqual("Connect to the game to search nations.", Loc.S("Connect to the game to search nations."));
-            Assert.Equal("Bảng Anh", Loc.S("Pound Sterling"));
+            Assert.Equal("İngiliz sterlini", Loc.S("Pound Sterling"));
             Assert.DoesNotContain("InvalidOperationException", UserMessage.For(new InvalidOperationException("unmapped internal detail")));
         }
         finally { LanguageSetting.Set(AppLanguage.English); }

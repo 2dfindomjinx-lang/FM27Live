@@ -86,7 +86,7 @@ public sealed partial class MainWindow
                 catalog = LoadBundledRoleCatalog();
                 if (catalog is null) { Load(FindPhaseRoleCatalog()); return; }
                 import.IsVisible = false;
-                source.Text = Loc.T("Role catalog: built in", "Bộ dữ liệu vai trò: tích hợp sẵn");
+                source.Text = Loc.S("Role catalog: built in");
                 ToolTip.SetTip(source, source.Text);
                 Render();
             }

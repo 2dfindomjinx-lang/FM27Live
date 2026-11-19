@@ -88,8 +88,8 @@ public sealed partial class MainWindow
             button.Click += (_, _) => action(); buttons.Children.Add(button);
         }
         Add("↔", ToggleOverlaySize);
-        Add("Uygulama", () => SetOverlay(false));
-        Add("Küçült · F8", HideOverlay);
+        Add(Loc.S("Desktop"), () => SetOverlay(false));
+        Add(Loc.S("Collapse · F8"), HideOverlay);
         DockPanel.SetDock(buttons, Dock.Right); header.Children.Add(buttons);
         var grip = new TextBlock { Text = "FM27 LIVE", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(5, 0), FontWeight = Avalonia.Media.FontWeight.SemiBold };
         grip.PointerPressed += (_, e) => { if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) BeginMoveDrag(e); };
@@ -103,10 +103,10 @@ public sealed partial class MainWindow
         var button = new Button { Content = "FM27  ›", Height = 38, HorizontalAlignment = HorizontalAlignment.Stretch,
             HorizontalContentAlignment = HorizontalAlignment.Center, FontWeight = Avalonia.Media.FontWeight.SemiBold };
         button.Click += (_, _) => ExpandOverlay();
-        ToolTip.SetTip(button, "Paneli aç · F8. Sol kenardan sürükle. Sağ tık: gizle.");
+        ToolTip.SetTip(button, Loc.S("Open panel · F8. Drag the left edge. Right click to hide."));
         var menu = new ContextMenu();
-        var normal = new MenuItem { Header = "Normal uygulama" }; normal.Click += (_, _) => SetOverlay(false);
-        var hide = new MenuItem { Header = "Tamamen gizle (F8 ile aç)" }; hide.Click += (_, _) => { SaveOverlayGeometry(); Hide(); };
+        var normal = new MenuItem { Header = Loc.S("Desktop app") }; normal.Click += (_, _) => SetOverlay(false);
+        var hide = new MenuItem { Header = Loc.S("Hide completely (open with F8)") }; hide.Click += (_, _) => { SaveOverlayGeometry(); Hide(); };
         menu.Items.Add(normal); menu.Items.Add(hide); button.ContextMenu = menu;
         // Left edge is an explicit drag grip, independent of the expand button.
         var grip = new Border { Width = 14, Background = UiKit.Accent, Cursor = new Cursor(StandardCursorType.SizeAll) };

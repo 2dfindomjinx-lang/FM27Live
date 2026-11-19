@@ -5,6 +5,9 @@ namespace Fm27Editor.App.Live;
 public sealed class LivePreferences
 {
     public bool AutomaticUpdates { get; set; } = true;
+    public int? QuickManagerId { get; set; }
+    public int? QuickClubId { get; set; }
+    public List<int> RecentClubIds { get; set; } = [];
     public int OverlayLayoutVersion { get; set; }
     public double OverlayWidth { get; set; } = 760;
     public double OverlayHeight { get; set; } = 640;

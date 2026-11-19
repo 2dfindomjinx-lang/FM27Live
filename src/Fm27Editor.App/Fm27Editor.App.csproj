@@ -19,6 +19,8 @@
 
   <ItemGroup>
     <AvaloniaResource Include="Assets\**" />
+    <Compile Remove="Localization\Loc.Table*.cs" />
+    <EmbeddedResource Include="Localization\tr.json" LogicalName="FM27Live.Turkish" />
     <EmbeddedResource Include="Live\update-public.pem" LogicalName="FM27Live.UpdatePublicKey" />
   </ItemGroup>
 

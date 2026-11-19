@@ -168,7 +168,7 @@ internal abstract class EntityScreen<TRecord, TRow, TDraft> : IEntityScreen
         ConfigureColumns(ListGrid);
         OnRefreshLanguage();
         Filter(reportStatus: false);
-        if (Selected is not null && Host.IsShowing(detailRoot)) Render();
+        // Labels update in place through LiveText; keep drafts and detail controls intact.
     }
 
     public bool ReloadCurrent()

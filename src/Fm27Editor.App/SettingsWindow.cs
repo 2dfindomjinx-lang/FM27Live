@@ -22,7 +22,6 @@ public sealed partial class MainWindow
             Background = Brush("#181C29"), BorderBrush = Brush("#272D42"), BorderThickness = new Thickness(1), Foreground = Brush("#DCE2EE"),
         };
         ToolTip.SetTip(button, Loc.S("Settings"));
-        Fm27Editor.Core.Settings.LanguageSetting.Changed += () => ToolTip.SetTip(button, Loc.S("Settings"));
         button.Click += (_, _) => ShowSettings();
         return button;
     }
@@ -88,7 +87,7 @@ public sealed partial class MainWindow
         var langChoices = new[]
         {
             new LanguageChoice(AppLanguage.English, LanguageSetting.DisplayName(AppLanguage.English)),
-            new LanguageChoice(AppLanguage.Vietnamese, LanguageSetting.DisplayName(AppLanguage.Vietnamese)),
+            new LanguageChoice(AppLanguage.Turkish, LanguageSetting.DisplayName(AppLanguage.Turkish)),
         };
         var langCombo = new ComboBox
         {
@@ -112,18 +111,9 @@ public sealed partial class MainWindow
             WindowStartupLocation = WindowStartupLocation.CenterOwner, Background = UiKit.WindowBg,
             Content = new StackPanel { Margin = new Thickness(20), Spacing = 14, Children = { row, currencyRow, langRow } },
         };
-        void RefreshLang()
-        {
-            window.Title = Loc.S("Settings");
-            label.Text = Loc.S("Date format");
-            currencyLabel.Text = Loc.S("Currency");
-            langLabel.Text = Loc.S("Language");
-        }
-        LanguageSetting.Changed += RefreshLang;
         settingsWindow = window;
         window.Closed += (_, _) =>
         {
-            LanguageSetting.Changed -= RefreshLang;
             settingsWindow = null;
         };
         window.Show(this);

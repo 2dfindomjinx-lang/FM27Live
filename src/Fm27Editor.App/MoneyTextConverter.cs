@@ -5,7 +5,7 @@ namespace Fm27Editor.App;
 
 /// <summary>
 /// Text of a money box. Shows whole units with comma groups (1,000,000,000) and reads back any grouping a player types:
-/// "1.000.000.000" (Vietnamese and most of Europe), "1,000,000,000", "1 000 000 000" or plain digits, with an optional
+/// "1.000.000.000" (Turkish and most of Europe), "1,000,000,000", "1 000 000 000" or plain digits, with an optional
 /// sign. Money is always whole units, so dots and commas are only ever separators here.
 /// </summary>
 internal sealed class MoneyTextConverter : IValueConverter

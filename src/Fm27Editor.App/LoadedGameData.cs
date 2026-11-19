@@ -22,6 +22,7 @@ internal sealed class LoadedGameData(GameSession session)
     public GameSession Session { get; } = session;
     public IReadOnlyList<PlayerRecord> Players { get; private set; } = [];
     public IReadOnlyList<ClubEntry> Clubs { get; private set; } = [];
+    public IReadOnlyDictionary<ulong, CompetitionInfo> ClubDivisions { get; private set; } = new Dictionary<ulong, CompetitionInfo>();
     public IReadOnlyList<NationRecord> Nations { get; private set; } = [];
     public IReadOnlyList<CompetitionRecord> Competitions { get; private set; } = [];
     public IReadOnlyList<StaffRecord> Staff { get; private set; } = [];
@@ -97,6 +98,15 @@ internal sealed class LoadedGameData(GameSession session)
             RegenIds.Current = RegenIds.FirstCreatedId(data.Players.Where(p => p.Id is not null).Select(p => p.Id!.Value));
             report.Run("scouting metrics", "Reading scouting metrics…", () => ScoutingMetrics.Warm(data.Players));
             data.Clubs = report.Read("clubs", "Reading clubs…", () => session.LoadClubs(data.Players));
+            report.Run("club divisions", "Reading club leagues…", () =>
+            {
+                var reader = new PlayerReader(session.Memory, session.Profile) { ModuleBase = session.ModuleBase };
+                var divisions = new Dictionary<ulong, CompetitionInfo>();
+                foreach (var club in data.Clubs)
+                    if (club.FirstTeam is { } team && reader.ReadTeamDivision(team.Address) is { } division)
+                        divisions[club.Address] = division;
+                data.ClubDivisions = divisions;
+            }, () => data.ClubDivisions.Count);
             data.Nations = report.Read("nations", "Reading nations…", () => session.Nations.LoadAll());
             if (session.Profile.Competition is not null)
                 data.Competitions = report.Read("competitions", "Reading competitions…", () => session.Competitions.LoadAll());

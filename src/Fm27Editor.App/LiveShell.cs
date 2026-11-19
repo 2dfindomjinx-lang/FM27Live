@@ -13,10 +13,10 @@ public sealed partial class MainWindow
     readonly LivePreferences livePreferences = LivePreferences.Load();
     readonly CancellationTokenSource liveCancellation = new();
     readonly DispatcherTimer liveUpdateTimer = new() { Interval = TimeSpan.FromMinutes(30) };
-    readonly TextBlock liveUpdateStatus = new() { Text = "Güncellemeler kontrol edilecek", VerticalAlignment = VerticalAlignment.Center, Foreground = UiKit.TextSecondary, FontSize = 12 };
-    readonly Button liveInstall = new() { Content = "Güncelle ve aç", IsVisible = false };
+    readonly TextBlock liveUpdateStatus = new() { Text = Loc.S("Updates will be checked"), VerticalAlignment = VerticalAlignment.Center, Foreground = UiKit.TextSecondary, FontSize = 12 };
+    readonly Button liveInstall = new() { Content = Loc.S("Update and open"), IsVisible = false };
     readonly Button liveMode = new() { Content = "Overlay · F8" };
-    readonly Button liveHide = new() { Content = "Küçült · F8", IsVisible = false };
+    readonly Button liveHide = new() { Content = Loc.S("Collapse · F8"), IsVisible = false };
     OverlayHotkey? overlayHotkey;
     TrayIcon? liveTray;
     StagedUpdate? stagedUpdate;
@@ -31,9 +31,9 @@ public sealed partial class MainWindow
         var title = new TextBlock { Text = "FM27 LIVE  ·  " + LiveFeed.Current.ToString(3), FontWeight = Avalonia.Media.FontWeight.SemiBold, VerticalAlignment = VerticalAlignment.Center };
         var bar = new DockPanel { LastChildFill = true, Margin = new Thickness(10, 5) };
         var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
-        var fullscreen = new Button { Content = "Tam ekran · F11" };
-        var updates = new Button { Content = "Güncellemeler" };
-        var exit = new Button { Content = "Çıkış" };
+        var fullscreen = new Button { Content = Loc.S("Full screen · F11") };
+        var updates = new Button { Content = Loc.S("Updates") };
+        var exit = new Button { Content = Loc.S("Exit") };
         actions.Children.Add(liveMode); actions.Children.Add(liveHide); actions.Children.Add(fullscreen); actions.Children.Add(updates); actions.Children.Add(liveInstall); actions.Children.Add(exit);
         liveMode.Click += (_, _) => SetOverlay(!overlayMode);
         liveHide.Click += (_, _) => HideOverlay();
@@ -52,11 +52,11 @@ public sealed partial class MainWindow
         Opened += async (_, _) =>
         {
             var menu = new NativeMenu();
-            var show = new NativeMenuItem("Normal uygulamayı aç");
+            var show = new NativeMenuItem(Loc.S("Open desktop app"));
             show.Click += (_, _) => { SetOverlay(false); if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal; Show(); Activate(); };
-            var showOverlay = new NativeMenuItem("Overlay aç");
+            var showOverlay = new NativeMenuItem(Loc.S("Open overlay"));
             showOverlay.Click += (_, _) => { SetOverlay(true); Show(); Activate(); };
-            var quit = new NativeMenuItem("Çıkış");
+            var quit = new NativeMenuItem(Loc.S("Exit"));
             quit.Click += (_, _) => { Show(); liveExiting = true; Close(); liveExiting = false; };
             menu.Items.Add(show); menu.Items.Add(showOverlay); menu.Items.Add(new NativeMenuItemSeparator()); menu.Items.Add(quit);
             liveTray = new TrayIcon { Icon = Icon, ToolTipText = "FM27 Live — F8 Overlay", Menu = menu, IsVisible = true };
@@ -65,7 +65,7 @@ public sealed partial class MainWindow
             if (OperatingSystem.IsWindows())
             {
                 overlayHotkey = new OverlayHotkey(() => Dispatcher.UIThread.Post(ToggleOverlayVisibility));
-                if (!await overlayHotkey.Ready) liveMode.Content = "Overlay (F8 kullanımda)";
+                if (!await overlayHotkey.Ready) liveMode.Content = Loc.S("Overlay (F8 in use)");
             }
             LiveInstaller.ReportHealthy(Environment.GetCommandLineArgs().Skip(1).ToArray());
             liveUpdateTimer.Start();
@@ -80,11 +80,11 @@ public sealed partial class MainWindow
         {
             if (liveInstalling) return;
             if (overlayMode && !liveExiting) { e.Cancel = true; HideOverlay(); return; }
-            if (busy || OwnedWindows.Any(w => w.IsVisible)) { e.Cancel = true; status.Text = "Önce açık işlemi veya pencereyi tamamla."; return; }
+            if (busy || OwnedWindows.Any(w => w.IsVisible)) { e.Cancel = true; status.Text = Loc.S("Finish the open operation or window first."); return; }
             if (HasLiveDrafts())
             {
                 e.Cancel = true;
-                ShowNotice("Kaydedilmemiş değişiklikler", "Çıkmadan önce değişiklikleri kaydet veya ilgili sekmelerde iptal et.", ("Tamam", true, null));
+                ShowNotice(Loc.S("Unsaved changes"), Loc.S("Save or discard your changes in their tabs before exiting."), (Loc.S("OK"), true, null));
             }
         };
         Deactivated += (_, _) => Dispatcher.UIThread.Post(() =>
@@ -123,21 +123,21 @@ public sealed partial class MainWindow
     {
         if (liveChecking || liveInstalling || (!manual && !livePreferences.AutomaticUpdates)) return;
         liveChecking = true;
-        if (!LiveInstaller.CanSelfUpdate) { liveChecking = false; liveUpdateStatus.Text = "Geliştirme sürümü · Otomatik kurulum kapalı"; return; }
-        liveUpdateStatus.Text = "Güncelleme kontrol ediliyor…";
+        if (!LiveInstaller.CanSelfUpdate) { liveChecking = false; liveUpdateStatus.Text = Loc.S("Development build · Automatic installation disabled"); return; }
+        liveUpdateStatus.Text = Loc.S("Checking for updates…");
         try
         {
             var staged = await LiveFeed.ReadStagedAsync(LiveFeed.Current);
             staged ??= await LiveFeed.CheckAndStageAsync(LiveFeed.Current, liveCancellation.Token);
-            if (staged is null) { liveUpdateStatus.Text = "v" + LiveFeed.Current.ToString(3) + " · Yeni güncelleme yok"; return; }
+            if (staged is null) { liveUpdateStatus.Text = Loc.F("v{0} · No new update", LiveFeed.Current.ToString(3)); return; }
             stagedUpdate = staged;
             liveInstall.IsVisible = true;
-            liveUpdateStatus.Text = "v" + staged.Manifest.Version + " indirildi · Yeniden açılışta otomatik kurulacak";
+            liveUpdateStatus.Text = Loc.F("v{0} downloaded · Will install on next launch", staged.Manifest.Version);
             // Automatically install only before an editing session starts. Never interrupt a connected save.
             if (livePreferences.AutomaticUpdates && backend.State.Status == ConnectionStatus.Disconnected && !busy && !HasLiveDrafts() && !OwnedWindows.Any(w => w.IsVisible)) ApplyLiveUpdate();
         }
-        catch (OperationCanceledException) { if (!liveCancellation.IsCancellationRequested) liveUpdateStatus.Text = "Güncelleme sunucusuna ulaşılamadı · Sonra tekrar denenecek"; }
-        catch (Exception ex) { liveUpdateStatus.Text = "Güncelleme alınamadı: " + ex.Message; }
+        catch (OperationCanceledException) { if (!liveCancellation.IsCancellationRequested) liveUpdateStatus.Text = Loc.S("Update server unavailable · Will retry later"); }
+        catch (Exception ex) { liveUpdateStatus.Text = Loc.F("Update could not be downloaded: {0}", ex.Message); }
         finally { liveChecking = false; }
     }
 
@@ -145,7 +145,7 @@ public sealed partial class MainWindow
     {
         if (stagedUpdate is null || liveInstalling) return;
         if (busy || HasLiveDrafts() || OwnedWindows.Any(w => w.IsVisible))
-        { liveUpdateStatus.Text = "Kurulum bekliyor · Açık işlemleri ve kaydedilmemiş değişiklikleri tamamla"; return; }
+        { liveUpdateStatus.Text = Loc.S("Installation waiting · Finish open operations and unsaved edits"); return; }
         try
         {
             LiveInstaller.Start(stagedUpdate);
@@ -155,22 +155,22 @@ public sealed partial class MainWindow
             if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop) desktop.Shutdown();
             else Close();
         }
-        catch (Exception ex) { liveInstalling = false; IsEnabled = true; liveUpdateStatus.Text = "Kurulum başlatılamadı: " + ex.Message; }
+        catch (Exception ex) { liveInstalling = false; IsEnabled = true; liveUpdateStatus.Text = Loc.F("Installation could not start: {0}", ex.Message); }
     }
 
     void ShowLiveUpdates()
     {
-        var auto = new CheckBox { Content = "Güncellemeleri otomatik indir ve uygun açılışta kur", IsChecked = livePreferences.AutomaticUpdates };
+        var auto = new CheckBox { Content = Loc.S("Download updates automatically and install when safe"), IsChecked = livePreferences.AutomaticUpdates };
         auto.IsCheckedChanged += (_, _) => { livePreferences.AutomaticUpdates = auto.IsChecked == true; try { livePreferences.Save(); } catch (Exception ex) { status.Text = ex.Message; } };
-        var check = new Button { Content = "Şimdi kontrol et" };
+        var check = new Button { Content = Loc.S("Check now") };
         var close = new Button { Content = "Kapat" };
         var panel = new StackPanel { Margin = new Thickness(20), Spacing = 14 };
         panel.Children.Add(new TextBlock { Text = "FM27 Live v" + LiveFeed.Current.ToString(3), FontSize = 20 });
-        panel.Children.Add(new TextBlock { Text = "Yayın kanalı: " + LiveFeed.Repository, TextWrapping = Avalonia.Media.TextWrapping.Wrap });
+        panel.Children.Add(new TextBlock { Text = Loc.F("Release channel: {0}", LiveFeed.Repository), TextWrapping = Avalonia.Media.TextWrapping.Wrap });
         panel.Children.Add(auto);
         panel.Children.Add(new TextBlock { Text = "Oyun bağlıyken güncelleme indirilebilir; kurulumu sonraki açılışa bırakılır.\nF8: Paneli aç/küçült · F11: Paneli genişlet/daralt\nOyuna tıklayınca panel küçük FM27 düğmesine döner.\nOverlay için FM'de kenarlıksız tam ekran veya pencere modu kullan.", TextWrapping = Avalonia.Media.TextWrapping.Wrap });
         panel.Children.Add(check); panel.Children.Add(close);
-        var window = new Window { Title = "FM27 Live — Güncellemeler", Width = 580, Height = 330, CanResize = false, Content = panel, WindowStartupLocation = WindowStartupLocation.CenterOwner, Topmost = overlayMode };
+        var window = new Window { Title = Loc.S("FM27 Live — Updates"), Width = 580, Height = 330, CanResize = false, Content = panel, WindowStartupLocation = WindowStartupLocation.CenterOwner, Topmost = overlayMode };
         check.Click += async (_, _) => { window.Close(); await CheckLiveUpdatesAsync(true); };
         close.Click += (_, _) => window.Close();
         _ = window.ShowDialog(this);

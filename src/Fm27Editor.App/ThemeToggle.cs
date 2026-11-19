@@ -32,7 +32,6 @@ public sealed partial class MainWindow
         }
         Refresh();
         AppTheme.Changed += Refresh;
-        Fm27Editor.Core.Settings.LanguageSetting.Changed += Refresh;
         button.Click += (_, _) => AppTheme.Toggle();
         return button;
     }

@@ -131,6 +131,15 @@ public sealed class PlayerReader(IProcessMemory memory, OffsetProfile profile)
         return nation;
     }
 
+    /// <summary>Reads an identified team's league using the same profile fields as player divisions.</summary>
+    public CompetitionInfo? ReadTeamDivision(ulong team)
+    {
+        if (team == 0 || profile.Team is not { } layout || profile.Competition is not { } competition) return null;
+        Span<byte> bytes = stackalloc byte[8];
+        if (!memory.TryRead(team, bytes) || BitConverter.ToUInt64(bytes) != ModuleBase + layout.VtableRva) return null;
+        return DivisionOfTeam(team, competition);
+    }
+
     CompetitionInfo? DivisionOfTeam(ulong team, CompetitionOffsets comp)
     {
         if (team == 0) return null;

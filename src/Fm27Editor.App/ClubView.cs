@@ -102,7 +102,7 @@ public sealed partial class MainWindow : IClubPanels
     /// <summary>Draws the open club again (after something in it changed).</summary>
     void RenderClubEditor() => clubScreen.Reopen();
 
-    void PickClub(ClubEntry club) => clubScreen.Pick(club);
+    void PickClub(ClubEntry club) { clubScreen.Pick(club); RememberQuickClub(club); }
 
     Task LoadClubsScreenAsync(bool forceReloadPlayers)
     {

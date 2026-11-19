@@ -10,7 +10,7 @@ namespace Fm27Editor.App;
 /// </summary>
 internal static class PickerDialog
 {
-    public static async Task<T?> Show<T>(Window owner, string title, Func<string, IReadOnlyList<(string Text, T Value)>> search, string watermark = "Type the name to search") where T : class
+    public static async Task<T?> Show<T>(Window owner, string title, Func<string, IReadOnlyList<(string Text, T Value)>> search, string watermark = "Type the name to search", bool showAllInitially = false) where T : class
     {
         T? result = null;
         var input = new TextBox { Watermark = Loc.S(watermark), Margin = new Thickness(0, 0, 0, 8) };
@@ -20,7 +20,7 @@ internal static class PickerDialog
         IReadOnlyList<(string Text, T Value)> shown = [];
         void Refresh()
         {
-            shown = string.IsNullOrWhiteSpace(input.Text) ? [] : search(input.Text.Trim());
+            shown = string.IsNullOrWhiteSpace(input.Text) && !showAllInitially ? [] : search((input.Text ?? "").Trim());
             list.ItemsSource = shown.Select(x => x.Text).ToArray();
             ok.IsEnabled = false;
         }
@@ -41,7 +41,7 @@ internal static class PickerDialog
             },
         };
         // The search box takes the keyboard as soon as the picker opens, so typing needs no extra click.
-        window.Opened += (_, _) => input.Focus();
+        window.Opened += (_, _) => { Refresh(); input.Focus(); };
         void Accept()
         {
             if (list.SelectedIndex < 0 || list.SelectedIndex >= shown.Count) return;

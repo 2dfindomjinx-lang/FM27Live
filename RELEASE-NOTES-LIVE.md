@@ -1,18 +1,11 @@
-FM27 Live 0.1.4 Windows sürümü.
+FM27 Live 0.1.5 Windows sürümü.
 
-- Overlay içeriği panelin genişlik ve yüksekliğine orantılı sığdırılır; tüm arayüze erişmek için sağa kaydırma gerekmez.
+- Vietnamca yerine Türkçe eklendi. Türkçe–İngilizce geçişi yeniden başlatma gerektirmez; mevcut editör kontrolleri, açık sekmeler ve kaydedilmemiş alanlar korunur.
+- Benim kulübüm, Kadrom, Ligimdeki kulüpler, Oyuncunun kulübü ve Son kulüpler kısayolları normal uygulamaya ve overlay'e eklendi.
+- İnsan menajerin kulübü otomatik bulunur; birden fazla menajerde seçim sunulur. Kulüp elle de seçilebilir. Lig seçimi A takımın gerçek turnuva kimliğini kullanır; okunamayan bilgi tahmin edilmez.
+- Mevcut küçük overlay, konum koruma, ekrana sığdırma ve imzalı otomatik güncelleme sistemi korunur.
 
-- Küçük overlay düğmesinin konumu, açılan panelin ekrana sığdırılan konumundan ayrı tutulur. Sağ alta taşınan düğme, panel kapanınca aynı yere döner.
+Dil: Settings → Language → Türkçe. Yeni sürüm mevcut uygulamanın güncelleme kanalından alınabilir.
 
-- Overlay artık küçük FM27 düğmesi olarak açılır. Tıklama/F8 ile açılır; F8/Esc veya oyuna tıklama ile küçülür.
-- Açık panel ekranın tamamını kaplayamaz; F11/↔ paneli genişletir veya daraltır. Normal uygulamanın tam ekran modu ayrıdır.
-- Dar panelde editör kontrolleri orantılı ölçeklenir; düzenleme oturumu ve taslaklar korunur.
-
-- Normal editör, F8 ile açılıp gizlenen overlay, F11 tam ekran ve bildirim alanı menüsü.
-- ECDSA imzalı otomatik güncelleme; SHA-256 kontrolü, ayarları koruma ve açılış başarısızlığında geri dönüş.
-- Kurulumdan önce dosya kilidi oluşursa mevcut sürüm yeniden açılır ve başarısız paket tekrar denenmez.
-- Steam ve Game Pass için upstream FM27 profilleri. Epic ve exclusive fullscreen overlay doğrulanmadı.
-- Mevcut editör ekranları İngilizce/Vietnamca; overlay ve güncelleme kontrolleri Türkçe.
-
-İlk oyun içi testi yedek kariyerde yapın. Bu dağıtımın gerçek oyun belleğine yazma testi henüz yapılmadı.
+Bu sürümün gerçek oyun belleğine yazma testi yapılmadı. İlk oyun içi denemeyi yedek kariyerde yapın.
 GPL-3.0-or-later. Kaynak kod ve upstream atfı depoda bulunur.

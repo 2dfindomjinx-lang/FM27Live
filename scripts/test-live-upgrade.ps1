@@ -1,7 +1,8 @@
 param(
     [Parameter(Mandatory)][string]$OldRelease,
     [Parameter(Mandatory)][string]$NewRelease,
-    [Parameter(Mandatory)][string]$TestRoot
+    [Parameter(Mandatory)][string]$TestRoot,
+    [switch]$FromNetwork
 )
 $ErrorActionPreference = 'Stop'
 $oldDir = (Resolve-Path -LiteralPath $OldRelease).Path
@@ -14,11 +15,11 @@ $manifest = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($envelop
 $state = Join-Path $caseRoot 'data'
 $stage = Join-Path $state ('updates\' + $manifest.Version)
 New-Item -ItemType Directory -Path $stage -Force | Out-Null
-Copy-Item -LiteralPath (Join-Path $newDir 'FM27Live.exe'), (Join-Path $newDir 'update.json') -Destination $stage
+if (-not $FromNetwork) { Copy-Item -LiteralPath (Join-Path $newDir 'FM27Live.exe'), (Join-Path $newDir 'update.json') -Destination $stage }
 $exe = Join-Path $caseRoot 'FM27Live.exe'
 Copy-Item -LiteralPath (Join-Path $oldDir 'FM27Live.exe') -Destination $exe
 $oldHash = (Get-FileHash -LiteralPath $exe).Hash
-$newHash = (Get-FileHash -LiteralPath (Join-Path $stage 'FM27Live.exe')).Hash
+$newHash = (Get-FileHash -LiteralPath (Join-Path $newDir 'FM27Live.exe')).Hash
 $settingsPath = Join-Path $state 'live-settings.json'
 [IO.File]::WriteAllText($settingsPath, '{"AutomaticUpdates":true,"OverlayWidth":1024,"OverlayHeight":680,"OverlayOpacity":0.88}')
 $originalSettings = [IO.File]::ReadAllText($settingsPath)
@@ -27,7 +28,7 @@ $start.UseShellExecute = $false
 $start.WorkingDirectory = $caseRoot
 $start.Environment['FM27LIVE_DATA_DIR'] = $state
 $process = [Diagnostics.Process]::Start($start)
-$deadline = [DateTime]::UtcNow.AddSeconds(100)
+$deadline = [DateTime]::UtcNow.AddSeconds($(if ($FromNetwork) { 180 } else { 100 }))
 $marker = Join-Path $state 'last-update.txt'
 while (-not (Test-Path -LiteralPath $marker) -and [DateTime]::UtcNow -lt $deadline) {
     if (Test-Path -LiteralPath (Join-Path $state 'update-error.txt')) { throw (Get-Content -LiteralPath (Join-Path $state 'update-error.txt') -Raw) }
@@ -37,7 +38,7 @@ if (-not (Test-Path -LiteralPath $marker)) { throw 'The updated application did 
 if ((Get-FileHash -LiteralPath $exe).Hash -ne $newHash) { throw 'Installed binary hash mismatch.' }
 if ((Get-FileHash -LiteralPath ($exe + '.previous')).Hash -ne $oldHash) { throw 'Backup binary hash mismatch.' }
 if ([IO.File]::ReadAllText($settingsPath) -ne $originalSettings) { throw 'User preferences were changed.' }
-$report = "PASS: automatic staged update, signed manifest, executable replacement, previous-version backup, actual new-process startup health, preserved preferences."
+$report = "PASS: automatic update (network=$FromNetwork), signed manifest, executable replacement, previous-version backup, actual new-process startup health, preserved preferences."
 [IO.File]::WriteAllText((Join-Path $caseRoot 'result.txt'), $report)
 Write-Output $report
 # Close only the editor instance launched by this isolated test, after all assertions.

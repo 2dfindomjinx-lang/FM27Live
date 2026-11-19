@@ -38,6 +38,7 @@ public static class LiveInstaller
         InstallRequest? request = null;
         string? backup = null;
         bool replaced = false;
+        bool validRequestPaths = false;
         Process? child = null;
         try
         {
@@ -47,6 +48,7 @@ public static class LiveInstaller
             if (Path.GetFileName(target) != LiveFeed.AssetName || !Guid.TryParseExact(request.Nonce, "N", out _) ||
                 !stage.StartsWith(Path.GetFullPath(LiveFeed.StageRoot) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
                 throw new InvalidDataException("Kurulum yolu geçersiz.");
+            validRequestPaths = true;
             var manifest = LiveFeed.Verify(await File.ReadAllTextAsync(Path.Combine(stage, "update.json")), LiveFeed.PublicKey);
             if (manifest.Version != Path.GetFileName(stage) || Version.Parse(manifest.Version) <= LiveFeed.Current)
                 throw new InvalidDataException("Eski veya yanlış güncelleme reddedildi.");
@@ -87,6 +89,13 @@ public static class LiveInstaller
         }
         catch (Exception ex)
         {
+            // Suppress retries even when copying/replacing fails before the new exe is installed.
+            // Otherwise every launch would close the working editor and retry the same blocked package.
+            if (validRequestPaths && request is not null)
+            {
+                try { await File.WriteAllTextAsync(Path.Combine(request.Stage, "failed.txt"), ex.Message); }
+                catch (Exception markerError) when (markerError is IOException or UnauthorizedAccessException) { }
+            }
             if (replaced && request is not null && backup is not null)
             {
                 // Only terminate the newly launched editor process; never the game or the old editor.
@@ -95,10 +104,14 @@ public static class LiveInstaller
                 {
                     File.Move(request.Target, request.Target + ".failed", true);
                     File.Move(backup, request.Target);
-                    await File.WriteAllTextAsync(Path.Combine(request.Stage, "failed.txt"), ex.Message);
                     Process.Start(new ProcessStartInfo(request.Target) { UseShellExecute = false, WorkingDirectory = Path.GetDirectoryName(request.Target)! });
                 }
                 catch (Exception recovery) { ex = new AggregateException(ex, recovery); }
+            }
+            else if (validRequestPaths && request is not null && File.Exists(request.Target) && !ParentStillRunning(request))
+            {
+                try { Process.Start(new ProcessStartInfo(request.Target) { UseShellExecute = false, WorkingDirectory = Path.GetDirectoryName(request.Target)! }); }
+                catch (Exception restartError) { ex = new AggregateException(ex, restartError); }
             }
             Directory.CreateDirectory(LiveFeed.DataRoot);
             await File.WriteAllTextAsync(Path.Combine(LiveFeed.DataRoot, "update-error.txt"), ex.ToString());
@@ -111,6 +124,16 @@ public static class LiveInstaller
     {
         // File.Replace is atomic on Windows and retains the previous binary even after power loss.
         File.Replace(pending, target, backup, true);
+    }
+
+    static bool ParentStillRunning(InstallRequest request)
+    {
+        try
+        {
+            using var parent = Process.GetProcessById(request.ParentPid);
+            return !parent.HasExited && parent.StartTime.ToUniversalTime().Ticks == request.ParentStarted;
+        }
+        catch (ArgumentException) { return false; }
     }
 
     public static void ReportHealthy(string[] args)

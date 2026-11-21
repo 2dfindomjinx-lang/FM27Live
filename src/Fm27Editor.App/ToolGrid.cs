@@ -29,7 +29,9 @@ internal static class ToolGrid
             SelectionMode = DataGridSelectionMode.Extended,
             GridLinesVisibility = DataGridGridLinesVisibility.Horizontal,
             HorizontalGridLinesBrush = Brush("#1D2130"),
-            RowHeight = 29,
+            RowHeight = 32,
+            FontSize = AppTypography.BodySize,
+            FontWeight = AppTypography.BodyWeight,
             Background = Brush("#11131C"),
             BorderBrush = Brush("#252A3D"),
             BorderThickness = new Thickness(1),
@@ -56,10 +58,10 @@ internal static class ToolGrid
         var tb = new TextBlock
         {
             Tag = text,
-            FontSize = 12.5,
+            FontSize = AppTypography.HeadingSize,
             FontFamily = AppTypography.Body,
             FontWeight = FontWeight.Bold,
-            Foreground = Brush("#94A3B8"),
+            Foreground = UiKit.TextSecondary,
             VerticalAlignment = VerticalAlignment.Center,
             HorizontalAlignment = align,
             TextTrimming = TextTrimming.None,
@@ -102,7 +104,7 @@ internal static class ToolGrid
             {
                 Text = text(row),
                 FontFamily = personName ? AppTypography.PersonName : AppTypography.Body,
-                FontWeight = personName ? FontWeight.Normal : bold ? FontWeight.Bold : FontWeight.Normal,
+                FontWeight = personName ? FontWeight.Normal : bold ? FontWeight.Bold : AppTypography.BodyWeight,
                 Foreground = Brush(foreground),
                 VerticalAlignment = VerticalAlignment.Center,
                 TextTrimming = TextTrimming.CharacterEllipsis,

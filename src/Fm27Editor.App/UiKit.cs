@@ -164,7 +164,7 @@ static class UiKit
         {
             var titleBlock = new TextBlock
             {
-                FontSize = 12.5,
+                FontSize = AppTypography.HeadingSize,
                 FontWeight = FontWeight.Bold,
                 Foreground = Brush("#E2E8F0"),
                 VerticalAlignment = VerticalAlignment.Center,

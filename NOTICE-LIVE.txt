@@ -11,7 +11,7 @@ Distributed under GNU GPL version 3 or later; see LICENSE.
 Corresponding source: https://github.com/2dfindomjinx-lang/FM27Live
 Not affiliated with Sports Interactive or SEGA.
 
-Selected typography: Cabinet Grotesk Regular and Bold (Indian Type Foundry).
+Selected typography: Cabinet Grotesk Regular, Medium and Bold (Indian Type Foundry).
 Font assets are obtained locally, excluded from the source repository and
 embedded in the application under the Fontshare Free Font License, separately
 from the application source license. The full font license is embedded as

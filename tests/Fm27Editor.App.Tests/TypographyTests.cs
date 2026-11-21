@@ -16,6 +16,8 @@ public sealed class TypographyTests
             foreach (var (family, weight, expected) in new[]
             {
                 (AppTypography.Body, FontWeight.Normal, "Cabinet Grotesk"),
+                // The official Medium OTF uses this name ID 1 and shares typographic family ID 16.
+                (AppTypography.Body, FontWeight.Medium, "Cabinet Grotesk Medium"),
                 (AppTypography.Body, FontWeight.Bold, "Cabinet Grotesk"),
                 (AppTypography.PersonName, FontWeight.Normal, "Cabinet Grotesk")
             })
@@ -40,7 +42,7 @@ public sealed class TypographyTests
             Assert.Equal(FontWeight.Normal, name.FontWeight);
             var rating = MainWindow.RatingBox(14, 1, 20, _ => { });
             Assert.Equal(AppTypography.Body, rating.FontFamily);
-            Assert.Equal(FontWeight.Normal, rating.FontWeight);
+            Assert.Equal(FontWeight.Bold, rating.FontWeight);
             var header = Assert.IsType<TextBlock>(ToolGrid.Header("Attributes", "Attributes"));
             Assert.Equal(AppTypography.Body, header.FontFamily);
             Assert.Equal(FontWeight.Bold, header.FontWeight);

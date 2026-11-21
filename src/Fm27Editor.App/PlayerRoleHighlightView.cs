@@ -59,7 +59,7 @@ public sealed partial class MainWindow
         selectors.Children.Add(position); Grid.SetColumn(phase, 1); selectors.Children.Add(phase); Grid.SetColumn(roles, 2); selectors.Children.Add(roles);
         var legend = new WrapPanel { Orientation = Orientation.Horizontal };
         foreach (var (label, color) in new[] { ("Key for role", "#4ADE80"), ("Preferable", "#60A5FA"), ("Lower is better", "#FBBF24") })
-            legend.Children.Add(new TextBlock { Text = Loc.S(label), Foreground = UiKit.Brush(color), FontSize = 11.5, Margin = new Thickness(0, 0, 14, 0) });
+            legend.Children.Add(new TextBlock { Text = Loc.S(label), Foreground = UiKit.Brush(color), FontSize = 13, FontWeight = AppTypography.BodyWeight, Margin = new Thickness(0, 0, 14, 0) });
         return new StackPanel { Spacing = 4, Children = { selectors, legend } };
     }
 }

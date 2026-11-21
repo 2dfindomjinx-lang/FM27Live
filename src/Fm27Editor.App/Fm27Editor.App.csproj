@@ -21,6 +21,7 @@
   <ItemGroup>
     <AvaloniaResource Include="Assets\**" />
     <AvaloniaResource Include="$(LocalFontDirectory)\CabinetGrotesk-Regular.otf" Link="Assets\Fonts\Cabinet\CabinetGrotesk-Regular.otf" />
+    <AvaloniaResource Include="$(LocalFontDirectory)\CabinetGrotesk-Medium.otf" Link="Assets\Fonts\Cabinet\CabinetGrotesk-Medium.otf" />
     <AvaloniaResource Include="$(LocalFontDirectory)\CabinetGrotesk-Bold.otf" Link="Assets\Fonts\Cabinet\CabinetGrotesk-Bold.otf" />
     <EmbeddedResource Include="$(LocalFontDirectory)\Cabinet-FFL.txt" LogicalName="FM27Live.Licenses.CabinetGrotesk" />
     <Compile Remove="Localization\Loc.Table*.cs" />
@@ -29,7 +30,7 @@
   </ItemGroup>
 
   <Target Name="ValidateLocalFonts" BeforeTargets="PrepareForBuild">
-    <Error Condition="!Exists('$(LocalFontDirectory)\CabinetGrotesk-Regular.otf') Or !Exists('$(LocalFontDirectory)\CabinetGrotesk-Bold.otf') Or !Exists('$(LocalFontDirectory)\Cabinet-FFL.txt')" Text="Obtain Cabinet Grotesk and its license locally as documented in README-LIVE.md. Fonts are not redistributed in the source repository." />
+    <Error Condition="!Exists('$(LocalFontDirectory)\CabinetGrotesk-Regular.otf') Or !Exists('$(LocalFontDirectory)\CabinetGrotesk-Medium.otf') Or !Exists('$(LocalFontDirectory)\CabinetGrotesk-Bold.otf') Or !Exists('$(LocalFontDirectory)\Cabinet-FFL.txt')" Text="Obtain Cabinet Grotesk and its license locally as documented in README-LIVE.md. Fonts are not redistributed in the source repository." />
   </Target>
 
   <ItemGroup>

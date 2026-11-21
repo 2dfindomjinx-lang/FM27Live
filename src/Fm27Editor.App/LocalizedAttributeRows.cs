@@ -56,7 +56,7 @@ internal sealed class LocalizedAttributeRows : Grid
         }
         if (group == "Technical")
         {
-            setPieces = new TextBlock { Text = Loc.S("Set Pieces"), FontSize = 11, Foreground = UiKit.TextSecondary, Margin = new Thickness(4, 4, 4, 2), VerticalAlignment = VerticalAlignment.Center };
+            setPieces = new TextBlock { Text = Loc.S("Set Pieces"), FontSize = AppTypography.HeadingSize, FontWeight = FontWeight.Bold, Foreground = UiKit.TextPrimary, Margin = new Thickness(4, 6, 4, 3), VerticalAlignment = VerticalAlignment.Center };
             RowDefinitions.Add(new RowDefinition(GridLength.Auto));
             Children.Add(setPieces);
         }

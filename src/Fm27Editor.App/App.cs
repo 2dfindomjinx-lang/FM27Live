@@ -118,9 +118,9 @@ public sealed class App : Application
             {
                 new Setter(TemplatedControl.BackgroundProperty, windowBg),
                 new Setter(TemplatedControl.ForegroundProperty, textPrimary),
-                new Setter(TemplatedControl.FontSizeProperty, 13.0),
+                new Setter(TemplatedControl.FontSizeProperty, AppTypography.BodySize),
                 new Setter(TemplatedControl.FontFamilyProperty, AppTypography.Body),
-                new Setter(TemplatedControl.FontWeightProperty, FontWeight.Normal),
+                new Setter(TemplatedControl.FontWeightProperty, AppTypography.BodyWeight),
             }
         });
 
@@ -161,7 +161,7 @@ public sealed class App : Application
             Setters =
             {
                 new Setter(TemplatedControl.CornerRadiusProperty, new CornerRadius(3)),
-                new Setter(TemplatedControl.FontSizeProperty, 13.0),
+                new Setter(TemplatedControl.FontSizeProperty, AppTypography.BodySize),
                 new Setter(Layoutable.HeightProperty, 24.0),
                 new Setter(Layoutable.MinHeightProperty, 24.0),
                 new Setter(TemplatedControl.PaddingProperty, new Thickness(8, 0)),
@@ -266,7 +266,7 @@ public sealed class App : Application
                 new Setter(TemplatedControl.BorderThicknessProperty, new Thickness(1)),
                 new Setter(TemplatedControl.ForegroundProperty, textPrimary),
                 new Setter(TemplatedControl.PaddingProperty, new Thickness(8, 0)),
-                new Setter(TemplatedControl.FontSizeProperty, 13.0),
+                new Setter(TemplatedControl.FontSizeProperty, AppTypography.BodySize),
                 new Setter(TemplatedControl.CornerRadiusProperty, new CornerRadius(3)),
             }
         });
@@ -276,7 +276,7 @@ public sealed class App : Application
             Setters =
             {
                 new Setter(TemplatedControl.CornerRadiusProperty, new CornerRadius(3)),
-                new Setter(TemplatedControl.FontSizeProperty, 13.0),
+                new Setter(TemplatedControl.FontSizeProperty, AppTypography.BodySize),
                 new Setter(Layoutable.HeightProperty, 24.0),
                 new Setter(Layoutable.MinHeightProperty, 24.0),
                 new Setter(TemplatedControl.PaddingProperty, new Thickness(7, 0)),
@@ -309,7 +309,7 @@ public sealed class App : Application
             Setters =
             {
                 new Setter(TemplatedControl.CornerRadiusProperty, new CornerRadius(3)),
-                new Setter(TemplatedControl.FontSizeProperty, 13.0),
+                new Setter(TemplatedControl.FontSizeProperty, AppTypography.BodySize),
                 new Setter(Layoutable.HeightProperty, 24.0),
                 new Setter(Layoutable.MinHeightProperty, 24.0),
                 new Setter(TemplatedControl.PaddingProperty, new Thickness(6, 0, 0, 0)),
@@ -337,7 +337,7 @@ public sealed class App : Application
             Setters =
             {
                 new Setter(TemplatedControl.CornerRadiusProperty, new CornerRadius(3)),
-                new Setter(TemplatedControl.FontSizeProperty, 13.0),
+                new Setter(TemplatedControl.FontSizeProperty, AppTypography.BodySize),
                 new Setter(Layoutable.HeightProperty, 24.0),
                 new Setter(Layoutable.MinHeightProperty, 24.0),
                 new Setter(TemplatedControl.PaddingProperty, new Thickness(6, 0)),
@@ -394,7 +394,7 @@ public sealed class App : Application
         {
             Setters =
             {
-                new Setter(TemplatedControl.FontSizeProperty, 13.0),
+                new Setter(TemplatedControl.FontSizeProperty, AppTypography.BodySize),
                 new Setter(TemplatedControl.FontWeightProperty, FontWeight.Medium),
                 new Setter(TemplatedControl.PaddingProperty, new Thickness(12, 6)),
                 new Setter(Layoutable.MinHeightProperty, 30.0),
@@ -415,7 +415,7 @@ public sealed class App : Application
         {
             Setters =
             {
-                new Setter(TemplatedControl.FontSizeProperty, 12.5),
+                new Setter(TemplatedControl.FontSizeProperty, AppTypography.HeadingSize),
                 new Setter(TemplatedControl.FontWeightProperty, FontWeight.Bold),
                 new Setter(TemplatedControl.ForegroundProperty, textSecondary),
                 new Setter(TemplatedControl.BackgroundProperty, UiKit.Brush("#171B28")),
@@ -438,7 +438,7 @@ public sealed class App : Application
         {
             Setters =
             {
-                new Setter(TemplatedControl.FontSizeProperty, 13.0),
+                new Setter(TemplatedControl.FontSizeProperty, AppTypography.BodySize),
                 new Setter(TemplatedControl.PaddingProperty, new Thickness(6, 0)),
                 new Setter(ContentControl.VerticalContentAlignmentProperty, VerticalAlignment.Center),
             }
@@ -492,7 +492,7 @@ public sealed class App : Application
             {
                 new Setter(TemplatedControl.PaddingProperty, new Thickness(8, 4)),
                 new Setter(Layoutable.MinHeightProperty, 26.0),
-                new Setter(TemplatedControl.FontSizeProperty, 13.0),
+                new Setter(TemplatedControl.FontSizeProperty, AppTypography.BodySize),
             }
         });
 
@@ -519,7 +519,7 @@ public sealed class App : Application
                 new Setter(TemplatedControl.PaddingProperty, new Thickness(0)),
                 new Setter(Layoutable.HeightProperty, 24.0),
                 new Setter(Layoutable.MinHeightProperty, 24.0),
-                new Setter(TemplatedControl.FontSizeProperty, 13.0),
+                new Setter(TemplatedControl.FontSizeProperty, AppTypography.BodySize),
                 new Setter(Layoutable.VerticalAlignmentProperty, VerticalAlignment.Center),
             }
         });
@@ -530,7 +530,7 @@ public sealed class App : Application
             {
                 new Setter(Layoutable.HeightProperty, 24.0),
                 new Setter(Layoutable.MinHeightProperty, 24.0),
-                new Setter(TemplatedControl.FontSizeProperty, 13.0),
+                new Setter(TemplatedControl.FontSizeProperty, AppTypography.BodySize),
                 new Setter(TemplatedControl.BackgroundProperty, surfaceInput),
                 new Setter(TemplatedControl.BorderBrushProperty, borderControl),
                 new Setter(TemplatedControl.BorderThicknessProperty, new Thickness(1)),

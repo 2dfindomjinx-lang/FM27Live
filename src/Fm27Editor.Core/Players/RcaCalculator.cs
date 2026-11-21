@@ -56,6 +56,14 @@ public static class RcaCalculator
     static readonly IReadOnlyDictionary<PlayerPosition, double> WeightSums =
         Weights.ToDictionary(kv => kv.Key, kv => kv.Value.Sum());
 
+    // The weights also match the native FM27 model. The legacy aggregation below does not.
+    internal static double WeightFor(PlayerPosition position, PlayerAttribute attribute)
+    {
+        int index = attribute is PlayerAttribute.LeftFoot or PlayerAttribute.RightFoot
+            ? 47 : Array.IndexOf(AttributeOrder, attribute);
+        return index < 0 ? 0 : Weights[position][index];
+    }
+
     public static int Calculate(PlayerRecord player) => Analyze(player).BestRca;
 
     public static PlayerRcaResult Analyze(PlayerRecord player)

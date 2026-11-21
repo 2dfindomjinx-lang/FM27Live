@@ -1,15 +1,12 @@
-FM27 Live 0.1.7 Windows sürümü.
+FM27 Live 0.1.8 Windows sürümü.
 
-- İsimler, özellikler ve diğer metinlerde Cabinet Grotesk Regular; başlıklarda Cabinet Grotesk Bold kullanılır. Fontlar uygulamaya gömülüdür.
-- Türkçe arayüzde oyuncu özellikleri FM'nin Türkçe sırasıyla gösterilir; duran toplar ayrı gruptadır. Ayarlardan İngilizce sıralama seçilebilir. İngilizce arayüzün mevcut sıralaması korunur.
-- Ayarlar → Türkçe çevirileri düzenle ile kişisel çeviriler oluşturulabilir ve yeniden başlatmadan uygulanabilir. Kişisel sözlük güncellemelerde korunur.
-- Oyuncu ekranında mevki ve rol seçilerek ilgili özellikler vurgulanabilir. Rol seçimi yalnızca görsel rehberdir; oyuncu değerlerini değiştirmez.
-- Özelliklere daha fazla alan ayrılır; kişisel bilgiler açılır bölümde bulunur. Overlay üst şeridin ve panel başlığının boş alanından taşınabilir.
-- Yeni hedef düğmesi veya uygulama odaktayken Ctrl+Shift+F, FM'de açık kişi/kulüp ekranını editörde açar. Zaten açık oyuncu sekmesine geçiş, kaydedilmemiş girişleri korur. Ctrl+R mevcut yenileme işlevini sürdürür.
-- Normal uygulama, overlay, oyun günü değiştiğinde otomatik veri yenileme ve imzalı otomatik güncelleme birlikte korunur.
+- Özelliklere geçerli değer yazarken RCA (önerilen mevcut yetenek) anında güncellenir; kutudan çıkmak veya Ctrl+R kullanmak gerekmez. Ayaklar, mevkiler ve kaydedilmemiş değişiklikler hesaba katılır. Kayıtlı CA ayrı kalır; önizleme oyun belleğine yazmaz.
+- RCA için eski doğrusal formül yerine FM27'nin iteratif hesabı kullanılır. C# uygulaması, Steam 27.1.0+2505117 motorundan ayrı emülatörde üretilen 1.098 bağımsız örneğin tamamıyla eşleşti. Resmi editörde Semih Sabanoğlu için görülen 125 değeri de eşleşti.
+- Cabinet Grotesk korunarak gövde ve özellik etiketleri 15 boyutunda Medium, özellik sayıları 16 boyutunda Bold yapıldı. Başlıklar daha belirgin; sayı kutuları genişletildi ve sayıları örten kaydırma çubukları kaldırıldı. İsimler Regular kalır.
+- Normal uygulama ve overlay aynı düzenlemeleri kullanır. Kaydedilmemiş alanların korunması, Türkçe sıralama, kişisel çeviriler ve imzalı otomatik güncelleme sürer.
 
-Mevcut uygulamada Güncellemeler → Şimdi kontrol et ile alınabilir.
+Doğrulama: 2.092 otomatik test başarılı; 1.098 C#–FM motoru karşılaştırmasında fark yok. Bu çalışma sırasında oyun kaydı veya oyun belleği değiştirilmedi. Game Pass üzerinde ayrı canlı RCA doğrulaması yapılmadı; yeni oyun sürümü desteği eklenmedi. Emülatör, oyun kodu ve inceleme araçları dağıtım paketine dahil değildir.
 
-Açık ekran algılama Steam 27.1.0+2505117 üzerinde oyuncu → kulüp geçişiyle doğrulandı. Game Pass, personel, ülke ve turnuva ekranlarında canlı doğrulama henüz yapılmadı. Bu sürümde oyun belleğine yazma testi yapılmadı; yeni bir FM sürümü için destek eklenmedi.
+Güncellemeler → Şimdi kontrol et ile alınabilir. Oyun bağlıyken veya kaydedilmemiş değişiklik varken kurulum ertelenir.
 
-GPL-3.0-or-later. Kaynak kod ve üçüncü taraf lisans bildirimleri depoda bulunur. Cabinet Grotesk kendi Fontshare Free Font License koşulları altında uygulamaya gömülüdür.
+GPL-3.0-or-later. Cabinet Grotesk, Fontshare Free Font License koşulları altında EXE içine gömülüdür.

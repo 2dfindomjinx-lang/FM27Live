@@ -1307,20 +1307,9 @@ public sealed partial class MainWindow : Window
             };
             commands.Children.Add(UiKit.StatBox(Loc.S(field.Label), ability));
         }
+        commands.Children.Add(UiKit.StatBox("RCA", new PlayerRcaView(draft)));
         if (LegacyScoutingAvailability.Enabled)
         {
-        var rcaValue = new TextBlock
-        {
-            Text = ScoutingMetrics.Rca(player).ToString(Inv),
-            FontSize = 16,
-            FontWeight = FontWeight.Black,
-            Foreground = Brush("#4ADE80"),
-            VerticalAlignment = VerticalAlignment.Center,
-            HorizontalAlignment = HorizontalAlignment.Right,
-            MinWidth = 34,
-        };
-        commands.Children.Add(UiKit.StatBox("RCA", rcaValue));
-
         var bestRole = ScoutingMetrics.BestRole(player);
         var roleValue = new TextBlock
         {
@@ -1493,10 +1482,10 @@ public sealed partial class MainWindow : Window
     /// <summary>One attribute row: the label on the left, the value control docked right.</summary>
     internal static Control AttributeRow(string label, Control value)
     {
-        var line = new DockPanel { MinHeight = 24, LastChildFill = true };
+        var line = new DockPanel { MinHeight = 28, LastChildFill = true };
         var text = new TextBlock
         {
-            Text = label, FontSize = 13, Foreground = Brush("#CBD5E1"),
+            Text = label, FontSize = AppTypography.BodySize, FontWeight = AppTypography.BodyWeight, Foreground = UiKit.TextPrimary,
             VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap,
         };
         DockPanel.SetDock(value, Dock.Right);
@@ -1514,13 +1503,24 @@ public sealed partial class MainWindow : Window
         int last = value;
         var rating = new TextBox
         {
-            Text = value.ToString(Inv), Width = 28, MinWidth = 0, MaxWidth = 28, Height = 20, MinHeight = 20,
+            Text = value.ToString(Inv), Width = 36, MinWidth = 36, MaxWidth = 36, Height = 26, MinHeight = 26,
             HorizontalAlignment = HorizontalAlignment.Right, Padding = new Thickness(2, 0),
-            FontSize = 13, FontFamily = AppTypography.Body, FontWeight = FontWeight.Normal,
+            FontSize = 16, FontFamily = AppTypography.Body, FontWeight = FontWeight.Bold,
             HorizontalContentAlignment = HorizontalAlignment.Center, VerticalContentAlignment = VerticalAlignment.Center,
             Background = RatingBg(value), BorderBrush = RatingBorder(value), Foreground = RatingColor(value),
         };
+        ScrollViewer.SetHorizontalScrollBarVisibility(rating, Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled);
+        ScrollViewer.SetVerticalScrollBarVisibility(rating, Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled);
         if (current is not null) rating.GotFocus += (_, _) => last = current();
+        rating.TextChanged += (_, _) =>
+        {
+            if (!int.TryParse(rating.Text, out int v) || v < min || v > max || v == last) return;
+            last = v;
+            rating.Foreground = RatingColor(v);
+            rating.Background = RatingBg(v);
+            rating.BorderBrush = RatingBorder(v);
+            commit(v);
+        };
         rating.LostFocus += (_, _) =>
         {
             if (!int.TryParse(rating.Text, out int v) || v < min || v > max) v = last;
@@ -1779,7 +1779,7 @@ public sealed partial class MainWindow : Window
 
     Control FieldControl(FieldDescriptor<PlayerRecord> field, PlayerRecord player, bool compact = false, Action<int>? onChanged = null, string? labelOverride = null)
     {
-        var line = new DockPanel { MinHeight = 24, LastChildFill = true };
+        var line = new DockPanel { MinHeight = 28, LastChildFill = true };
         string resolvedLabel = labelOverride is not null
             ? Loc.S(labelOverride)
             : compact
@@ -1788,8 +1788,9 @@ public sealed partial class MainWindow : Window
         var label = new TextBlock
         {
             Text = resolvedLabel,
-            FontSize = 13,
-            Foreground = Brush("#CBD5E1"),
+            FontSize = AppTypography.BodySize,
+            FontWeight = AppTypography.BodyWeight,
+            Foreground = UiKit.TextPrimary,
             VerticalAlignment = VerticalAlignment.Center,
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 2, 6, 2),
@@ -1803,8 +1804,8 @@ public sealed partial class MainWindow : Window
             {
                 Text = field.Read(player).ToString("N0"),
                 Margin = new Thickness(6, 0, 2, 0),
-                FontSize = 13,
-                FontWeight = FontWeight.Normal,
+                FontSize = AppTypography.BodySize,
+                FontWeight = AppTypography.BodyWeight,
                 Foreground = Brush("#F1F5F9"),
                 VerticalAlignment = VerticalAlignment.Center,
                 TextAlignment = TextAlignment.Right
@@ -1868,8 +1869,8 @@ public sealed partial class MainWindow : Window
             ShowButtonSpinner = false,
             Width = resolvedLabel.Length == 0 ? double.NaN : 64,
             HorizontalAlignment = resolvedLabel.Length == 0 ? HorizontalAlignment.Stretch : HorizontalAlignment.Right,
-            FontSize = 13,
-            FontWeight = FontWeight.Normal,
+            FontSize = AppTypography.BodySize,
+            FontWeight = AppTypography.BodyWeight,
             HorizontalContentAlignment = HorizontalAlignment.Right,
             Foreground = field.Kind == FieldKind.Rating20
                 ? (field.Group == "Positions" ? PitchSurface.PositionFg(currentVal) : RatingColor(currentVal))

@@ -55,13 +55,17 @@ Oyuncu bilgi ekranında özellikler üç geniş sütundadır; kişisel bilgiler 
 
 Açık overlay hem üst şeridin hem panel başlığının boş alanından sürüklenir; düğmeler ve giriş alanları kendi işlevlerini korur.
 
-Yazı tipi dağılımı: kişi isimleri, özellikler ve diğer metinler **Cabinet Grotesk Regular**, başlıklar **Cabinet Grotesk Bold**. Fontlar EXE içine gömülür; Windows'a ayrıca yüklenmez.
+Yazı tipi dağılımı: kişi isimleri **Cabinet Grotesk Regular**, gövde ve özellik etiketleri **Cabinet Grotesk Medium**, başlıklar ve özellik sayıları **Cabinet Grotesk Bold**. Gövde metinleri 15, özellik sayıları 16 ölçeklenebilir ekran birimi kullanır; daha geniş sayı kutularında kaydırma çubukları gösterilmez. Fontlar EXE içine gömülür; Windows'a ayrıca yüklenmez.
+
+Oyuncu başlığındaki **RCA (önerilen mevcut yetenek)**, özellik kutusuna geçerli değer yazıldığında anında hesaplanır. Ayaklar, mevki yeterlilikleri ve kaydedilmemiş değişiklikler hesaba katılır; dokunulmamış özelliklerin ham hassasiyeti korunur. Bu yerel önizlemedir: kayıtlı **CA** kendiliğinden değiştirilmez, oyuna yazmak için mevcut kaydetme akışı kullanılır. Eksik veya geçersiz veride sayı yerine **—** gösterilir.
+
+Yeni RCA hesabı, Steam `27.1.0+2505117` motorunun gerçek fonksiyonuyla ayrı bir emülatörde 1.098 bağımsız örnekte karşılaştırıldı ve tamamı eşleşti. Semih Sabanoğlu için resmi editörde okunan **125** değeri de eşleşti. Emülatör ve oyun kodu uygulamaya dahil değildir; uygulama saf C# hesabı kullanır. Game Pass üzerinde ayrı canlı doğrulama yapılmadı. Eski scouting formülü ve doğrulanmamış rol skorları bu önizlemede kullanılmaz.
 
 ### Fontlarla yerel derleme
 
 PowerShell 7 ile `./scripts/get-cabinet-fonts.ps1` resmi Fontshare paketinden gerekli dosyaları indirir ve sabit SHA-256 değerleriyle doğrular. CI aynı hazırlık adımını kullanır. Elle kurulum da mümkündür:
 
-Font dosyaları kaynak deposuna eklenmez. [Cabinet Grotesk'i Fontshare'den](https://www.fontshare.com/fonts/cabinet-grotesk) edin. İndirilen masaüstü paketinden `Fonts/OTF/CabinetGrotesk-Regular.otf`, `Fonts/OTF/CabinetGrotesk-Bold.otf` dosyalarını `re/local-fonts/` içine; `License/FFL.txt` belgesini aynı klasöre `Cabinet-FFL.txt` adıyla koy. Farklı klasör için `LocalFontDirectory` MSBuild özelliği kullanılabilir.
+Font dosyaları kaynak deposuna eklenmez. [Cabinet Grotesk'i Fontshare'den](https://www.fontshare.com/fonts/cabinet-grotesk) edin. İndirilen masaüstü paketinden `Fonts/OTF/CabinetGrotesk-Regular.otf`, `Fonts/OTF/CabinetGrotesk-Medium.otf`, `Fonts/OTF/CabinetGrotesk-Bold.otf` dosyalarını `re/local-fonts/` içine; `License/FFL.txt` belgesini aynı klasöre `Cabinet-FFL.txt` adıyla koy. Farklı klasör için `LocalFontDirectory` MSBuild özelliği kullanılabilir.
 
 Cabinet Grotesk fontları kendi Fontshare Free Font License koşulları altında, uygulama içine gömülü olarak dağıtılır. Lisans metni EXE içinde `FM27Live.Licenses.CabinetGrotesk` kaynağında bulunur; uygulamanın kaynak kodu lisansı fontların lisansını değiştirmez.
 

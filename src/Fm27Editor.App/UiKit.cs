@@ -291,7 +291,13 @@ static class UiKit
         string title,
         Control? badgeRow,
         Control? rightCommands,
-        params Control[] leadingVisuals)
+        params Control[] leadingVisuals) => EntityBannerCore(title, badgeRow, rightCommands, false, leadingVisuals);
+
+    public static Border PersonBanner(string title, Control? badgeRow, Control? rightCommands,
+        params Control[] leadingVisuals) => EntityBannerCore(title, badgeRow, rightCommands, true, leadingVisuals);
+
+    static Border EntityBannerCore(string title, Control? badgeRow, Control? rightCommands, bool person,
+        Control[] leadingVisuals)
     {
         var dock = new DockPanel { LastChildFill = true };
         if (rightCommands is not null)
@@ -322,7 +328,8 @@ static class UiKit
         {
             Text = title,
             FontSize = 24,
-            FontWeight = FontWeight.Bold,
+            FontFamily = person ? AppTypography.PersonName : AppTypography.Body,
+            FontWeight = person ? FontWeight.Normal : FontWeight.Bold,
             Foreground = TextPrimary,
             LetterSpacing = -0.2,
             TextTrimming = TextTrimming.CharacterEllipsis,

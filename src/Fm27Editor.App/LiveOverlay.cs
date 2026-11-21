@@ -80,7 +80,8 @@ public sealed partial class MainWindow
 
     Control BuildOverlayPanel(Control viewport)
     {
-        var header = new DockPanel { Margin = new Thickness(6), LastChildFill = true };
+        var header = new DockPanel { Background = Avalonia.Media.Brushes.Transparent, Margin = new Thickness(6), LastChildFill = true };
+        WindowDragSurface.Attach(header, BeginMoveDrag);
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
         void Add(string label, Action action)
         {
@@ -92,7 +93,6 @@ public sealed partial class MainWindow
         Add(Loc.S("Collapse · F8"), HideOverlay);
         DockPanel.SetDock(buttons, Dock.Right); header.Children.Add(buttons);
         var grip = new TextBlock { Text = "FM27 LIVE", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(5, 0), FontWeight = Avalonia.Media.FontWeight.SemiBold };
-        grip.PointerPressed += (_, e) => { if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) BeginMoveDrag(e); };
         header.Children.Add(grip);
         var panel = new DockPanel(); DockPanel.SetDock(header, Dock.Top); panel.Children.Add(header); panel.Children.Add(viewport);
         return new Border { Background = UiKit.WindowBg, BorderBrush = UiKit.Accent, BorderThickness = new Thickness(1), Child = panel };

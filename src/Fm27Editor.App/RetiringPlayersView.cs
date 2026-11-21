@@ -69,7 +69,7 @@ public sealed partial class MainWindow
     {
         if (retiringGrid is null) return;
         retiringGrid.Columns.Clear();
-        retiringGrid.Columns.Add(ToolGrid.Text<RetiringRow>("Name", r => r.Name, 210, "Player name", bold: true));
+        retiringGrid.Columns.Add(ToolGrid.Text<RetiringRow>("Name", r => r.Name, 210, "Player name", personName: true));
         retiringGrid.Columns.Add(ToolGrid.Number<RetiringRow>("Age", r => r.AgeText, 52, "Age"));
         retiringGrid.Columns.Add(ToolGrid.Text<RetiringRow>("Nation", r => r.Nation, 140, "Nation"));
         retiringGrid.Columns.Add(ToolGrid.Text<RetiringRow>("Club", r => r.Club, 190, "Current club"));

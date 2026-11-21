@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/Fm27Editor.Core/Fm27Editor.Core.csproj" />
+    <Project Path="src/Fm27Editor.UnityMetadata/Fm27Editor.UnityMetadata.csproj" />
     <Project Path="src/Fm27Editor.Tools/Fm27Editor.Tools.csproj" />
     <Project Path="src/Fm27Editor.App/Fm27Editor.App.csproj" />
   </Folder>

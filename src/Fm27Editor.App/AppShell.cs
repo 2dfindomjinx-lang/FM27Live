@@ -267,6 +267,7 @@ public sealed partial class MainWindow
         var saveBtn = ToolBtn("M15,9H5V5H15M12,19A3,3 0 0,1 9,16A3,3 0 0,1 12,13A3,3 0 0,1 15,16A3,3 0 0,1 12,19M17,3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V7L17,3Z", "Save changes on current page (Ctrl+S)", SaveCurrentEntity);
         saveBtn.Classes.Add("accent");
         left.Children.Add(saveBtn);
+        left.Children.Add(ToolBtn("M3,3H9V5H5V9H3V3M15,3H21V9H19V5H15V3M3,15H5V19H9V21H3V15M19,15H21V21H15V19H19V15M8,8H16V16H8V8Z", "Open current FM screen (Ctrl+Shift+F)", () => _ = OpenCurrentGameScreenAsync()));
         left.Children.Add(ToolBtn("M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z", "Reload current screen (Ctrl+R)", ReloadCurrentScreen));
         left.Children.Add(ToolBtn("M13.5,8H12V13L16.28,15.54L17,14.33L13.5,12.25V8M13,3A9,9 0 0,0 4,12H1L4.96,16.03L9,12H6A7,7 0 0,1 13,5A7,7 0 0,1 20,12A7,7 0 0,1 13,19C11.07,19 9.32,18.21 8.06,16.94L6.64,18.36C8.27,20 10.5,21 13,21A9,9 0 0,0 22,12A9,9 0 0,0 13,3", "Session edit history", () => _ = ShowEditHistoryAsync()));
         left.Children.Add(Divider());
@@ -368,6 +369,7 @@ public sealed partial class MainWindow
 
         var topGrid = new Grid
         {
+            Background = Brushes.Transparent,
             Margin = new Thickness(12, 7),
             ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"),
         };
@@ -378,6 +380,7 @@ public sealed partial class MainWindow
         topGrid.Children.Add(left);
         topGrid.Children.Add(searchHost);
         topGrid.Children.Add(right);
+        Fm27Editor.App.Live.WindowDragSurface.Attach(topGrid, e => { if (overlayMode) BeginMoveDrag(e); });
 
         unifiedSearch.TextChanged += (_, _) =>
         {
@@ -405,6 +408,11 @@ public sealed partial class MainWindow
             else if (e.Key == Key.S && e.KeyModifiers.HasFlag(KeyModifiers.Control))
             {
                 SaveCurrentEntity();
+                e.Handled = true;
+            }
+            else if (e.Key == Key.F && e.KeyModifiers.HasFlag(KeyModifiers.Control) && e.KeyModifiers.HasFlag(KeyModifiers.Shift))
+            {
+                _ = OpenCurrentGameScreenAsync();
                 e.Handled = true;
             }
             else if (e.Key == Key.R && e.KeyModifiers.HasFlag(KeyModifiers.Control))
@@ -582,7 +590,7 @@ public sealed partial class MainWindow
         }
 
         var tab = new KindTab { Body = body, Restore = restore, Title = title, Key = key };
-        tab.Button = MakeEntityButton(title, () => ActivateKindTab(tab), () => CloseKindTab(tab));
+        tab.Button = MakeEntityButton(title, () => ActivateKindTab(tab), () => CloseKindTab(tab), personName: kind is "staff" or "referee");
         kindTabs[key] = tab;
         entityStrip.Children.Add(tab.Button);
         UpdateEntityRow();
@@ -836,12 +844,12 @@ public sealed partial class MainWindow
         var header = new ContentControl { Margin = new Thickness(10, 8, 10, 7) };
         DockPanel.SetDock(header, Dock.Top);
         var rail = new ContentControl { Margin = new Thickness(10, 0, 0, 8), VerticalAlignment = VerticalAlignment.Top };
-        var body = new Grid { ColumnDefinitions = new ColumnDefinitions("200,*") };
+        var body = new Grid { ColumnDefinitions = new ColumnDefinitions("154,*") };
         body.Children.Add(rail);
         Grid.SetColumn(scroll, 1); body.Children.Add(scroll);
         var root = new DockPanel { Background = UiKit.WindowBg, Children = { header, sticky, body } };
         var tab = new PlayerTab { Player = player, Title = player.DisplayName, Panel = panel, Root = root, Sticky = sticky, Header = header, Rail = rail };
-        tab.Button = MakeEntityButton(player.DisplayName, () => ActivatePlayerTab(tab), () => ClosePlayerTab(tab));
+        tab.Button = MakeEntityButton(player.DisplayName, () => ActivatePlayerTab(tab), () => ClosePlayerTab(tab), personName: true);
         playerTabs.Add(tab);
         entityStrip.Children.Add(tab.Button);
         UpdateEntityRow();
@@ -937,17 +945,20 @@ public sealed partial class MainWindow
         UpdateEntityRow();
     }
 
-    Border MakeEntityButton(string title, Action activate, Action close)
+    Border MakeEntityButton(string title, Action activate, Action close, bool personName = false)
     {
         var label = new TextBlock
         {
             Text = title,
             FontSize = 13,
             MaxWidth = 148,
+            FontFamily = personName ? AppTypography.PersonName : AppTypography.Body,
+            FontWeight = FontWeight.Normal,
             TextTrimming = TextTrimming.CharacterEllipsis,
             VerticalAlignment = VerticalAlignment.Center,
             Foreground = Brush("#CBD5E1"),
         };
+        label.Classes.Set("person-name", personName);
         var closeButton = new Button
         {
             Content = "✕",
@@ -997,7 +1008,7 @@ public sealed partial class MainWindow
             if (border.Child is StackPanel { Children: [TextBlock text, _] })
             {
                 text.Foreground = Brush(active ? "#F8FAFC" : "#94A3B8");
-                text.FontWeight = active ? FontWeight.SemiBold : FontWeight.Normal;
+                text.FontWeight = text.Classes.Contains("person-name") ? FontWeight.Normal : active ? FontWeight.Bold : FontWeight.Normal;
             }
         }
     }
@@ -1413,7 +1424,7 @@ public sealed partial class MainWindow
             VerticalAlignment = VerticalAlignment.Center,
             Children =
             {
-                new TextBlock { Text = item.Name, FontSize = 13.5, FontWeight = FontWeight.SemiBold, Foreground = UiKit.TextPrimary, VerticalAlignment = VerticalAlignment.Center },
+                new TextBlock { Text = item.Name, FontSize = 13.5, FontFamily = item.Kind is "PLAYER" or "STAFF" or "REFEREE" ? AppTypography.PersonName : AppTypography.Body, FontWeight = FontWeight.Normal, Foreground = UiKit.TextPrimary, VerticalAlignment = VerticalAlignment.Center },
                 new TextBlock { Text = item.Meta, FontSize = 12.5, Foreground = UiKit.TextMuted, VerticalAlignment = VerticalAlignment.Center },
             },
         });

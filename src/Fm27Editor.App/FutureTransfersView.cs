@@ -46,7 +46,7 @@ public sealed partial class MainWindow
         };
 
         futureGrid = ToolGrid.Create();
-        futureGrid.Columns.Add(ToolGrid.Text<FutureTransferRow>("Name", r => r.Name, 210, "Player name", bold: true));
+        futureGrid.Columns.Add(ToolGrid.Text<FutureTransferRow>("Name", r => r.Name, 210, "Player name", personName: true));
         futureGrid.Columns.Add(ToolGrid.Number<FutureTransferRow>("Age", r => r.AgeText, 52, "Age"));
         futureGrid.Columns.Add(ToolGrid.Text<FutureTransferRow>("From", r => r.From, 175, "Selling club"));
         futureGrid.Columns.Add(ToolGrid.Text<FutureTransferRow>("To", r => r.To, 175, "Buying club"));

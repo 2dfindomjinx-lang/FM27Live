@@ -20,6 +20,8 @@ public sealed class App : Application
         LiveText.Initialize();
         AppTheme.Load();
         Fm27Editor.Core.Settings.LanguageSetting.Load();
+        TranslationOverrides.Load();
+        Fm27Editor.Core.Settings.AttributeOrderSetting.Load();
         Fm27Editor.Core.Settings.DateSetting.Load();
         Fm27Editor.Core.Settings.CurrencySetting.Load();
         Fm27Editor.Core.Settings.GameCurrency.TryApply();
@@ -103,6 +105,7 @@ public sealed class App : Application
         SetAccent();
         AppTheme.Changed += SetAccent;
         Resources["DataGridRowSelectedBackgroundOpacity"] = 1.0;
+        Resources["ContentControlThemeFontFamily"] = AppTypography.Body;
         Resources["DataGridRowSelectedHoveredBackgroundOpacity"] = 1.0;
         Resources["DataGridRowSelectedUnfocusedBackgroundOpacity"] = 1.0;
         Resources["DataGridRowSelectedBackgroundBrush"] = UiKit.Brush("#231B42");
@@ -116,6 +119,8 @@ public sealed class App : Application
                 new Setter(TemplatedControl.BackgroundProperty, windowBg),
                 new Setter(TemplatedControl.ForegroundProperty, textPrimary),
                 new Setter(TemplatedControl.FontSizeProperty, 13.0),
+                new Setter(TemplatedControl.FontFamilyProperty, AppTypography.Body),
+                new Setter(TemplatedControl.FontWeightProperty, FontWeight.Normal),
             }
         });
 
@@ -411,7 +416,7 @@ public sealed class App : Application
             Setters =
             {
                 new Setter(TemplatedControl.FontSizeProperty, 12.5),
-                new Setter(TemplatedControl.FontWeightProperty, FontWeight.SemiBold),
+                new Setter(TemplatedControl.FontWeightProperty, FontWeight.Bold),
                 new Setter(TemplatedControl.ForegroundProperty, textSecondary),
                 new Setter(TemplatedControl.BackgroundProperty, UiKit.Brush("#171B28")),
                 new Setter(TemplatedControl.BorderBrushProperty, borderSubtle),

@@ -79,7 +79,7 @@ public sealed class TalentedRegensTab
         toolbar.Children.Add(new Border { Margin = new Thickness(0, 0, 12, 4), Child = refreshBtn });
         toolbar.Children.Add(new Border { Margin = new Thickness(0, 0, 0, 4), VerticalAlignment = VerticalAlignment.Center, Child = summaryText });
 
-        grid.Columns.Add(ToolGrid.Text<RegenRow>("Name", r => r.Name, 190, "Player name (double-click to open)", "#E2E8F0", bold: true));
+        grid.Columns.Add(ToolGrid.Text<RegenRow>("Name", r => r.Name, 190, "Player name (double-click to open)", "#E2E8F0", personName: true));
         grid.Columns.Add(ToolGrid.Number<RegenRow>("Age", r => r.Age?.ToString(Inv) ?? "", 52, "Current age"));
         grid.Columns.Add(ToolGrid.Number<RegenRow>("CA", r => r.CA.ToString(Inv), 54, "Current Ability"));
         grid.Columns.Add(ToolGrid.Number<RegenRow>("PA", r => r.PA.ToString(Inv), 54, "Potential Ability"));

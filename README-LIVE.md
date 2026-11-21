@@ -14,7 +14,11 @@ Windows 10/11 x64 için normal uygulama ve oyun üstü overlay içeren FM27 anl�
 
 **Settings → Language → Türkçe** ile dili değiştir. Türkçe ve İngilizce arasında geçiş anında uygulanır; uygulama yeniden başlamaz, açık editörler ve kaydedilmemiş alanlar korunur. Eski Vietnamca tercihi Türkçeye taşınır.
 
+Türkçe arayüzde teknik, zihinsel ve fiziksel özellikler oyunun Türkçe dizilişini izler; duran toplar teknik sütunun altında ayrı gösterilir. **Ayarlar → Özellik sıralaması → İngilizce sıralama** seçeneğiyle önceki sıralamayı kullanabilirsin. **Arayüz diline göre** varsayılandır. Seçim anında uygulanır, kaydedilmemiş değerleri korur ve sonraki açılışta hatırlanır. İngilizce arayüzün sıralaması değişmez.
+
 Üstteki hızlı erişim düğmeleri normal uygulamada ve overlay içinde kullanılabilir:
+
+- **FM’deki açık ekranı getir (Ctrl+Shift+F):** FM’de görüntülediğin kişi veya kulübü editörde açar. Ctrl+R mevcut editör sayfasını yenilemeye devam eder. İlk kullanımda kurulu FM dosyalarından ekran adresleri çözülür; sonraki kullanımlar aynı oturumda önbelleği kullanır. Desteklenmeyen veya belirsiz ekranlarda önceki kişiyi açmaz. Açık oyuncu sekmesindeki kaydedilmemiş alanlar korunur.
 
 - **Benim kulübüm:** insan menajerin kulübünü açar. Birden fazla menajer varsa seçim sunar; bulunamazsa kulüp seçebilirsin.
 - **Kadrom:** oyuncu filtrelerini temizler ve kulübündeki oyuncuları gösterir.
@@ -40,6 +44,26 @@ Ayarlar `%LOCALAPPDATA%\FM27Live` içinde tutulur; paket değiştirilirken bu kl
 Windows Authenticode sertifikası yoktur; yayıncı doğrulaması uygulamanın imzalı güncelleme sistemi içindedir.
 
 ## Uyumluluk
+
+Açık ekran algılama Windows Unity metadata 39 için salt okunurdur; adresler Steam/Game Pass adına göre sabitlenmez, kurulu oyundan çözülür. Steam 27.1.0+2505117 üzerinde Faruk Yankayış ve Beşiktaş geçişi doğrulandı; Game Pass, personel, ülke ve turnuva ekranları için canlı doğrulama henüz yapılmadı. Bu özellik oyuna yazma yetkisini veya desteklenen oyun sürümlerini genişletmez.
+
+## Düzenleme görünümü ve kişisel çeviriler
+
+Oyuncu bilgi ekranında özellikler üç geniş sütundadır; kişisel bilgiler açılır bölümdedir. Üstte mevki, topa sahip olma durumu ve rol seçerek temel (yeşil), tercih edilen (mavi) ve düşük olması önerilen (sarı) özellikleri vurgulayabilirsin. Bu yalnızca görsel rehberdir, oyuncuya rol atamaz veya değer değiştirmez. Rol eşlemeleri uygulamanın mevcut yerleşik rol kataloğundan gelir.
+
+**Ayarlar → Türkçe çevirileri düzenle** ile ifadeleri ara, değiştir, **Kaydet ve uygula** ile yeniden başlatmadan uygula. Seçili ifadeyi varsayılana döndürebilirsin. Kişisel sözlük `%LOCALAPPDATA%\FM27Live\translations\tr.custom.json` dosyasında saklanır ve güncellemelerde korunur. Dosyayı dışarıdan değiştirirsen aynı penceredeki **Çeviri dosyasını yeniden oku** düğmesini kullan. `{0}` gibi değişken yerlerini koru. `@attribute:Balance` oyuncunun dengesini, normal `Balance` mali bakiyeyi ayrı düzenler.
+
+Açık overlay hem üst şeridin hem panel başlığının boş alanından sürüklenir; düğmeler ve giriş alanları kendi işlevlerini korur.
+
+Yazı tipi dağılımı: kişi isimleri, özellikler ve diğer metinler **Cabinet Grotesk Regular**, başlıklar **Cabinet Grotesk Bold**. Fontlar EXE içine gömülür; Windows'a ayrıca yüklenmez.
+
+### Fontlarla yerel derleme
+
+PowerShell 7 ile `./scripts/get-cabinet-fonts.ps1` resmi Fontshare paketinden gerekli dosyaları indirir ve sabit SHA-256 değerleriyle doğrular. CI aynı hazırlık adımını kullanır. Elle kurulum da mümkündür:
+
+Font dosyaları kaynak deposuna eklenmez. [Cabinet Grotesk'i Fontshare'den](https://www.fontshare.com/fonts/cabinet-grotesk) edin. İndirilen masaüstü paketinden `Fonts/OTF/CabinetGrotesk-Regular.otf`, `Fonts/OTF/CabinetGrotesk-Bold.otf` dosyalarını `re/local-fonts/` içine; `License/FFL.txt` belgesini aynı klasöre `Cabinet-FFL.txt` adıyla koy. Farklı klasör için `LocalFontDirectory` MSBuild özelliği kullanılabilir.
+
+Cabinet Grotesk fontları kendi Fontshare Free Font License koşulları altında, uygulama içine gömülü olarak dağıtılır. Lisans metni EXE içinde `FM27Live.Licenses.CabinetGrotesk` kaynağında bulunur; uygulamanın kaynak kodu lisansı fontların lisansını değiştirmez.
 
 Altyapıdaki Windows profilleri Steam ve Game Pass için `27.1.0+2505117` dahil sürümler içerir.
 Tam liste `offsets/` altında. Bunlar upstream profil doğrulamalarıdır; bu dağıtımın oyun içi testi ayrıca yapılmalıdır.

@@ -1022,6 +1022,8 @@ public sealed partial class MainWindow : Window
                 Binding = c.Title == "Asking Price" ? new Binding(c.Binding) { StringFormat = "N0" } : new Binding(c.Binding),
                 Width = width,
                 MinWidth = c.Title == "Name" ? 135 : 54,
+                FontFamily = c.Title == "Name" && module is PlayersModule ? AppTypography.PersonName : AppTypography.Body,
+                FontWeight = FontWeight.Normal,
             };
             if (c.Title is "Age" or "CA" or "PA" or "Asking Price") col.CellStyleClasses.Add("numeric");
             grid.Columns.Add(col);
@@ -1392,7 +1394,7 @@ public sealed partial class MainWindow : Window
 
         commands.Children.Insert(0, new FavoriteStar(player.Id));
         var portrait = graphics.Image("person", player.Id, 72);
-        var identityHeader = UiKit.EntityBanner(player.DisplayName, badges, commands.Children.Count > 0 ? commands : null, portrait);
+        var identityHeader = UiKit.PersonBanner(player.DisplayName, badges, commands.Children.Count > 0 ? commands : null, portrait);
         var playerTab = playerTabs.FirstOrDefault(t => ReferenceEquals(t.Panel, editor));
         if (playerTab is not null)
         {
@@ -1465,12 +1467,17 @@ public sealed partial class MainWindow : Window
     }
 
 
-    Control GroupControl(string group, PlayerRecord player, Control? customHeader = null) =>
-        AttributeCard(group, PlayerFields.All.Where(f => f.Group == group).Select(f => FieldControl(f, player)), customHeader);
+    Control GroupControl(string group, PlayerRecord player, Control? customHeader = null)
+    {
+        var fields = PlayerFields.All.Where(f => f.Group == group).ToArray();
+        return AttributeCard(group, fields.Select(f => FieldControl(f, player)), customHeader, rowIds: fields.Select(f => f.Id).ToArray(), role: AttributeRoleOf(player));
+    }
 
     /// <summary>The player attribute card: zebra rows of label + value, as on the player's Information page.</summary>
-    internal static Control AttributeCard(string title, IEnumerable<Control> rows, Control? customHeader = null, Control? rightHeader = null)
+    internal static Control AttributeCard(string title, IEnumerable<Control> rows, Control? customHeader = null, Control? rightHeader = null, IReadOnlyList<string>? rowIds = null, AttributeRoleSelection? role = null)
     {
+        if (rowIds is not null)
+            return UiKit.Card(title, new LocalizedAttributeRows(title, rowIds, rows.ToArray(), role), customTitle: customHeader, rightHeader: rightHeader);
         var rowsPanel = new StackPanel { Spacing = 0 };
         int rowIndex = 0;
         foreach (var row in rows)
@@ -1509,7 +1516,7 @@ public sealed partial class MainWindow : Window
         {
             Text = value.ToString(Inv), Width = 28, MinWidth = 0, MaxWidth = 28, Height = 20, MinHeight = 20,
             HorizontalAlignment = HorizontalAlignment.Right, Padding = new Thickness(2, 0),
-            FontSize = 13, FontWeight = FontWeight.Bold,
+            FontSize = 13, FontFamily = AppTypography.Body, FontWeight = FontWeight.Normal,
             HorizontalContentAlignment = HorizontalAlignment.Center, VerticalContentAlignment = VerticalAlignment.Center,
             Background = RatingBg(value), BorderBrush = RatingBorder(value), Foreground = RatingColor(value),
         };
@@ -1797,7 +1804,7 @@ public sealed partial class MainWindow : Window
                 Text = field.Read(player).ToString("N0"),
                 Margin = new Thickness(6, 0, 2, 0),
                 FontSize = 13,
-                FontWeight = FontWeight.SemiBold,
+                FontWeight = FontWeight.Normal,
                 Foreground = Brush("#F1F5F9"),
                 VerticalAlignment = VerticalAlignment.Center,
                 TextAlignment = TextAlignment.Right
@@ -1862,7 +1869,7 @@ public sealed partial class MainWindow : Window
             Width = resolvedLabel.Length == 0 ? double.NaN : 64,
             HorizontalAlignment = resolvedLabel.Length == 0 ? HorizontalAlignment.Stretch : HorizontalAlignment.Right,
             FontSize = 13,
-            FontWeight = FontWeight.SemiBold,
+            FontWeight = FontWeight.Normal,
             HorizontalContentAlignment = HorizontalAlignment.Right,
             Foreground = field.Kind == FieldKind.Rating20
                 ? (field.Group == "Positions" ? PitchSurface.PositionFg(currentVal) : RatingColor(currentVal))

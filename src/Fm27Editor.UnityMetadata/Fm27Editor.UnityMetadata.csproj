@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>disable</Nullable><AllowUnsafeBlocks>true</AllowUnsafeBlocks></PropertyGroup>
+  <ItemGroup><None Include="Vendor\LICENSE" CopyToOutputDirectory="PreserveNewest" TargetPath="licenses\Il2CppDumper.txt" /></ItemGroup>
+  <ItemGroup><EmbeddedResource Include="Vendor\LICENSE" LogicalName="FM27Live.Licenses.Il2CppDumper" /></ItemGroup>
+  <ItemGroup><ProjectReference Include="..\Fm27Editor.Core\Fm27Editor.Core.csproj" /></ItemGroup>
+</Project>

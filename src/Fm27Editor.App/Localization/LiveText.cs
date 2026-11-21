@@ -45,6 +45,7 @@ internal static class LiveText
         NativeMenuItem.HeaderProperty.Changed.AddClassHandler<NativeMenuItem>(Track);
         // Native windows belong to the actual creating thread, even with a permissive dispatcher.
         LanguageSetting.Changed += () => OnUi(Refresh);
+        TranslationOverrides.Changed += () => OnUi(Refresh);
     }
 
     static void Track(AvaloniaObject control, AvaloniaPropertyChangedEventArgs e)

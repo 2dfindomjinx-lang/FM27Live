@@ -68,7 +68,7 @@ public sealed partial class MainWindow
         grid.ItemsSource = rows;
         ToolGrid.AddTick<StaffListRow>(grid, excluded, r => r.Staff.Address, () => rows, () => updateCount?.Invoke());
         grid.Columns.Add(ToolGrid.Text<StaffListRow>("Job", r => r.Job, 150, "Job"));
-        grid.Columns.Add(ToolGrid.Text<StaffListRow>("Name", r => r.Name, 0, "Staff name", "#F1F5F9", bold: true, minWidth: 130));
+        grid.Columns.Add(ToolGrid.Text<StaffListRow>("Name", r => r.Name, 0, "Staff name", "#F1F5F9", minWidth: 130, personName: true));
         grid.Columns.Add(ToolGrid.Number<StaffListRow>("Age", r => r.Age?.ToString(CultureInfo.InvariantCulture) ?? "", 41, "Age"));
         grid.Columns.Add(ToolGrid.Text<StaffListRow>("Team", r => r.Team, 110, "Team"));
         grid.Columns.Add(ToolGrid.Text<StaffListRow>("Nat", r => r.Nation, 118, "Nationality"));

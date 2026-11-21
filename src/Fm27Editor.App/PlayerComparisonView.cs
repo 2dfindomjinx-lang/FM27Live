@@ -73,7 +73,7 @@ public sealed partial class MainWindow
                 Spacing = 2,
                 Children =
                 {
-                    new TextBlock { Text = p.DisplayName, FontSize = 16, FontWeight = FontWeight.Bold },
+                    new TextBlock { Text = p.DisplayName, FontSize = 16, FontFamily = AppTypography.PersonName, FontWeight = FontWeight.Normal },
                     new TextBlock { Text = Loc.F("{0} · {1} · {2} yrs", p.ClubName ?? "", p.NationalityName ?? "", p.Age), Foreground = Brush("#94A3B8") },
                     new TextBlock { Text = p.Contract is { } c ? Loc.F("{0} p/w · {1}", Fm27Editor.Core.Settings.CurrencySetting.Format(c.Wage), DateSetting.Format(c.Expires)) : "", Foreground = Brush("#94A3B8") },
                 },

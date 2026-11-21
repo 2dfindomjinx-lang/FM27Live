@@ -130,7 +130,7 @@ internal sealed partial class StaffScreen(IScreenHost host, IStaffPanels panels)
 
     protected override void ConfigureColumns(DataGrid grid)
     {
-        grid.Columns.Add(new DataGridTextColumn { Header = Loc.S("Name"), Binding = new Binding(nameof(StaffRow.Name)), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
+        grid.Columns.Add(new DataGridTextColumn { Header = Loc.S("Name"), Binding = new Binding(nameof(StaffRow.Name)), FontFamily = AppTypography.PersonName, FontWeight = FontWeight.Normal, Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
         grid.Columns.Add(new DataGridTextColumn { Header = Loc.S("Job"), Binding = new Binding(nameof(StaffRow.JobDisplay)), Width = new DataGridLength(156) });
         grid.Columns.Add(new DataGridTextColumn { Header = Loc.S("Club"), Binding = new Binding(nameof(StaffRow.Club)), Width = new DataGridLength(150) });
         grid.Columns.Add(new DataGridTextColumn { Header = Loc.S("Nation"), Binding = new Binding(nameof(StaffRow.Nation)), Width = new DataGridLength(126) });
@@ -392,7 +392,7 @@ internal sealed partial class StaffScreen(IScreenHost host, IStaffPanels panels)
             };
             headerCommands.Children.Add(freeze);
             headerCommands.Children.Add(unfreeze);
-        }        HeaderHost.Content = UiKit.EntityBanner(s.DisplayName, badges, headerCommands, Host.Graphics.Image("person", s.Id, 72));
+        }        HeaderHost.Content = UiKit.PersonBanner(s.DisplayName, badges, headerCommands, Host.Graphics.Image("person", s.Id, 72));
 
         var columns = new Grid { ColumnDefinitions = new ColumnDefinitions("*,8,*,8,*") };
         var col = new[] { new StackPanel { Spacing = 10 }, new StackPanel { Spacing = 10 }, new StackPanel { Spacing = 10 } };

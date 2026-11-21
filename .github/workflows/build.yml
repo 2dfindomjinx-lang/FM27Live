@@ -13,5 +13,8 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
+      - name: Obtain Cabinet Grotesk from Fontshare
+        shell: pwsh
+        run: ./scripts/get-cabinet-fonts.ps1
       - name: Test editor and signed updater
         run: dotnet test Fm27Editor.slnx -c Release

@@ -57,7 +57,8 @@ internal static class ToolGrid
         {
             Tag = text,
             FontSize = 12.5,
-            FontWeight = FontWeight.SemiBold,
+            FontFamily = AppTypography.Body,
+            FontWeight = FontWeight.Bold,
             Foreground = Brush("#94A3B8"),
             VerticalAlignment = VerticalAlignment.Center,
             HorizontalAlignment = align,
@@ -90,7 +91,7 @@ internal static class ToolGrid
     };
 
     /// <summary>A left-aligned text column; <paramref name="width"/> &lt;= 0 makes it a star column.</summary>
-    public static DataGridTemplateColumn Text<T>(string title, Func<T, string> text, double width, string tooltip, string foreground = "#CBD5E1", bool bold = false, double minWidth = 0) => new()
+    public static DataGridTemplateColumn Text<T>(string title, Func<T, string> text, double width, string tooltip, string foreground = "#CBD5E1", bool bold = false, double minWidth = 0, bool personName = false) => new()
     {
         Header = Header(title, tooltip, HorizontalAlignment.Left),
         Width = width <= 0 ? new DataGridLength(1, DataGridLengthUnitType.Star) : new DataGridLength(width),
@@ -100,7 +101,8 @@ internal static class ToolGrid
             var tb = new TextBlock
             {
                 Text = text(row),
-                FontWeight = bold ? FontWeight.Medium : FontWeight.Normal,
+                FontFamily = personName ? AppTypography.PersonName : AppTypography.Body,
+                FontWeight = personName ? FontWeight.Normal : bold ? FontWeight.Bold : FontWeight.Normal,
                 Foreground = Brush(foreground),
                 VerticalAlignment = VerticalAlignment.Center,
                 TextTrimming = TextTrimming.CharacterEllipsis,

@@ -146,7 +146,7 @@ public sealed partial class MainWindow
     static Avalonia.Controls.DataGrid BuildYouthIntakeGrid(IReadOnlyList<YouthCandidate> candidates)
     {
         var grid = ToolGrid.Create();
-        grid.Columns.Add(ToolGrid.Text<YouthCandidate>("Name", c => c.DisplayName, 190, "Name", "#F1F5F9", bold: true));
+        grid.Columns.Add(ToolGrid.Text<YouthCandidate>("Name", c => c.DisplayName, 190, "Name", "#F1F5F9", personName: true));
         grid.Columns.Add(ToolGrid.Text<YouthCandidate>("Position", c => c.PositionSummary, 110, "Positions rated 15 or more"));
         grid.Columns.Add(ToolGrid.Number<YouthCandidate>("Age", c => c.Age?.ToString(Inv) ?? "", 46, "Age"));
         grid.Columns.Add(ToolGrid.Number<YouthCandidate>("Born", c => c.DateOfBirth is { } d ? DateSetting.Format(d) : "", 96, "Date of birth"));
@@ -206,9 +206,11 @@ public sealed partial class MainWindow
         }
 
         string Label(PlayerAttribute a) => Loc.Attribute(PlayerFields.All.First(f => f.Id == a.ToString()).Label);
-        Control Group(string title, AttributeGroup group, Control? header = null) =>
-            AttributeCard(title, Enum.GetValues<PlayerAttribute>().Where(a => PlayerAttributeInfo.GroupOf(a) == group)
-                .Select(a => Rating(Label(a), $"attr:{a}")), header);
+        Control Group(string title, AttributeGroup group, Control? header = null)
+        {
+            var attributes = Enum.GetValues<PlayerAttribute>().Where(a => PlayerAttributeInfo.GroupOf(a) == group).ToArray();
+            return AttributeCard(title, attributes.Select(a => Rating(Label(a), $"attr:{a}")), header, rowIds: attributes.Select(a => a.ToString()).ToArray());
+        }
 
         // Technical / Goalkeeping switch, as on the player page; a goalkeeper candidate opens on Goalkeeping.
         var picker = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 3, VerticalAlignment = VerticalAlignment.Center };

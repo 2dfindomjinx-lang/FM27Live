@@ -1,13 +1,15 @@
-FM27 Live 0.1.6 Windows sürümü.
+FM27 Live 0.1.7 Windows sürümü.
 
-- Oyun tarihi değişince veriler arka planda otomatik yenilenir. Tarih 3 saniyelik iki kontrolde sabit kalınca okuma başlar; Ctrl+R gerekmez.
-- Oyuncu ve kulüp listeleri, arama verileri, kulüp kısayolları ve düzenleme yapılmayan açık sayfalar güncellenir.
-- Kaydedilmemiş sekmeler yeniden oluşturulmaz. Henüz kutudan çıkılmamış veya tamamlanmamış metinler de korunur. Düzenlenen sayfa kaydetme/vazgeçme sonrasında güncel veriyi gösterir; diğer listeler yenilenmeye devam eder.
-- Otomatik yenileme oyuna yazmaz ve bekleyen değişikliklerin eski değer kontrolünü kaldırmaz. FM aynı alanı değiştirdiyse kaydetme sırasında mevcut çakışma kontrolü devreye girer.
-- Aynı anda tek okuma çalışır; hatalı okumalar mevcut veriyi silmez ve yeniden denenir. Farklı kayıt yüklenince eski okuma sonucu yayınlanmaz.
-- Normal uygulama, overlay ve imzalı otomatik güncelleme kanalı birlikte desteklenir.
+- İsimler, özellikler ve diğer metinlerde Cabinet Grotesk Regular; başlıklarda Cabinet Grotesk Bold kullanılır. Fontlar uygulamaya gömülüdür.
+- Türkçe arayüzde oyuncu özellikleri FM'nin Türkçe sırasıyla gösterilir; duran toplar ayrı gruptadır. Ayarlardan İngilizce sıralama seçilebilir. İngilizce arayüzün mevcut sıralaması korunur.
+- Ayarlar → Türkçe çevirileri düzenle ile kişisel çeviriler oluşturulabilir ve yeniden başlatmadan uygulanabilir. Kişisel sözlük güncellemelerde korunur.
+- Oyuncu ekranında mevki ve rol seçilerek ilgili özellikler vurgulanabilir. Rol seçimi yalnızca görsel rehberdir; oyuncu değerlerini değiştirmez.
+- Özelliklere daha fazla alan ayrılır; kişisel bilgiler açılır bölümde bulunur. Overlay üst şeridin ve panel başlığının boş alanından taşınabilir.
+- Yeni hedef düğmesi veya uygulama odaktayken Ctrl+Shift+F, FM'de açık kişi/kulüp ekranını editörde açar. Zaten açık oyuncu sekmesine geçiş, kaydedilmemiş girişleri korur. Ctrl+R mevcut yenileme işlevini sürdürür.
+- Normal uygulama, overlay, oyun günü değiştiğinde otomatik veri yenileme ve imzalı otomatik güncelleme birlikte korunur.
 
 Mevcut uygulamada Güncellemeler → Şimdi kontrol et ile alınabilir.
 
-Oyun içinde gün ilerletme ve gerçek oyun belleğine yazma testi yapılmadı.
-GPL-3.0-or-later. Kaynak kod ve upstream atfı depoda bulunur.
+Açık ekran algılama Steam 27.1.0+2505117 üzerinde oyuncu → kulüp geçişiyle doğrulandı. Game Pass, personel, ülke ve turnuva ekranlarında canlı doğrulama henüz yapılmadı. Bu sürümde oyun belleğine yazma testi yapılmadı; yeni bir FM sürümü için destek eklenmedi.
+
+GPL-3.0-or-later. Kaynak kod ve üçüncü taraf lisans bildirimleri depoda bulunur. Cabinet Grotesk kendi Fontshare Free Font License koşulları altında uygulamaya gömülüdür.

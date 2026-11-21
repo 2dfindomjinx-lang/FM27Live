@@ -10,6 +10,8 @@ public sealed partial class MainWindow
     void ResetLoadedGame()
     {
         dayRefresh.Reset();
+        attributeRoles.Clear();
+        currentGameScreen = null;
         ScoutingMetrics.Reset();
         RegenIds.Current = null;
         talentedRegensTab?.SetPlayers([]);

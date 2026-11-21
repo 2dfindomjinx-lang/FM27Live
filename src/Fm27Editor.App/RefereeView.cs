@@ -19,7 +19,7 @@ internal sealed class RefereeScreen(IScreenHost host)
 
     protected override void ConfigureColumns(DataGrid grid)
     {
-        grid.Columns.Add(new DataGridTextColumn { Header = Loc.S("Name"), Binding = new Binding(nameof(RefereeRow.Name)), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
+        grid.Columns.Add(new DataGridTextColumn { Header = Loc.S("Name"), Binding = new Binding(nameof(RefereeRow.Name)), FontFamily = AppTypography.PersonName, FontWeight = Avalonia.Media.FontWeight.Normal, Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
         foreach (var (title, property, width) in new[] { ("CA", nameof(RefereeRow.CA), 65), ("PA", nameof(RefereeRow.PA), 65),
                      ("Reputation", nameof(RefereeRow.Reputation), 100), ("ID", nameof(RefereeRow.Id), 110) })
         {
@@ -63,7 +63,7 @@ internal sealed class RefereeScreen(IScreenHost host)
 
     protected override void BuildEditor(RefereeRecord r, Dictionary<RefereeField, string> draft, Action changed)
     {
-        HeaderHost.Content = UiKit.EntityBanner(r.DisplayName, new TextBlock { Text = $"ID {r.UniqueId.ToString(Inv)}" }, null);
+        HeaderHost.Content = UiKit.PersonBanner(r.DisplayName, new TextBlock { Text = $"ID {r.UniqueId.ToString(Inv)}" }, null);
         var info = CardRows("Information", [(Loc.S("ID"), Label(r.UniqueId.ToString(Inv), "#F1F5F9")),
             (Loc.S("Date of Birth"), Label(DateSetting.Format(r.DateOfBirth), "#F1F5F9"))]);
         Control Card(string title, RefereeField[] fields) => CardRows(title, fields.Select(f =>

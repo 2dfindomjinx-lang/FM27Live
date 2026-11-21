@@ -64,3 +64,6 @@ calibration/findings-*.md
 release-live/
 *.private.pem
 update-private.pem
+
+# Locally obtained font assets are embedded in the app, not redistributed separately.
+re/local-fonts/

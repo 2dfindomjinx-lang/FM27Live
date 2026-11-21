@@ -18,6 +18,10 @@ static class AppTestDefaults
         DateSetting.Set(DateLayout.YearMonthDay);
         LanguageSetting.SettingPathOverride = Path.Combine(Path.GetTempPath(), "fm27-app-tests-lang-" + Environment.ProcessId + ".txt");
         LanguageSetting.Set(AppLanguage.English);
+        AttributeOrderSetting.SettingPathOverride = Path.Combine(Path.GetTempPath(), "fm27-app-tests-order-" + Environment.ProcessId + ".txt");
+        AttributeOrderSetting.Set(false);
+        TranslationOverrides.PathOverride = Path.Combine(Path.GetTempPath(), "fm27-app-tests-translations-" + Environment.ProcessId + ".json");
+        TranslationOverrides.Save(new Dictionary<string, string>());
         // The Avalonia test host runs App.OnFrameworkInitializationCompleted, which would start the flight recorder
         // in the player's own %LOCALAPPDATA%\Fm27Editor\logs folder; keep every test out of it.
         FlightRecorder.Enabled = false;

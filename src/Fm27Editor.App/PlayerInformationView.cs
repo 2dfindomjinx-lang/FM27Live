@@ -18,27 +18,22 @@ public sealed partial class MainWindow
     Control InformationSection(PlayerRecord player)
     {
         var personal = InformationPanel(player);
-        personal.Width = 295;
-        personal.HorizontalAlignment = HorizontalAlignment.Left;
+        personal.HorizontalAlignment = HorizontalAlignment.Stretch;
 
         var host = new Grid
         {
-            ColumnDefinitions = new ColumnDefinitions("Auto,1*,1*,1*"),
+            ColumnDefinitions = new ColumnDefinitions("1*,1*,1*"),
             ColumnSpacing = 6,
             HorizontalAlignment = HorizontalAlignment.Stretch,
             Margin = new Thickness(0, 0, 0, 10),
         };
 
-        var column0 = new StackPanel
+        var personalSection = new Expander
         {
-            Spacing = 8,
-            Width = 295,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Children = { personal },
+            Header = Loc.S("Personal information"), IsExpanded = false,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Content = new ScrollViewer { Content = personal, MaxHeight = 260, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled },
         };
-        if (LegacyScoutingAvailability.Enabled) column0.Children.Add(MiniScoutingCard(player));
-        Grid.SetColumn(column0, 0);
-        host.Children.Add(column0);
 
         // FMRTE keeps the stat columns equal width and right-aligns the numbers.
         Control Column(string group, Control? header = null)
@@ -79,10 +74,10 @@ public sealed partial class MainWindow
             else column.Children.Add(Column(groups[i]));
             if (groups[i] == "Mental") column.Children.Add(Column("Personality"));
             if (groups[i] == "Physical") column.Children.Add(Column("Hidden"));
-            Grid.SetColumn(column, i + 1);
+            Grid.SetColumn(column, i);
             host.Children.Add(column);
         }
-        return host;
+        return new StackPanel { Spacing = 7, Children = { BuildAttributeRoleBar(player), personalSection, host } };
     }
 
     /// <summary>FMRTE 27's Information tab fields that are not in the strip above the tabs; one Save writes the changed ones.</summary>

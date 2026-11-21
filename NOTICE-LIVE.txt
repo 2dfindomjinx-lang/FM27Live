@@ -10,3 +10,15 @@ updates, rollback on startup failure, and an independent settings directory.
 Distributed under GNU GPL version 3 or later; see LICENSE.
 Corresponding source: https://github.com/2dfindomjinx-lang/FM27Live
 Not affiliated with Sports Interactive or SEGA.
+
+Selected typography: Cabinet Grotesk Regular and Bold (Indian Type Foundry).
+Font assets are obtained locally, excluded from the source repository and
+embedded in the application under the Fontshare Free Font License, separately
+from the application source license. The full font license is embedded as
+FM27Live.Licenses.CabinetGrotesk.
+
+The current-screen metadata adapter includes MIT-licensed Il2CppDumper parsing
+code, Copyright (c) 2016 Perfare, with metadata 39 support by vmpprotect:
+https://github.com/vmpprotect/Il2CppDumper/tree/24d8241b76ae79bbca92abc64aca00f66b3f11ce
+The complete MIT notice is embedded as FM27Live.Licenses.Il2CppDumper and provided
+in src/Fm27Editor.UnityMetadata/Vendor/LICENSE and licenses/Il2CppDumper.txt.

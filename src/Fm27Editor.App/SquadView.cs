@@ -175,7 +175,8 @@ public sealed partial class MainWindow
                 var tb = new TextBlock
                 {
                     Text = row.DisplayName,
-                    FontWeight = FontWeight.Medium,
+                    FontFamily = AppTypography.PersonName,
+                    FontWeight = FontWeight.Normal,
                     Foreground = Brush("#F1F5F9"),
                     VerticalAlignment = VerticalAlignment.Center,
                     TextTrimming = TextTrimming.CharacterEllipsis,

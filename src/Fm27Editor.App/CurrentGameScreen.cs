@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using Fm27Editor.Core.Diagnostics;
+using Fm27Editor.Core.Game;
 using Fm27Editor.Core.Memory;
 using Fm27Editor.UnityMetadata;
 
@@ -6,8 +8,36 @@ namespace Fm27Editor.App;
 
 public sealed partial class MainWindow
 {
-    CurrentScreenReader? currentGameScreen;
+    CurrentScreenSession? currentGameScreen;
     bool readingGameScreen;
+
+    CurrentScreenSession ScreenSession(GameSession session) => currentGameScreen ??= new(() =>
+    {
+        if (!OperatingSystem.IsWindows()) throw new NotSupportedException("Current FM screen detection requires Windows.");
+        using var process = Process.GetProcessById(session.Game.ProcessId);
+        var module = process.Modules.Cast<ProcessModule>().Single(m => string.Equals(m.ModuleName, "GameAssembly.dll", StringComparison.OrdinalIgnoreCase));
+        string folder = Path.GetDirectoryName(module.FileName)!;
+        string metadataPath = Path.Combine(folder, "fm_Data", "il2cpp_data", "Metadata", "global-metadata.dat");
+        return new CurrentScreenReader(ScreenMetadataReader.Read(module.FileName, metadataPath), (ulong)module.BaseAddress);
+    }, () => new WindowsProcessMemory(session.Game.ProcessId, writable: false));
+
+    async Task PrepareCurrentGameScreenAsync(LoadedGameData data)
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        var screen = ScreenSession(data.Session);
+        var timer = Stopwatch.StartNew();
+        try
+        {
+            await screen.PrepareAsync();
+            FlightRecorder.Current?.Log("screen", $"background preparation: {timer.ElapsedMilliseconds} ms");
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            // Optional preparation must not fail game loading; the shortcut can retry.
+            FlightRecorder.Current?.Log("screen", $"preparation will retry: {ex.GetType().Name}; {timer.ElapsedMilliseconds} ms");
+        }
+    }
 
     async Task OpenCurrentGameScreenAsync()
     {
@@ -15,27 +45,18 @@ public sealed partial class MainWindow
         if (backend.State.Status != ConnectionStatus.Connected || backend.Data is not { } data)
         { status.Text = Loc.S("Load the game first."); return; }
         var session = data.Session;
-        var cachedReader = currentGameScreen;
+        var screen = ScreenSession(session);
+        var timer = Stopwatch.StartNew();
         readingGameScreen = true;
         status.Text = Loc.S("Reading the current FM screen…");
         try
         {
-            var result = await Task.Run(() =>
-            {
-                if (!OperatingSystem.IsWindows()) throw new NotSupportedException("Current FM screen detection requires Windows.");
-                using var process = Process.GetProcessById(session.Game.ProcessId);
-                var module = process.Modules.Cast<ProcessModule>().Single(m => string.Equals(m.ModuleName, "GameAssembly.dll", StringComparison.OrdinalIgnoreCase));
-                if (cachedReader is null)
-                {
-                    string folder = Path.GetDirectoryName(module.FileName)!;
-                    string metadataPath = Path.Combine(folder, "fm_Data", "il2cpp_data", "Metadata", "global-metadata.dat");
-                    cachedReader = new CurrentScreenReader(ScreenMetadataReader.Read(module.FileName, metadataPath), (ulong)module.BaseAddress);
-                }
-                using var memory = new WindowsProcessMemory(process.Id, writable: false);
-                return cachedReader.Read(memory);
-            });
-            if (backend.State.Status != ConnectionStatus.Connected || !ReferenceEquals(backend.Session, session) || !CurrentRefresh(data)) return;
-            currentGameScreen = cachedReader;
+            var result = await screen.ReadAsync();
+            if (backend.State.Status != ConnectionStatus.Connected || !ReferenceEquals(backend.Session, session) ||
+                !ReferenceEquals(currentGameScreen, screen) || backend.Data is not { } latest || !CurrentRefresh(latest)) return;
+            // A same-session day refresh can replace the catalogue while preparation runs.
+            // Resolve the current entity against that fresh catalogue, not a stale snapshot.
+            data = latest;
             string? opened = null;
             switch (result?.Kind)
             {
@@ -64,7 +85,9 @@ public sealed partial class MainWindow
                     break;
             }
             status.Text = opened is null ? Loc.S("No supported person or club was found on the current FM screen.") : Loc.F("Opened from FM: {0}", opened);
+            FlightRecorder.Current?.Log("screen", $"open: {timer.ElapsedMilliseconds} ms; found {opened is not null}");
         }
+        catch (OperationCanceledException) { }
         catch (Exception ex)
         {
             if (backend.State.Status == ConnectionStatus.Connected && ReferenceEquals(backend.Session, session))

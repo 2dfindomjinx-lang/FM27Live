@@ -10,7 +10,11 @@ public readonly record struct HeapVtableMatch(ulong Address, ulong Vtable);
 public static class HeapVtableScanner
 {
     public static IReadOnlyList<HeapVtableMatch> Scan(IProcessMemory memory, params ulong[] vtables)
+        => Scan(memory, CancellationToken.None, vtables);
+
+    public static IReadOnlyList<HeapVtableMatch> Scan(IProcessMemory memory, CancellationToken cancellationToken, params ulong[] vtables)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (memory is not IMemoryRegions regions)
             throw new NotSupportedException("Heap discovery requires memory region enumeration");
         var vectors = vtables.Select(v => new Vector<ulong>(v)).ToArray();
@@ -24,7 +28,7 @@ public static class HeapVtableScanner
         {
             var buffer = new byte[1 << 22];
             int index;
-            while ((index = Interlocked.Increment(ref next)) < readable.Length)
+            while (!cancellationToken.IsCancellationRequested && (index = Interlocked.Increment(ref next)) < readable.Length)
             {
                 try { results[index] = ScanRegion(readable[index], buffer); }
                 catch (Exception ex) { errors[index] = ex; }
@@ -38,6 +42,7 @@ public static class HeapVtableScanner
             Task.WaitAll(workers);
         }
         else Worker();
+        cancellationToken.ThrowIfCancellationRequested();
         if (errors.FirstOrDefault(e => e is not null) is { } error) ExceptionDispatchInfo.Capture(error).Throw();
         return results.SelectMany(r => r).ToArray();
 
@@ -46,6 +51,7 @@ public static class HeapVtableScanner
             var found = new List<HeapVtableMatch>();
             for (ulong offset = 0; offset + 8 <= region.Size; offset += (ulong)buffer.Length)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 int length = (int)Math.Min((ulong)buffer.Length, region.Size - offset);
                 // A failed wide read is only a hint: retry bounded pages before declaring the index incomplete.
                 if (memory.TryRead(region.Start + offset, buffer.AsSpan(0, length)))
@@ -53,6 +59,7 @@ public static class HeapVtableScanner
                 else
                     for (int page = 0; page < length; page += 4096)
                     {
+                        cancellationToken.ThrowIfCancellationRequested();
                         int size = Math.Min(4096, length - page);
                         if (size < 8) continue;
                         var bytes = buffer.AsSpan(page, size);

@@ -9,29 +9,52 @@ public sealed record CurrentScreenTarget(ScreenEntityKind Kind, int Id);
 public sealed class CurrentScreenReader(ScreenMetadata layout, ulong moduleBase)
 {
     ulong moduleObject;
+    public bool IsPrepared => moduleObject != 0;
 
-    public CurrentScreenTarget Read(IProcessMemory memory)
+    /// <summary>Find the navigation module even on a non-entity page. Cache no selected entity.</summary>
+    public void Prepare(IProcessMemory memory, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        ulong moduleClass = memory.ReadUInt64(moduleBase + layout.ModuleClassRva);
+        if (moduleClass == 0) { moduleObject = 0; return; }
+        if (moduleObject != 0 && IsModule(memory, moduleObject, moduleClass)) return;
+        moduleObject = 0;
+        for (int attempt = 0; ; attempt++)
+        {
+            try
+            {
+                var candidates = HeapVtableScanner.Scan(memory, cancellationToken, moduleClass)
+                    .Where(m => IsModule(memory, m.Address, moduleClass)).ToArray();
+                cancellationToken.ThrowIfCancellationRequested();
+                // Never accept an incomplete heap pass or arbitrarily pick one of several modules.
+                if (candidates.Length == 1) moduleObject = candidates[0].Address;
+                return;
+            }
+            catch (MemoryAccessException) when (attempt < 1)
+            {
+                // FM may free a page after region enumeration. Re-enumerate and repeat the
+                // complete pass; never hide unreadable pages and assume a unique match.
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+        }
+    }
+
+    bool IsModule(IProcessMemory memory, ulong address, ulong moduleClass)
+    {
+        try { return memory.ReadUInt64(address) == moduleClass && memory.ReadUInt64(address + (ulong)layout.NativeObjectOffset) != 0; }
+        catch (MemoryAccessException) { return false; }
+    }
+
+    public CurrentScreenTarget Read(IProcessMemory memory, CancellationToken cancellationToken = default)
+    {
+        Prepare(memory, cancellationToken);
+        if (moduleObject == 0) return null;
         ulong moduleClass = memory.ReadUInt64(moduleBase + layout.ModuleClassRva);
         ulong referenceClass = memory.ReadUInt64(moduleBase + layout.ReferenceValueClassRva);
         if (moduleClass == 0 || referenceClass == 0) return null;
-        // A cached, live module on a non-entity screen returns nothing, never a previous selection.
-        if (moduleObject != 0 && IsModule(moduleObject)) return ReadTarget(moduleObject);
-        moduleObject = 0;
-        var candidates = HeapVtableScanner.Scan(memory, moduleClass)
-            .Where(m => IsModule(m.Address))
-            .Select(m => (m.Address, Target: ReadTarget(m.Address)))
-            .Where(m => m.Target is not null).ToArray();
-        // Multiple live-looking modules are ambiguous; do not choose an arbitrary address.
-        if (candidates.Length != 1) return null;
-        moduleObject = candidates[0].Address;
+        // A live module on a non-entity page returns nothing, never its previous selection.
         return ReadTarget(moduleObject);
 
-        bool IsModule(ulong address)
-        {
-            try { return memory.ReadUInt64(address) == moduleClass && memory.ReadUInt64(address + (ulong)layout.NativeObjectOffset) != 0; }
-            catch (MemoryAccessException) { return false; }
-        }
         CurrentScreenTarget ReadTarget(ulong address)
         {
             try
@@ -42,7 +65,7 @@ public sealed class CurrentScreenReader(ScreenMetadata layout, ulong moduleBase)
                     before.Type == layout.ClubType ? ScreenEntityKind.Club :
                     before.Type == layout.CompetitionType ? ScreenEntityKind.Competition :
                     before.Type == layout.NationType ? ScreenEntityKind.Nation : null;
-                if (kind is null || before != Snapshot(address) || !IsModule(address)) return null;
+                if (kind is null || before != Snapshot(address) || !IsModule(memory, address, moduleClass)) return null;
                 return new(kind.Value, before.Id);
             }
             catch (MemoryAccessException) { return null; }

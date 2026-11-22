@@ -1,11 +1,12 @@
-FM27 Live 0.1.8 Windows sürümü.
+FM27 Live 0.1.9 Windows sürümü.
 
-- Özelliklere geçerli değer yazarken RCA (önerilen mevcut yetenek) anında güncellenir; kutudan çıkmak veya Ctrl+R kullanmak gerekmez. Ayaklar, mevkiler ve kaydedilmemiş değişiklikler hesaba katılır. Kayıtlı CA ayrı kalır; önizleme oyun belleğine yazmaz.
-- RCA için eski doğrusal formül yerine FM27'nin iteratif hesabı kullanılır. C# uygulaması, Steam 27.1.0+2505117 motorundan ayrı emülatörde üretilen 1.098 bağımsız örneğin tamamıyla eşleşti. Resmi editörde Semih Sabanoğlu için görülen 125 değeri de eşleşti.
-- Cabinet Grotesk korunarak gövde ve özellik etiketleri 15 boyutunda Medium, özellik sayıları 16 boyutunda Bold yapıldı. Başlıklar daha belirgin; sayı kutuları genişletildi ve sayıları örten kaydırma çubukları kaldırıldı. İsimler Regular kalır.
-- Normal uygulama ve overlay aynı düzenlemeleri kullanır. Kaydedilmemiş alanların korunması, Türkçe sıralama, kişisel çeviriler ve imzalı otomatik güncelleme sürer.
+- FM’deki açık ekranı algılama hazırlığı, oyun yüklenirken arka planda yapılır. Düğme ve Ctrl+Shift+F aynı hazırlığı paylaşır; ilk tıklamada gereksiz ikinci tarama başlatılmaz.
+- Oyun tarama sırasında bir bellek sayfasını boşaltırsa tam tarama bir kez yeniden denenir. Eksik veya belirsiz sonuçla rastgele bir kişi/kulüp açılmaz. Kısa ekran geçişlerinde güncel seçim tekrar okunur.
+- Aynı oturumdaki otomatik gün yenilemesi sırasında gelen ekran sonucu güncel oyuncu/kulüp listesinde çözülür. Yeni kayıt yüklenirse eski hazırlık iptal edilir; açık sekmelerdeki kaydedilmemiş girişler korunur.
+- Özellik ve mevki kutuları 44 × 28 boyutuna genişletildi. İlk tıklamada veya Tab ile girişte sayının tamamı seçilir: 11’i silmeden doğrudan 12 yazabilirsin. Sonraki tıklama ve sürükleme ile tek basamak düzenleme korunur.
+- Anlık RCA hesabı, Cabinet yazı tipleri, normal uygulama, overlay ve imzalı otomatik güncelleme korunur.
 
-Doğrulama: 2.092 otomatik test başarılı; 1.098 C#–FM motoru karşılaştırmasında fark yok. Bu çalışma sırasında oyun kaydı veya oyun belleği değiştirilmedi. Game Pass üzerinde ayrı canlı RCA doğrulaması yapılmadı; yeni oyun sürümü desteği eklenmedi. Emülatör, oyun kodu ve inceleme araçları dağıtım paketine dahil değildir.
+Doğrulama: 2.100 otomatik test başarılı. Kullanıcının hata kaydındaki geçici bellek sayfası sorunu testte yeniden üretildi; tekrar deneme, belirsiz sonuçların reddi, eşzamanlı hazırlık, iptal ve sayı seçimi kontrolleri geçti. Bu sürüm için canlı FM hız ölçümü yapılmadı; oyun içi deneme kullanıcıya bırakıldı. Yeni FM sürümü desteği eklenmedi.
 
 Güncellemeler → Şimdi kontrol et ile alınabilir. Oyun bağlıyken veya kaydedilmemiş değişiklik varken kurulum ertelenir.
 

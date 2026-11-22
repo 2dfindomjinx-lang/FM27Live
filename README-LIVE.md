@@ -18,7 +18,7 @@ Türkçe arayüzde teknik, zihinsel ve fiziksel özellikler oyunun Türkçe dizi
 
 Üstteki hızlı erişim düğmeleri normal uygulamada ve overlay içinde kullanılabilir:
 
-- **FM’deki açık ekranı getir (Ctrl+Shift+F):** FM’de görüntülediğin kişi veya kulübü editörde açar. Ctrl+R mevcut editör sayfasını yenilemeye devam eder. İlk kullanımda kurulu FM dosyalarından ekran adresleri çözülür; sonraki kullanımlar aynı oturumda önbelleği kullanır. Desteklenmeyen veya belirsiz ekranlarda önceki kişiyi açmaz. Açık oyuncu sekmesindeki kaydedilmemiş alanlar korunur.
+- **FM’deki açık ekranı getir (Ctrl+Shift+F):** FM’de görüntülediğin kişi veya kulübü editörde açar. Ctrl+R mevcut editör sayfasını yenilemeye devam eder. Oyun yüklenirken kurulu FM dosyalarından ekran adresleri arka planda çözülür; düğme ve kısayol aynı hazırlığı paylaşır. Geçici bellek okuma hatasında tarama bir kez yeniden yapılır; ekran geçişleri kısa aralıklarla tekrar okunur. Her çağrı o anki seçimi okur. Desteklenmeyen veya belirsiz ekranlarda önceki kişiyi açmaz. Açık oyuncu sekmesindeki kaydedilmemiş alanlar korunur.
 
 - **Benim kulübüm:** insan menajerin kulübünü açar. Birden fazla menajer varsa seçim sunar; bulunamazsa kulüp seçebilirsin.
 - **Kadrom:** oyuncu filtrelerini temizler ve kulübündeki oyuncuları gösterir.
@@ -55,7 +55,7 @@ Oyuncu bilgi ekranında özellikler üç geniş sütundadır; kişisel bilgiler 
 
 Açık overlay hem üst şeridin hem panel başlığının boş alanından sürüklenir; düğmeler ve giriş alanları kendi işlevlerini korur.
 
-Yazı tipi dağılımı: kişi isimleri **Cabinet Grotesk Regular**, gövde ve özellik etiketleri **Cabinet Grotesk Medium**, başlıklar ve özellik sayıları **Cabinet Grotesk Bold**. Gövde metinleri 15, özellik sayıları 16 ölçeklenebilir ekran birimi kullanır; daha geniş sayı kutularında kaydırma çubukları gösterilmez. Fontlar EXE içine gömülür; Windows'a ayrıca yüklenmez.
+Yazı tipi dağılımı: kişi isimleri **Cabinet Grotesk Regular**, gövde ve özellik etiketleri **Cabinet Grotesk Medium**, başlıklar ve özellik sayıları **Cabinet Grotesk Bold**. Gövde metinleri 15, özellik sayıları 16 ölçeklenebilir ekran birimi kullanır; 44 × 28 boyutundaki sayı kutularında kaydırma çubukları gösterilmez. Kutuyu ilk seçtiğinde sayının tamamı seçilir; doğrudan yeni değeri yazabilirsin. Sonraki tıklamayla imleci tek basamağa yerleştirebilir, sürükleyerek seçim yapabilirsin. Tab ile geçiş de tüm sayıyı seçer. Fontlar EXE içine gömülür; Windows'a ayrıca yüklenmez.
 
 Oyuncu başlığındaki **RCA (önerilen mevcut yetenek)**, özellik kutusuna geçerli değer yazıldığında anında hesaplanır. Ayaklar, mevki yeterlilikleri ve kaydedilmemiş değişiklikler hesaba katılır; dokunulmamış özelliklerin ham hassasiyeti korunur. Bu yerel önizlemedir: kayıtlı **CA** kendiliğinden değiştirilmez, oyuna yazmak için mevcut kaydetme akışı kullanılır. Eksik veya geçersiz veride sayı yerine **—** gösterilir.
 

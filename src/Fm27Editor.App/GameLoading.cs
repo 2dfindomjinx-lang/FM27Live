@@ -11,6 +11,7 @@ public sealed partial class MainWindow
     {
         dayRefresh.Reset();
         attributeRoles.Clear();
+        currentGameScreen?.Dispose();
         currentGameScreen = null;
         ScoutingMetrics.Reset();
         RegenIds.Current = null;
@@ -53,6 +54,7 @@ public sealed partial class MainWindow
 
     async Task PrepareLoadedGameAsync(LoadedGameData data, GameLoadReport report)
     {
+        _ = PrepareCurrentGameScreenAsync(data);
         clubCache = data.Clubs;
         nationCatalogue = data.Nations.Where(n => n.DisplayName.Length > 0)
             .OrderBy(n => n.DisplayName, StringComparer.OrdinalIgnoreCase).ToList();

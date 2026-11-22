@@ -292,6 +292,7 @@ public sealed partial class MainWindow : Window
         Closed += (_, _) =>
         {
             refreshClosed = true;
+            currentGameScreen?.Dispose();
             dayRefresh.Reset();
             LanguageSetting.Changed -= OnLanguageChanged;
             SectionHost.SectionEdited -= OnSectionEdited;
@@ -1503,14 +1504,15 @@ public sealed partial class MainWindow : Window
         int last = value;
         var rating = new TextBox
         {
-            Text = value.ToString(Inv), Width = 36, MinWidth = 36, MaxWidth = 36, Height = 26, MinHeight = 26,
-            HorizontalAlignment = HorizontalAlignment.Right, Padding = new Thickness(2, 0),
+            Text = value.ToString(Inv), Width = 44, MinWidth = 44, MaxWidth = 44, Height = 28, MinHeight = 28,
+            HorizontalAlignment = HorizontalAlignment.Right, Padding = new Thickness(4, 0),
             FontSize = 16, FontFamily = AppTypography.Body, FontWeight = FontWeight.Bold,
             HorizontalContentAlignment = HorizontalAlignment.Center, VerticalContentAlignment = VerticalAlignment.Center,
             Background = RatingBg(value), BorderBrush = RatingBorder(value), Foreground = RatingColor(value),
         };
         ScrollViewer.SetHorizontalScrollBarVisibility(rating, Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled);
         ScrollViewer.SetVerticalScrollBarVisibility(rating, Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled);
+        RatingInputSelection.Enable(rating);
         if (current is not null) rating.GotFocus += (_, _) => last = current();
         rating.TextChanged += (_, _) =>
         {
@@ -1665,13 +1667,13 @@ public sealed partial class MainWindow : Window
                 var box = new TextBox
                 {
                     Text = initialVal.ToString(Inv),
-                    Width = 28,
-                    MinWidth = 0,
-                    MaxWidth = 28,
-                    Height = 20,
-                    MinHeight = 20,
-                    Padding = new Thickness(2, 0),
-                    FontSize = 13,
+                    Width = 44,
+                    MinWidth = 44,
+                    MaxWidth = 44,
+                    Height = 28,
+                    MinHeight = 28,
+                    Padding = new Thickness(4, 0),
+                    FontSize = 16,
                     FontWeight = FontWeight.Bold,
                     HorizontalContentAlignment = HorizontalAlignment.Center,
                     VerticalContentAlignment = VerticalAlignment.Center,
@@ -1679,6 +1681,9 @@ public sealed partial class MainWindow : Window
                     BorderBrush = PitchSurface.PositionBorder(initialVal),
                     Foreground = PitchSurface.PositionFg(initialVal),
                 };
+                RatingInputSelection.Enable(box);
+                ScrollViewer.SetHorizontalScrollBarVisibility(box, ScrollBarVisibility.Disabled);
+                ScrollViewer.SetVerticalScrollBarVisibility(box, ScrollBarVisibility.Disabled);
                 void ApplyVisual(int v)
                 {
                     box.Text = v.ToString(Inv);

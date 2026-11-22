@@ -15,8 +15,11 @@ namespace Fm27Editor.App.Tests;
 /// <remarks>
 /// On macOS the desktop platform is not usable from a worker thread at all: AppKit insists on the process main thread
 /// for <c>NSWindow</c> ("NSWindow should only be instantiated on the main thread!"), which is inside the test host's own
-/// run loop. The tests therefore use Avalonia's headless platform off Windows — same controls, layout and Skia
-/// rendering, no window server. Windows keeps the desktop platform, whose Win32 backend is thread agnostic.
+/// run loop. The tests use Avalonia's headless platform — same controls, layout, input and Skia
+/// rendering, no window server. This queue does not run a Win32 message loop: native Windows IME callbacks can
+/// suspend dispatcher processing between synthetic input and RunJobs, causing intermittent CI failures in both
+/// snapshot and rating-input tests. All assertions still run with the controlled headless dispatcher.
+/// Set FM27_TEST_NATIVE_WINDOWS=1 for an explicit native Windows diagnostic run.
 /// <para>
 /// Setup starts from <see cref="Run"/> rather than from a <c>[ModuleInitializer]</c>: the module initializer runs while
 /// the assembly load lock is held, and a thread started there blocks in the JIT (resolving tokens calls
@@ -56,7 +59,8 @@ static class AvaloniaTestThread
                 try
                 {
                     AppBuilder builder = Program.BuildAvaloniaApp();
-                    if (!OperatingSystem.IsWindows()) builder = builder.UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false });
+                    bool nativeWindows = OperatingSystem.IsWindows() && Environment.GetEnvironmentVariable("FM27_TEST_NATIVE_WINDOWS") == "1";
+                    if (!nativeWindows) builder = builder.UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false });
                     builder.SetupWithoutStarting();
                 }
                 catch (Exception ex) { startFailure = ex; }

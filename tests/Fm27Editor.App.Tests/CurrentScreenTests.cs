@@ -27,6 +27,44 @@ public sealed class CurrentScreenTests
     }
 
     [Fact]
+    public void Class_pointer_in_unrelated_buffers_does_not_hide_a_valid_screen()
+    {
+        var memory = Create();
+        // Class-pointer hits are not necessarily managed navigation objects. These
+        // hand-built decoys reproduce the shapes observed in live metadata buffers.
+        memory.Copy(Instance, 0x2500, 0x100);
+        memory.Pointer(0x2500 + 0x40, 0x3500);
+        memory.Pointer(0x3500, 0x9900);
+        memory.Copy(Instance, 0x2700, 0x100);
+        memory.Pointer(0x2700 + 0x40, 0);
+        memory.Int(0x2700 + 0x58, 0);
+        var reader = new CurrentScreenReader(Layout, Module);
+        reader.Prepare(memory);
+        Assert.Equal(new CurrentScreenTarget(ScreenEntityKind.Person, 2002042656), reader.Read(memory));
+        memory.Int(Instance + 0x58, 13); memory.Int(Instance + 0x68, 1866);
+        Assert.Equal(new CurrentScreenTarget(ScreenEntityKind.Club, 1866), reader.Read(memory));
+        memory.Int(Instance + 0x58, 0);
+        Assert.Null(reader.Read(memory));
+        Assert.Equal(1, memory.Enumerations);
+    }
+
+    [Fact]
+    public void Cached_candidates_are_all_rechecked_when_a_second_selection_becomes_valid()
+    {
+        var memory = Create();
+        memory.Copy(Instance, 0x2500, 0x100);
+        memory.Int(0x2500 + 0x58, 0);
+        var reader = new CurrentScreenReader(Layout, Module);
+        Assert.NotNull(reader.Read(memory));
+        memory.Int(0x2500 + 0x58, 11);
+        Assert.Null(reader.Read(memory));
+        memory.Int(Instance + 0x58, 0);
+        memory.Int(0x2500 + 0x68, 777);
+        Assert.Equal(new CurrentScreenTarget(ScreenEntityKind.Person, 777), reader.Read(memory));
+        Assert.Equal(1, memory.Enumerations);
+    }
+
+    [Fact]
     public void Ambiguous_modules_are_rejected_instead_of_picking_first_match()
     {
         var memory = Create();
@@ -52,6 +90,19 @@ public sealed class CurrentScreenTests
         memory.BeforeRead = (address, length) =>
         {
             if (address == Instance + 0x40 && length == 8 && ++snapshots == 2) memory.Int(Instance + 0x68, 999);
+        };
+        Assert.Null(new CurrentScreenReader(Layout, Module).Read(memory));
+    }
+
+    [Fact]
+    public void Selection_changing_after_candidate_validation_is_rejected()
+    {
+        var memory = Create();
+        int snapshots = 0;
+        memory.BeforeRead = (address, length) =>
+        {
+            if (address == Instance + 0x40 && length == 8 && ++snapshots == 3)
+                memory.Int(Instance + 0x68, 777);
         };
         Assert.Null(new CurrentScreenReader(Layout, Module).Read(memory));
     }

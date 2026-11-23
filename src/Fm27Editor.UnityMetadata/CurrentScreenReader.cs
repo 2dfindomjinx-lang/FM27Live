@@ -8,17 +8,17 @@ public sealed record CurrentScreenTarget(ScreenEntityKind Kind, int Id);
 /// <summary>Reads the game's navigation selection. Never invokes game code or writes memory.</summary>
 public sealed class CurrentScreenReader(ScreenMetadata layout, ulong moduleBase)
 {
-    ulong moduleObject;
-    public bool IsPrepared => moduleObject != 0;
+    ulong[] moduleCandidates = [];
+    public bool IsPrepared => moduleCandidates.Length != 0;
 
     /// <summary>Find the navigation module even on a non-entity page. Cache no selected entity.</summary>
     public void Prepare(IProcessMemory memory, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         ulong moduleClass = memory.ReadUInt64(moduleBase + layout.ModuleClassRva);
-        if (moduleClass == 0) { moduleObject = 0; return; }
-        if (moduleObject != 0 && IsModule(memory, moduleObject, moduleClass)) return;
-        moduleObject = 0;
+        if (moduleClass == 0) { moduleCandidates = []; return; }
+        if (moduleCandidates.Any(address => IsModule(memory, address, moduleClass))) return;
+        moduleCandidates = [];
         for (int attempt = 0; ; attempt++)
         {
             try
@@ -26,8 +26,10 @@ public sealed class CurrentScreenReader(ScreenMetadata layout, ulong moduleBase)
                 var candidates = HeapVtableScanner.Scan(memory, cancellationToken, moduleClass)
                     .Where(m => IsModule(memory, m.Address, moduleClass)).ToArray();
                 cancellationToken.ThrowIfCancellationRequested();
-                // Never accept an incomplete heap pass or arbitrarily pick one of several modules.
-                if (candidates.Length == 1) moduleObject = candidates[0].Address;
+                // A class pointer also occurs in metadata and other data buffers. Keep the
+                // complete candidate set; uniqueness is meaningful only after validating
+                // each candidate's typed navigation selection in Read.
+                moduleCandidates = candidates.Select(m => m.Address).ToArray();
                 return;
             }
             catch (MemoryAccessException) when (attempt < 1)
@@ -48,17 +50,31 @@ public sealed class CurrentScreenReader(ScreenMetadata layout, ulong moduleBase)
     public CurrentScreenTarget Read(IProcessMemory memory, CancellationToken cancellationToken = default)
     {
         Prepare(memory, cancellationToken);
-        if (moduleObject == 0) return null;
+        if (!IsPrepared) return null;
         ulong moduleClass = memory.ReadUInt64(moduleBase + layout.ModuleClassRva);
         ulong referenceClass = memory.ReadUInt64(moduleBase + layout.ReferenceValueClassRva);
         if (moduleClass == 0 || referenceClass == 0) return null;
-        // A live module on a non-entity page returns nothing, never its previous selection.
-        return ReadTarget(moduleObject);
+        CurrentScreenTarget selected = null;
+        ulong selectedAddress = 0;
+        foreach (ulong address in moduleCandidates)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var target = ReadTarget(address);
+            if (target is null) continue;
+            // Even equal IDs in two valid objects are ambiguous; never pick the first.
+            if (selected is not null) return null;
+            selected = target;
+            selectedAddress = address;
+        }
+        // Recheck after examining the other candidates. Cache addresses, never a person
+        // or the one candidate that happened to be selected on the preceding page.
+        return selected is not null && selected == ReadTarget(selectedAddress) ? selected : null;
 
         CurrentScreenTarget ReadTarget(ulong address)
         {
             try
             {
+                if (!IsModule(memory, address, moduleClass)) return null;
                 var before = Snapshot(address);
                 if (before.Entity == 0 || memory.ReadUInt64(before.Entity) != referenceClass || before.Id <= 0 || before.ReferenceId == 0) return null;
                 ScreenEntityKind? kind = before.Type == layout.PersonType ? ScreenEntityKind.Person :

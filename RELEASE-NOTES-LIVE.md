@@ -1,7 +1,7 @@
-FM27 Live 0.1.11 Windows sürümü.
+FM27 Live 0.1.12 Windows sürümü.
 
-- Özellik düzenleyicisindeki ve rol puanları ekranındaki 68 taktik rolünün İngilizce ve Türkçe adları FM 27.1.0 dil kayıtlarına göre düzeltildi.
-- Türkçe çeviri düzenleyicisinde “Yalnızca FM rolleri” seçeneği bulunur. Rolleri oyundaki İngilizce adı, eski İngilizce yazımı veya Türkçe adıyla arayabilirsiniz. Önceki kişisel çeviriler aynı anahtarla çalışır.
-- 801 mevcut Türkçe ifade düzeltildi. Sayı ve çoğul kullanımı, arama ve filtre sonuçları, kayıt bildirimleri, oyuncu tercihleri, forma süresi ve kadro kuralları elden geçirildi. Tüm biçimli metinlerde değişkenlerin İngilizce anahtarla eşleştiği kontrol edildi.
+- Genişletilmiş overlay’in üst çubuğuna **Çıkış** eklendi. Editörü buradan kapatabilirsiniz. Kaydedilmemiş düzenleme varsa uygulama açık kalır ve hangi adımı atabileceğinizi bildirir.
+- İngilizce kaynakla karşılaştırılarak 498 Türkçe ifade düzeltildi, 17 eksik çeviri eklendi. Oyuncunun neden forma giyemediği, kırmızı ve sarı kartlar, kiralık transferler, sonraki satış payı ve turnuva aramaları artık futbol bağlamına uygun ifadeler kullanır.
+- Altyapı, kadro kayıt kuralları, oyuncu şikâyetleri ve forma süresi açıklamaları elden geçirildi. Kişisel çeviri tercihleri güncellemeden sonra da önceliklidir.
 
 Güncellemeler → Şimdi kontrol et ile alınabilir.

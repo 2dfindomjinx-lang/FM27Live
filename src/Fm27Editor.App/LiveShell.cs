@@ -40,7 +40,7 @@ public sealed partial class MainWindow
         fullscreen.Click += (_, _) => ToggleFullscreen();
         updates.Click += (_, _) => ShowLiveUpdates();
         liveInstall.Click += (_, _) => ApplyLiveUpdate();
-        exit.Click += (_, _) => { liveExiting = true; Close(); liveExiting = false; };
+        exit.Click += (_, _) => RequestEditorExit();
         DockPanel.SetDock(actions, Dock.Right); bar.Children.Add(actions);
         bar.Children.Add(title);
         var statusLine = new DockPanel { Margin = new Thickness(10, 0, 10, 5) };
@@ -57,7 +57,7 @@ public sealed partial class MainWindow
             var showOverlay = new NativeMenuItem(Loc.S("Open overlay"));
             showOverlay.Click += (_, _) => { SetOverlay(true); Show(); Activate(); };
             var quit = new NativeMenuItem(Loc.S("Exit"));
-            quit.Click += (_, _) => { Show(); liveExiting = true; Close(); liveExiting = false; };
+            quit.Click += (_, _) => { Show(); RequestEditorExit(); };
             menu.Items.Add(show); menu.Items.Add(showOverlay); menu.Items.Add(new NativeMenuItemSeparator()); menu.Items.Add(quit);
             liveTray = new TrayIcon { Icon = Icon, ToolTipText = "FM27 Live — F8 Overlay", Menu = menu, IsVisible = true };
             liveTray.Clicked += (_, _) => { SetOverlay(false); Show(); Activate(); };
@@ -93,6 +93,13 @@ public sealed partial class MainWindow
         });
         Closed += (_, _) => { overlayHotkey?.Dispose(); liveTray?.Dispose(); liveUpdateTimer.Stop(); liveCancellation.Cancel(); SaveOverlayGeometry(); };
         return surface;
+    }
+
+    void RequestEditorExit()
+    {
+        liveExiting = true;
+        try { Close(); }
+        finally { liveExiting = false; }
     }
 
     bool HasLiveDrafts() => playerTabs.Any(t => t.Dirty) || kindTabs.Values.Any(t => t.Dirty) ||

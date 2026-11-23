@@ -91,6 +91,7 @@ public sealed partial class MainWindow
         Add("↔", ToggleOverlaySize);
         Add(Loc.S("Desktop"), () => SetOverlay(false));
         Add(Loc.S("Collapse · F8"), HideOverlay);
+        Add(Loc.S("Exit"), RequestEditorExit);
         DockPanel.SetDock(buttons, Dock.Right); header.Children.Add(buttons);
         var grip = new TextBlock { Text = "FM27 LIVE", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(5, 0), FontWeight = Avalonia.Media.FontWeight.SemiBold };
         header.Children.Add(grip);

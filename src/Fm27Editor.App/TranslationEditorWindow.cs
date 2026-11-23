@@ -24,8 +24,10 @@ internal sealed class TranslationEditorWindow : Window
         var rows = Loc.EditableTurkishTable.GroupBy(p => p.Key, StringComparer.OrdinalIgnoreCase)
             .Select(g => g.First()).OrderBy(p => p.Key).Select(p => new Row(p.Key, p.Value, TranslationOverrides.Current.GetValueOrDefault(p.Key))).ToArray();
         var search = new TextBox { Watermark = Loc.S("Search English or Turkish text…") };
+        var roleKeys = MainWindow.LoadBundledRoleCatalog()?.Roles.Select(r => ContractLabels.Spaced(r.Id)).ToHashSet(StringComparer.OrdinalIgnoreCase) ?? [];
+        var rolesOnly = new CheckBox { Content = Loc.S("FM roles only") };
         var grid = ToolGrid.Create();
-        grid.Columns.Add(ToolGrid.Text<Row>("English key", r => r.Key, 300, "English key"));
+        grid.Columns.Add(ToolGrid.Text<Row>("English key", r => PhaseRoleLabels.English(r.Key), 300, "English key"));
         grid.Columns.Add(ToolGrid.Text<Row>("Turkish translation", r => r.Display, 0, "Turkish translation", minWidth: 220));
         var key = new TextBlock { Foreground = UiKit.TextSecondary, TextWrapping = TextWrapping.Wrap };
         var original = new TextBlock { Foreground = UiKit.TextMuted, TextWrapping = TextWrapping.Wrap };
@@ -47,11 +49,13 @@ internal sealed class TranslationEditorWindow : Window
         {
             var keep = selected;
             string q = search.Text?.Trim() ?? "";
-            ToolGrid.SetItems(grid, rows.Where(r => q.Length == 0 || r.Key.Contains(q, StringComparison.OrdinalIgnoreCase) || r.Original.Contains(q, StringComparison.CurrentCultureIgnoreCase) || r.Display.Contains(q, StringComparison.CurrentCultureIgnoreCase)).ToArray());
+            var candidates = rolesOnly.IsChecked == true ? rows.Where(r => roleKeys.Contains(r.Key)) : rows;
+            ToolGrid.SetItems(grid, candidates.Where(r => q.Length == 0 || r.Key.Contains(q, StringComparison.OrdinalIgnoreCase) || PhaseRoleLabels.English(r.Key).Contains(q, StringComparison.OrdinalIgnoreCase) || r.Original.Contains(q, StringComparison.CurrentCultureIgnoreCase) || r.Display.Contains(q, StringComparison.CurrentCultureIgnoreCase)).ToArray());
             grid.SelectedItem = keep;
         }
         grid.SelectionChanged += (_, _) => Select();
         search.TextChanged += (_, _) => Filter();
+        rolesOnly.IsCheckedChanged += (_, _) => Filter();
         input.PropertyChanged += (_, change) =>
         {
             if (change.Property != TextBox.TextProperty || assigning || selected is null) return;
@@ -102,6 +106,7 @@ internal sealed class TranslationEditorWindow : Window
         var bottom = new StackPanel { Spacing = 7, Margin = new Thickness(0, 10, 0, 0), Children = { key, original, input, buttons, message } };
         var root = new DockPanel { Margin = new Thickness(16) };
         DockPanel.SetDock(search, Dock.Top); search.Margin = new Thickness(0, 0, 0, 8); root.Children.Add(search);
+        DockPanel.SetDock(rolesOnly, Dock.Top); root.Children.Add(rolesOnly);
         DockPanel.SetDock(bottom, Dock.Bottom); root.Children.Add(bottom); root.Children.Add(grid);
         Content = root;
         bool canClose = false, asking = false;

@@ -109,7 +109,7 @@ public sealed partial class MainWindow
             grid.Columns.Add(ToolGrid.Text<PhaseRoleRow>("Preferable", r => r.Preferable, 0, "Preferable", minWidth: 160));
             grid.Columns.Add(ToolGrid.Text<PhaseRoleRow>("Lower is better", r => r.Avoid, 0, "Lower is better", minWidth: 120));
             var rows = catalog.At(position, phase).Select(role => new PhaseRoleRow(
-                Loc.S(ContractLabels.Spaced(role.Id)), catalog.Score(player, position, role),
+                PhaseRoleLabels.Display(role.Id), catalog.Score(player, position, role),
                 string.Join(", ", role.Attributes.Where(a => a.Key && !a.LowerIsBetter).Select(a => ScoutingLabels.Attribute(a.Attribute))),
                 string.Join(", ", role.Attributes.Where(a => !a.Key && !a.LowerIsBetter).Select(a => ScoutingLabels.Attribute(a.Attribute))),
                 string.Join(", ", role.Attributes.Where(a => a.LowerIsBetter).Select(a => ScoutingLabels.Attribute(a.Attribute)))))

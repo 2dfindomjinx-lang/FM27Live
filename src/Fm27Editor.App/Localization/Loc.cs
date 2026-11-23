@@ -26,6 +26,11 @@ public static partial class Loc
     public static CultureInfo FormatCulture => IsTr ? CultureInfo.GetCultureInfo("tr-TR") : CultureInfo.InvariantCulture;
     static string Lookup(string english) => !IsTr ? english : TranslationOverrides.Current.TryGetValue(english, out var custom) ? custom : Insensitive.Value.TryGetValue(english, out var value) ? value : english;
     public static string S(string english) => LiveText.Remember(new string(Lookup(english).AsSpan()), () => Lookup(english));
+    internal static string RoleLabel(string key, string englishLabel)
+    {
+        string Render() => IsTr ? Lookup(key) : englishLabel;
+        return LiveText.Remember(new string(Render().AsSpan()), Render);
+    }
     public static string T(string english, string turkish) => LiveText.Remember(new string((IsTr ? turkish : english).AsSpan()), () => IsTr ? turkish : english);
     static string Context(string context, string english, string fallback)
     {

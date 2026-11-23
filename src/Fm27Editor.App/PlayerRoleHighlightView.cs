@@ -37,7 +37,7 @@ public sealed partial class MainWindow
             MinWidth = 190, HorizontalAlignment = HorizontalAlignment.Stretch,
             ItemTemplate = new FuncDataTemplate<HighlightChoice>((choice, _) => new TextBlock
             {
-                Text = choice?.Role is { } role ? Loc.S(ContractLabels.Spaced(role.Id)) : Loc.S("No role highlight"),
+                Text = choice?.Role is { } role ? PhaseRoleLabels.Display(role.Id) : Loc.S("No role highlight"),
                 TextTrimming = Avalonia.Media.TextTrimming.CharacterEllipsis,
             }),
         };

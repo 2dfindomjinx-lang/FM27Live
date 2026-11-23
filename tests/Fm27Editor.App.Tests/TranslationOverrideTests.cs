@@ -37,6 +37,23 @@ public sealed class TranslationOverrideTests : IDisposable
     }
 
     [Fact]
+    public void Phase_role_keeps_game_spelling_and_existing_custom_key_on_language_switch()
+    {
+        AvaloniaTestThread.Run(() =>
+        {
+            LanguageSetting.Set(AppLanguage.English);
+            var label = new TextBlock { Text = PhaseRoleLabels.Display("AdvancedCentreBack") };
+            Assert.Equal("Advanced Centre-Back", label.Text);
+            LanguageSetting.Set(AppLanguage.Turkish);
+            Assert.Equal("Topla Çıkan Stoper", label.Text);
+            TranslationOverrides.Save(new Dictionary<string, string> { ["Advanced Centre Back"] = "Özel stoper" });
+            Assert.Equal("Özel stoper", label.Text);
+            LanguageSetting.Set(AppLanguage.English);
+            Assert.Equal("Advanced Centre-Back", label.Text);
+        });
+    }
+
+    [Fact]
     public void Invalid_file_keeps_previous_good_translations_and_reports_error()
     {
         TranslationOverrides.Save(new Dictionary<string, string> { ["Finishing"] = "Son vuruş" });

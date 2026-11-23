@@ -30,7 +30,9 @@ public sealed class LocalizationTests : IDisposable
         LanguageSetting.Set(AppLanguage.Turkish);
         Assert.True(Loc.IsTr);
         Assert.Equal("Oyuncular", Loc.S("Players"));
-        Assert.Equal("Değişiklik yok (3 kontrol edildi)", Loc.F("Nothing changed ({0:N0} checked)", 3));
+        Assert.Equal("3 kayıt kontrol edildi, değişiklik yapılmadı", Loc.F("Nothing changed ({0:N0} checked)", 3));
+        Assert.Equal(" — 25 oyuncudan 20 tanesi gösteriliyor (5 gizli)",
+            Loc.F(" — {0:N0} of {1:N0} players shown ({2:N0} hidden)", 20, 25, 5));
         Assert.Equal("Kaydet", Loc.T("Save", "Kaydet"));
 
         LanguageSetting.Set(AppLanguage.English);

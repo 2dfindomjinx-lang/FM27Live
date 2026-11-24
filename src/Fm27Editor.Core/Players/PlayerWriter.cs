@@ -8,8 +8,10 @@ namespace Fm27Editor.Core.Players;
 /// and that the field still holds the value from the caller's snapshot, so a save reload or a
 /// game-side change can never be overwritten blindly.
 /// </summary>
-public sealed class PlayerWriter(IProcessMemory memory, OffsetProfile profile, ulong moduleBase)
+public sealed class PlayerWriter(IProcessMemory sessionMemory, OffsetProfile profile, ulong moduleBase)
 {
+    readonly IProcessMemory memory = VerifiedWriteMemory.ForPlayerOrClubEditor(sessionMemory);
+
     public void SetAttribute(PlayerRecord player, PlayerAttribute attribute, int display)
     {
         RequireRange(display, 1, 20, attribute.ToString());

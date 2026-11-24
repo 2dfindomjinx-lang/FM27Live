@@ -50,7 +50,7 @@ public sealed class EditorBackend : IEditorBackend, IDisposable
             session = attached;
             SaveChanged = false;
             // The window owns the complete load barrier; catalogue reads and shared initialization follow this attach.
-            var journal = new ChangeJournal();
+            var journal = attached.CreateEditJournal();
             var recorder = FlightRecorder.Current;
             recorder?.Log("game", $"attached {attached.Profile.Build}; writable {attached.CanWrite}");
             if (attached.Memory is Fm27Editor.Core.Memory.IMemoryWriteObserver observer)

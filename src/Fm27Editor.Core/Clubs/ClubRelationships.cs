@@ -102,8 +102,10 @@ public sealed class ClubRelationshipReader(IProcessMemory memory, OffsetProfile 
 /// Edits Value and Reason (and Permanent for people) of an existing row. Guarded like every writer: club vtable, vector
 /// unchanged, the whole record equal to the snapshot, then write and read back. Unknown (type) rows are not editable.
 /// </summary>
-public sealed class ClubRelationshipWriter(IProcessMemory memory, OffsetProfile profile, ulong moduleBase)
+public sealed class ClubRelationshipWriter(IProcessMemory sessionMemory, OffsetProfile profile, ulong moduleBase)
 {
+    readonly IProcessMemory memory = VerifiedWriteMemory.ForPlayerOrClubEditor(sessionMemory);
+
     const byte PermanentFlag = 0x4F;
 
     public static int ReasonCount(ClubRelationshipKind kind) => kind == ClubRelationshipKind.Rival ? 4 : 9;

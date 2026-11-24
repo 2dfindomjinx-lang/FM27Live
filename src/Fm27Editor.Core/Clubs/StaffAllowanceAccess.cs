@@ -43,8 +43,10 @@ public sealed record StaffAllowanceSnapshot(
 /// Base allowances are computed on the fly from the club; <c>Mscc</c> exists only on <c>db::HUMAN_NON_PLAYER</c>, so
 /// AI-managed clubs have no <c>Mscc</c> record and <see cref="ReadForClub"/> returns <c>null</c> for them.
 /// </summary>
-public sealed class StaffAllowanceAccess(IProcessMemory memory, OffsetProfile profile, ulong moduleBase)
+public sealed class StaffAllowanceAccess(IProcessMemory sessionMemory, OffsetProfile profile, ulong moduleBase)
 {
+    readonly IProcessMemory memory = VerifiedWriteMemory.ForPlayerOrClubEditor(sessionMemory);
+
     public const int BlockSize = 0x15;
 
     public static readonly IReadOnlyList<StaffAllowanceField> AllFields = Enum.GetValues<StaffAllowanceField>();

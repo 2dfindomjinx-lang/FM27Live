@@ -5,8 +5,10 @@ using Fm27Editor.Core.Players;
 namespace Fm27Editor.Core.Clubs;
 
 /// <summary>Changes the two adjacent payment fields only while the club, vector and record still match the snapshot.</summary>
-public sealed class ClubDebtWriter(IProcessMemory memory, OffsetProfile profile, ulong moduleBase)
+public sealed class ClubDebtWriter(IProcessMemory sessionMemory, OffsetProfile profile, ulong moduleBase)
 {
+    readonly IProcessMemory memory = VerifiedWriteMemory.ForPlayerOrClubEditor(sessionMemory);
+
     /// <summary>Source codes directly observed in FMRTE and RAM; other codes remain unsupported.</summary>
     public static bool SupportedSource(byte value) => value is 1 or 5 or 10 or 15;
 

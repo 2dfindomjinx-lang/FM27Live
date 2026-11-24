@@ -83,8 +83,10 @@ public static class ClubKitMapping
     };
 }
 
-public sealed class ClubKits(IProcessMemory memory, OffsetProfile profile, ulong moduleBase)
+public sealed class ClubKits(IProcessMemory sessionMemory, OffsetProfile profile, ulong moduleBase)
 {
+    readonly IProcessMemory memory = VerifiedWriteMemory.ForPlayerOrClubEditor(sessionMemory);
+
     public IReadOnlyList<ClubKitItem> Read(ulong club, int clubId)
     {
         var c = profile.Club;

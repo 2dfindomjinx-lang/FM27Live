@@ -53,8 +53,10 @@ public sealed record ClubFieldOffset(ClubFieldRoot Root, IReadOnlyList<int> Path
 }
 
 /// <summary>Reads and writes mapped club fields. Writes check the root vtable, re-walk the path, compare with the caller's snapshot and read back.</summary>
-public sealed class ClubFieldAccess(IProcessMemory memory, OffsetProfile profile, ulong moduleBase)
+public sealed class ClubFieldAccess(IProcessMemory sessionMemory, OffsetProfile profile, ulong moduleBase)
 {
+    readonly IProcessMemory memory = VerifiedWriteMemory.ForPlayerOrClubEditor(sessionMemory);
+
     IReadOnlyDictionary<ClubField, ClubFieldOffset> Map => profile.Club?.Fields ?? new Dictionary<ClubField, ClubFieldOffset>();
 
     public bool IsMapped(ClubField field) => Map.ContainsKey(field);

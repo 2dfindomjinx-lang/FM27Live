@@ -9,9 +9,11 @@ namespace Fm27Editor.Core.Clubs;
 /// match the snapshot. Adding a sponsor copies the first record as a template, so unknown bytes keep the layout the
 /// game wrote; the new record and any grown pointer array come from <c>VirtualAllocEx</c>, outside the game allocator.
 /// </summary>
-public sealed class ClubSponsorWriter(IProcessMemory memory, OffsetProfile profile, ulong moduleBase,
+public sealed class ClubSponsorWriter(IProcessMemory sessionMemory, OffsetProfile profile, ulong moduleBase,
     Func<int, ulong>? allocate = null)
 {
+    readonly IProcessMemory memory = VerifiedWriteMemory.ForPlayerOrClubEditor(sessionMemory);
+
     public void SetTotal(ulong club, ClubSponsorEntry entry, int value)
     {
         var f = profile.Club?.FinanceLists ?? throw new InvalidOperationException("Profile has no finance list offsets");

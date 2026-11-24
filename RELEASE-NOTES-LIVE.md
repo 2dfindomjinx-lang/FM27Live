@@ -1,6 +1,7 @@
-FM27 Live 0.1.13 Windows sürümü.
+FM27 Live 0.1.14 Windows sürümü.
 
-- FM 27.1.1 Steam (27.1.1+2511875) için uyumluluk profili eklendi. Bu sürümde oyuncu ve kulüp bilgilerini görüntüleyebilir, oyuncuların Pas özelliğini düzenleyebilirsiniz.
-- Canlı kariyerde 2.000 oyuncu ve 2.000 kulüp örneklendi. Bir test kaydında Pas değeri 13’ten 14’e çıkarıldı ve değişiklik FM’nin oyuncu kartında görüldü.
+- FM 27.1.1 Steam için teknik, zihinsel, fiziksel ve kalecilik özelliklerinin yanı sıra mevcut ve potansiyel yetenek (CA/PA), mevkiler ve kişilik puanları düzenlenebilir.
+- Kulüp bilgileri, bütçeler, tesisler, taraftarlar, takım itibarı, formalar ve mevcut sponsorluk, borç ve kulüp vizyonu kayıtları için düzenleme açıldı.
+- Yeni sponsor veya vizyon hedefi oluşturma ve hedef çoğaltma bu profilde kapalıdır. Pas değişikliği önceki sürümde oyun ekranında doğrulandı. Diğer alanlar için bu sürümde yeni bir canlı kariyer testi yapılmadı.
 
 Güncellemeler → Şimdi kontrol et ile alınabilir.

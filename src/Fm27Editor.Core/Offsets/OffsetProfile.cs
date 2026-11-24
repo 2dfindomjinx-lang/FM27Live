@@ -34,6 +34,8 @@ public sealed class OffsetProfile
     /// <summary>Disables general writes. Explicitly verified fields may use the restricted write path.</summary>
     public bool ReadOnly { get; init; }
     public IReadOnlyList<VerifiedWrite> VerifiedWrites { get; init; } = [];
+    /// <summary>Use the profile's existing player and club data layouts on a restricted build.</summary>
+    public bool PlayerAndClubEditing { get; init; }
 
     public required uint PlayerListRootRva { get; init; }
     public required int PlayerListBeginOffset { get; init; }
@@ -181,6 +183,7 @@ public sealed class OffsetProfile
             ImageSize = root.TryGetProperty("imageSize", out _) ? (uint)Hex(root, "imageSize") : null,
             PeTimestamp = root.TryGetProperty("peTimestamp", out _) ? (uint)Hex(root, "peTimestamp") : null,
             ReadOnly = root.TryGetProperty("readOnly", out var ro) && ro.GetBoolean(),
+            PlayerAndClubEditing = root.TryGetProperty("playerAndClubEditing", out var editData) && editData.GetBoolean(),
             VerifiedWrites = root.TryGetProperty("verifiedWrites", out var verifiedWrites)
                 ? verifiedWrites.EnumerateArray().Select(value => Enum.Parse<VerifiedWrite>(value.GetString()!)).ToArray()
                 : [],
@@ -532,6 +535,7 @@ public sealed class OffsetProfile
             if (ImageSize is { } imageSize) H("imageSize", imageSize);
             if (PeTimestamp is { } timestamp) H("peTimestamp", timestamp);
             if (ReadOnly) w.WriteBoolean("readOnly", true);
+            if (PlayerAndClubEditing) w.WriteBoolean("playerAndClubEditing", true);
             if (VerifiedWrites.Count > 0)
             {
                 w.WriteStartArray("verifiedWrites");

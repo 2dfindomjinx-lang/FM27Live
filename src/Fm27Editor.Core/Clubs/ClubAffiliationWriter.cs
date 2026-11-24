@@ -5,8 +5,10 @@ using Fm27Editor.Core.Players;
 namespace Fm27Editor.Core.Clubs;
 
 /// <summary>Edits observed affiliation fields only after validating both clubs, vector membership and record snapshot.</summary>
-public sealed class ClubAffiliationWriter(IProcessMemory memory, OffsetProfile profile, ulong moduleBase)
+public sealed class ClubAffiliationWriter(IProcessMemory sessionMemory, OffsetProfile profile, ulong moduleBase)
 {
+    readonly IProcessMemory memory = VerifiedWriteMemory.ForPlayerOrClubEditor(sessionMemory);
+
     public void SetAnnualFee(ulong club, ClubAffiliationEntry entry, int fee)
     {
         var layout = profile.Club?.Lists ?? throw new InvalidOperationException("Profile has no affiliation offsets");

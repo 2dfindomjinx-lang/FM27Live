@@ -1355,7 +1355,7 @@ public sealed partial class MainWindow : IClubPanels
                 }
                 catch (Exception ex) { status.Text = UserMessage.For(ex); }
             };
-            var duplicate = new Button { Content = Loc.S("Duplicate row") };
+            var duplicate = new Button { Content = Loc.S("Duplicate row"), IsEnabled = session.CanWrite };
             duplicate.Click += (_, _) =>
             {
                 try
@@ -1379,7 +1379,7 @@ public sealed partial class MainWindow : IClubPanels
                 }
                 catch (Exception ex) { status.Text = UserMessage.For(ex); }
             };
-            var addBtn = new Button { Content = Loc.S("Add objective") };
+            var addBtn = new Button { Content = Loc.S("Add objective"), IsEnabled = session.CanWrite };
             addBtn.Click += async (_, _) =>
             {
                 await ShowAddClubVisionObjectiveDialogAsync(session, teamAddr, entries[0]);
@@ -1914,7 +1914,7 @@ public sealed partial class MainWindow : IClubPanels
                 .OrderBy(opt => opt.Label, StringComparer.Ordinal).ToArray(),
         };
         newType.SelectedIndex = 0;
-        var add = new Button { Content = Loc.S("Add sponsor") };
+        var add = new Button { Content = Loc.S("Add sponsor"), IsEnabled = session.CanWrite };
         add.Click += (_, _) =>
         {
             if (newType.SelectedItem is not SponsorIncomeOption chosen) { status.Text = Loc.S("Choose an income type."); return; }

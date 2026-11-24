@@ -34,8 +34,10 @@ public sealed record CohesionOffsets(int Vector, int EntrySize, int Kind, int Va
 public sealed record TeamCohesionSnapshot(ulong Player, ulong Club, int ClubIndex, ulong Holder, ulong Begin, ulong End, ulong Capacity,
     ulong Entry, string Bytes);
 
-public sealed class TeamCohesionWriter(IProcessMemory memory, OffsetProfile profile, ulong moduleBase)
+public sealed class TeamCohesionWriter(IProcessMemory sessionMemory, OffsetProfile profile, ulong moduleBase)
 {
+    readonly IProcessMemory memory = VerifiedWriteMemory.ForPlayerOrClubEditor(sessionMemory);
+
     public const sbyte Improve = 100, Destroy = 1;
     const int MaxEntries = 500;
 

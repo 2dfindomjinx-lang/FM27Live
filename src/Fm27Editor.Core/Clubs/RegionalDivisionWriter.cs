@@ -8,8 +8,10 @@ namespace Fm27Editor.Core.Clubs;
 /// Edits one regional division row of a club: the competition (both id copies), the level and the year. Every write first
 /// checks that the record still holds exactly the bytes read, then writes and reads back.
 /// </summary>
-public sealed class RegionalDivisionWriter(IProcessMemory memory, OffsetProfile profile)
+public sealed class RegionalDivisionWriter(IProcessMemory sessionMemory, OffsetProfile profile)
 {
+    readonly IProcessMemory memory = VerifiedWriteMemory.ForPlayerOrClubEditor(sessionMemory);
+
     public void Set(ClubRegionalDivisionEntry entry, int competitionId, byte level, short year)
     {
         var l = profile.Club?.Lists ?? throw new InvalidOperationException("Profile has no club list offsets");

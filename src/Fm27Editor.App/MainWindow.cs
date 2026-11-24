@@ -1802,7 +1802,7 @@ public sealed partial class MainWindow : Window
             IsVisible = resolvedLabel.Length > 0,
         };
         var session = backend.Session;
-        if (field.Write is null || !(session.CanWrite ||
+        if (field.Write is null || !(session.CanEditPlayerAttributes ||
             field.Id == nameof(PlayerAttribute.Passing) && session.CanEdit(VerifiedWrite.Passing)))
         {
             var value = new TextBlock

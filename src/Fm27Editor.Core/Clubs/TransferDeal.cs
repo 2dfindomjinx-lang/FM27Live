@@ -172,9 +172,11 @@ public sealed class TransferDealReader(IProcessMemory memory, OffsetProfile prof
 }
 
 /// <summary>Guarded writes to a deal object: vtable, expected value, write, read back.</summary>
-public sealed class TransferDealWriter(IProcessMemory memory, OffsetProfile profile, ulong moduleBase)
+public sealed class TransferDealWriter(IProcessMemory sessionMemory, OffsetProfile profile, ulong moduleBase)
 {
-    readonly TransferDealReader reader = new(memory, profile, moduleBase);
+    readonly IProcessMemory memory = VerifiedWriteMemory.ForPlayerOrClubEditor(sessionMemory);
+
+    readonly TransferDealReader reader = new(sessionMemory, profile, moduleBase);
 
     const int FeeOffset = 0x58, StatusOffset = 0x88, AcceptFlagOffset = 0x84;
 

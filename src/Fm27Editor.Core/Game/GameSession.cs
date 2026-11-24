@@ -20,6 +20,8 @@ public sealed class GameSession : IDisposable
     public ulong ModuleBase => Game.ModuleBase;
     public bool CanWrite => (_memory as IRemoteAllocator)?.CanWrite ?? false;
     public bool HasVerifiedWrites => _memory is VerifiedWriteMemory;
+    public bool CanEditPlayerAttributes => CanWrite || HasVerifiedWrites && Profile.PlayerAndClubEditing;
+    public History.ChangeJournal CreateEditJournal() => new(_memory);
     public bool CanEdit(VerifiedWrite field) => CanWrite || HasVerifiedWrites && Profile.VerifiedWrites.Contains(field);
 
     public PlayerRepository Players { get; }
@@ -702,7 +704,8 @@ public sealed class GameSession : IDisposable
         Game = game;
         Profile = profile;
         LoadState = new GameLoadState(memory, profile, game.ModuleBase);
-        if (memory is IWriteGate gate) gate.BeforeWrite = LoadState.EnsureWritable;
+        if (VerifiedWriteMemory.ForPlayerOrClubEditor(memory) is IWriteGate gate)
+            gate.BeforeWrite = LoadState.EnsureWritable;
         Players = new PlayerRepository(memory, profile, game.ModuleBase);
         Writer = new PlayerWriter(memory, profile, game.ModuleBase);
         Contracts = new ContractWriter(memory, profile, game.ModuleBase);
@@ -735,7 +738,7 @@ public sealed class GameSession : IDisposable
                 foreach (var profile in all.OrderBy(p => PreferredRank(p, store)))
                     if (ProfileMatches(memory, game.ModuleBase, game.ModuleSize, profile))
                     {
-                        if (writable && (!profile.ReadOnly || profile.VerifiedWrites.Count > 0))
+                        if (writable && (!profile.ReadOnly || profile.VerifiedWrites.Count > 0 || profile.PlayerAndClubEditing))
                         {
                             // Close the read-only handle before opening the writable one: on macOS the privileged
                             // helper serves one client socket at a time, so opening a second connection first deadlocks.

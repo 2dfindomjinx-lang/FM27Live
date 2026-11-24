@@ -6,11 +6,12 @@ namespace Fm27Editor.Core.Tests;
 public class ProfileLoadingTests
 {
     [Fact]
-    public void Steam_2511875_ships_with_only_passing_enabled_for_editing()
+    public void Steam_2511875_embeds_player_and_club_editing_for_its_exact_build()
     {
         var profiles = GameSession.LoadProfiles(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N")));
         var profile = Assert.Single(profiles, p => p.Build == "27.1.1+2511875");
         Assert.True(profile.ReadOnly);
+        Assert.True(OffsetProfile.Load(profile.ToJson()).PlayerAndClubEditing);
         Assert.Equal(VerifiedWrite.Passing, Assert.Single(profile.VerifiedWrites));
         Assert.Equal(0x1849A000u, profile.ImageSize);
         Assert.Equal(0x6AFF57A2u, profile.PeTimestamp);

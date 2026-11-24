@@ -15,6 +15,15 @@ internal sealed class VerifiedWriteMemory(IProcessMemory source, OffsetProfile p
     (ulong Begin, ulong End) epoch;
     IMemoryWriteObserver? Observer => source as IMemoryWriteObserver;
 
+    // Only the existing typed player/club editors use this transport. The session's
+    // general Memory, allocator and hook capabilities stay restricted.
+    internal static IProcessMemory ForPlayerOrClubEditor(IProcessMemory memory) =>
+        memory is VerifiedWriteMemory limited && limited.SupportsPlayerAndClubEditing
+            ? limited.EditorData : memory;
+
+    bool SupportsPlayerAndClubEditing => profile.PlayerAndClubEditing;
+    IProcessMemory EditorData => source;
+
     public bool TryRead(ulong address, Span<byte> buffer) => source.TryRead(address, buffer);
 
     public bool TryWrite(ulong address, ReadOnlySpan<byte> data)

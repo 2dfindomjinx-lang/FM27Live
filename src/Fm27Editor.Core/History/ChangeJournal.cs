@@ -108,6 +108,11 @@ public sealed class ChangeGroup(long id, DateTimeOffset time, string kind, strin
 /// </summary>
 public sealed class ChangeJournal
 {
+    readonly IProcessMemory? sessionMemory;
+
+    public ChangeJournal() { }
+    internal ChangeJournal(IProcessMemory sessionMemory) => this.sessionMemory = sessionMemory;
+
     /// <summary>Saves of the same thing made within this time are shown as one group, like one Save click.</summary>
     public static readonly TimeSpan MergeWindow = TimeSpan.FromSeconds(5);
 
@@ -209,6 +214,8 @@ public sealed class ChangeJournal
         lock (_gate)
         {
             var owner = _groups.FirstOrDefault(g => g.Entries.Contains(entry));
+            if (sessionMemory is not null && ReferenceEquals(memory, sessionMemory) && owner is not null)
+                memory = VerifiedWriteMemory.ForPlayerOrClubEditor(memory);
             if (owner is { Entries.Count: > 1 }) { error = "Undo the complete edit to preserve related values"; return false; }
             if (entry.Undone) { error = "Already undone"; return false; }
             var current = new byte[entry.After.Length];
@@ -239,6 +246,8 @@ public sealed class ChangeJournal
     {
         lock (_gate)
         {
+            if (sessionMemory is not null && ReferenceEquals(memory, sessionMemory) && _groups.Contains(group))
+                memory = VerifiedWriteMemory.ForPlayerOrClubEditor(memory);
             var entries = group.Entries.AsEnumerable().Reverse().Where(e => !e.Undone).ToArray();
             if (entries.Length == 0) return (0, []);
             _suppress++;

@@ -6,6 +6,7 @@
   "imageSize": "0x1849A000",
   "peTimestamp": "0x6AFF57A2",
   "readOnly": true,
+  "playerAndClubEditing": true,
   "agreementRegionVtable": "0x4F29B08",
   "agreementVtable": "0x4DF4068",
   "award": {

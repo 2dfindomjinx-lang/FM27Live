@@ -16,8 +16,10 @@ public sealed record PlayerFamiliarity(ulong Address, string Snapshot, byte Tact
     public const int MaxTactical = 100, MaxRole = 20, MaxCondition = 10000, MaxMorale = 20;
 }
 
-public sealed class PlayerFamiliarityAccess(IProcessMemory memory, OffsetProfile profile, ulong moduleBase)
+public sealed class PlayerFamiliarityAccess(IProcessMemory sessionMemory, OffsetProfile profile, ulong moduleBase)
 {
+    readonly IProcessMemory memory = VerifiedWriteMemory.ForPlayerOrClubEditor(sessionMemory);
+
     public PlayerFamiliarity? Read(ulong player)
     {
         if (!IsPlayer(player)) return null;

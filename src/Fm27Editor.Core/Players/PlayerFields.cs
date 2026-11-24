@@ -50,8 +50,10 @@ public enum PlayerField
 }
 
 /// <summary>Reads and writes mapped player fields; writes check the player vtable and the caller's snapshot, then read back.</summary>
-public sealed class PlayerFieldAccess(IProcessMemory memory, OffsetProfile profile, ulong moduleBase)
+public sealed class PlayerFieldAccess(IProcessMemory sessionMemory, OffsetProfile profile, ulong moduleBase)
 {
+    readonly IProcessMemory memory = VerifiedWriteMemory.ForPlayerOrClubEditor(sessionMemory);
+
     IReadOnlyDictionary<PlayerField, ClubFieldOffset> Map => profile.PlayerFields ?? new Dictionary<PlayerField, ClubFieldOffset>();
 
     public bool IsMapped(PlayerField field) => Map.ContainsKey(field);

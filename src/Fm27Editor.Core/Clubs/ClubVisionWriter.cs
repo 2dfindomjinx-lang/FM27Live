@@ -9,8 +9,10 @@ public sealed record ClubVisionEdit(ClubVisionEntry Entry, int? Importance = nul
     int? Source = null, (DateOnly Start, DateOnly End)? Dates = null,
     (ClubVisionItemKind Kind, ushort Index)? Item = null, int? Target = null);
 
-public sealed class ClubVisionWriter(IProcessMemory memory, OffsetProfile profile, ulong moduleBase)
+public sealed class ClubVisionWriter(IProcessMemory sessionMemory, OffsetProfile profile, ulong moduleBase)
 {
+    readonly IProcessMemory memory = VerifiedWriteMemory.ForPlayerOrClubEditor(sessionMemory);
+
     public void ApplyEdits(ulong team, IReadOnlyList<ClubVisionEdit> edits) => MemoryWriteBatch.Run(memory, staged =>
     {
         var writer = new ClubVisionWriter(staged, profile, moduleBase);

@@ -13,8 +13,10 @@ public sealed class PartialClauseWriteException(Exception inner) : Exception("So
 /// Adding and removing is limited to sell-ons: they are referenced only from the club's vector. Appearance fees (and
 /// some competition bonuses) are also in a second game-wide list that is not decoded yet.
 /// </summary>
-public sealed class TransferClauseWriter(IProcessMemory memory, OffsetProfile profile, ulong moduleBase)
+public sealed class TransferClauseWriter(IProcessMemory sessionMemory, OffsetProfile profile, ulong moduleBase)
 {
+    readonly IProcessMemory memory = VerifiedWriteMemory.ForPlayerOrClubEditor(sessionMemory);
+
     const int SellOnSize = 0x28;
     TransferClauseOffsets T => profile.Club?.TransferClauses ?? throw new InvalidOperationException("Profile has no transfer clause offsets");
 

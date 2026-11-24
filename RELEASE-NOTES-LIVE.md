@@ -1,7 +1,6 @@
-FM27 Live 0.1.12 Windows sürümü.
+FM27 Live 0.1.13 Windows sürümü.
 
-- Genişletilmiş overlay’in üst çubuğuna **Çıkış** eklendi. Editörü buradan kapatabilirsiniz. Kaydedilmemiş düzenleme varsa uygulama açık kalır ve hangi adımı atabileceğinizi bildirir.
-- İngilizce kaynakla karşılaştırılarak 498 Türkçe ifade düzeltildi, 17 eksik çeviri eklendi. Oyuncunun neden forma giyemediği, kırmızı ve sarı kartlar, kiralık transferler, sonraki satış payı ve turnuva aramaları artık futbol bağlamına uygun ifadeler kullanır.
-- Altyapı, kadro kayıt kuralları, oyuncu şikâyetleri ve forma süresi açıklamaları elden geçirildi. Kişisel çeviri tercihleri güncellemeden sonra da önceliklidir.
+- FM 27.1.1 Steam (27.1.1+2511875) için uyumluluk profili eklendi. Bu sürümde oyuncu ve kulüp bilgilerini görüntüleyebilir, oyuncuların Pas özelliğini düzenleyebilirsiniz.
+- Canlı kariyerde 2.000 oyuncu ve 2.000 kulüp örneklendi. Bir test kaydında Pas değeri 13’ten 14’e çıkarıldı ve değişiklik FM’nin oyuncu kartında görüldü.
 
 Güncellemeler → Şimdi kontrol et ile alınabilir.

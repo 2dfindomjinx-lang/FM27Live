@@ -69,8 +69,8 @@ Font dosyaları kaynak deposuna eklenmez. [Cabinet Grotesk'i Fontshare'den](http
 
 Cabinet Grotesk fontları kendi Fontshare Free Font License koşulları altında, uygulama içine gömülü olarak dağıtılır. Lisans metni EXE içinde `FM27Live.Licenses.CabinetGrotesk` kaynağında bulunur; uygulamanın kaynak kodu lisansı fontların lisansını değiştirmez.
 
-Altyapıdaki Windows profilleri Steam ve Game Pass için `27.1.0+2505117` dahil sürümler içerir.
-Tam liste `offsets/` altında. Bunlar upstream profil doğrulamalarıdır; bu dağıtımın oyun içi testi ayrıca yapılmalıdır.
+Steam `27.1.1+2511875` sürümünde oyuncu ve kulüp bilgileri okunabilir. Bu sürümde düzenlenebilen oyuncu özelliği **Pas**. Test kaydında 13’ten 14’e yapılan değişiklik FM’nin oyuncu kartında doğrulandı.
+Önceki Windows profilleri Steam ve Game Pass için `27.1.0+2505117` dahil sürümleri kapsar. Tam liste `offsets/` altında.
 Epic, kadın futbolu ve profili bulunmayan yeni FM sürümleri için düzenleme desteği iddia edilmez.
 Tanınmayan sürümün adresleri tahmin edilmez; yeni profil doğrulanana kadar bağlantı/yazma engellenir.
 

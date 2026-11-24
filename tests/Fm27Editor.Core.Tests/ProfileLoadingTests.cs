@@ -6,6 +6,17 @@ namespace Fm27Editor.Core.Tests;
 public class ProfileLoadingTests
 {
     [Fact]
+    public void Steam_2511875_ships_with_only_passing_enabled_for_editing()
+    {
+        var profiles = GameSession.LoadProfiles(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N")));
+        var profile = Assert.Single(profiles, p => p.Build == "27.1.1+2511875");
+        Assert.True(profile.ReadOnly);
+        Assert.Equal(VerifiedWrite.Passing, Assert.Single(profile.VerifiedWrites));
+        Assert.Equal(0x1849A000u, profile.ImageSize);
+        Assert.Equal(0x6AFF57A2u, profile.PeTimestamp);
+    }
+
+    [Fact]
     public void Game_pass_and_steam_profiles_coexist_and_game_pass_requires_its_pe_fingerprint()
     {
         var profiles = GameSession.LoadProfiles(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N")));

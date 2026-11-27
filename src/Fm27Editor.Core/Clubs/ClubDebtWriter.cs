@@ -94,19 +94,22 @@ public sealed class ClubDebtWriter(IProcessMemory sessionMemory, OffsetProfile p
     /// Drops every debt of the club by collapsing the pointer vector to empty. Records are left in memory; the game
     /// usually rebuilds the monthly repayment totals from this list.
     /// </summary>
-    public void RemoveAll(ulong club)
+    public void RemoveAll(ulong club, IReadOnlyList<ClubDebtEntry>? expected = null)
     {
         var f = profile.Club?.FinanceLists ?? throw new InvalidOperationException("Profile has no finance list offsets");
-        var debts = new ClubListReader(memory, profile, moduleBase).ReadDebts(club);
+        var reader = new ClubListReader(memory, profile, moduleBase);
+        var debts = reader.ReadDebtList(club) ?? throw new StaleObjectException("The debt list could not be fully read.");
         if (debts.Count == 0) throw new StaleObjectException("The club has no debts to remove");
         if (debts[0].Snapshot is not { } snapshot || snapshot.Club != club)
             throw new StaleObjectException("Debt snapshot is unavailable");
+        if (expected is not null && !debts.SequenceEqual(expected))
+            throw new StaleObjectException("The club's debts changed since review.");
 
         byte[] end = BitConverter.GetBytes(snapshot.Begin);
         ulong address = snapshot.Holder + (ulong)f.DebtsVector + 8;
         if (!memory.TryWrite(address, end) || !memory.Read(address, 8).AsSpan().SequenceEqual(end))
             throw new MemoryAccessException($"Could not empty the debt list at 0x{address:X}");
-        if (new ClubListReader(memory, profile, moduleBase).ReadDebts(club).Count != 0)
+        if (reader.ReadDebtList(club)?.Count != 0)
             throw new MemoryAccessException("Debts are still listed after writing");
     }
 

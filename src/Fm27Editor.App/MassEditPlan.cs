@@ -30,7 +30,7 @@ internal sealed class MassRow
 }
 
 /// <summary>What one scope (Player, Coach, Club, Nation) would change; the review window shows one table per plan.</summary>
-internal sealed class MassPlan(string scope, int targets, IReadOnlyList<MassRow> rows)
+internal sealed class MassPlan(string scope, int targets, IReadOnlyList<MassRow> rows, string? targetLabel = null)
 {
     public string Scope { get; } = scope;
     public int Targets { get; } = targets;
@@ -40,5 +40,9 @@ internal sealed class MassPlan(string scope, int targets, IReadOnlyList<MassRow>
     public int Fields => Rows.Select(r => r.Field).Distinct().Count();
 
     /// <summary>"1,234 players, 3 fields, 3,702 changes" for the table's header line.</summary>
-    public string Summary(string noun) => Loc.F("{0:N0} {1}, {2:N0} field(s), {3:N0} change(s) selected", Targets, noun, Fields, Selected);
+    public string Summary(string noun)
+    {
+        var summary = Loc.F("{0:N0} {1}, {2:N0} field(s), {3:N0} change(s) selected", Targets, noun, Fields, Selected);
+        return targetLabel is null ? summary : $"{targetLabel} · {summary}";
+    }
 }

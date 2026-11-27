@@ -73,7 +73,7 @@ public static class ClubMassEdit
         return owners.ToArray();
     }
 
-    static void RequireClub(ClubEntry club, IProcessMemory memory, OffsetProfile profile, ulong moduleBase)
+    internal static void RequireClub(ClubEntry club, IProcessMemory memory, OffsetProfile profile, ulong moduleBase)
     {
         var offsets = profile.Club ?? throw new InvalidOperationException("Profile has no club offsets");
         int idOffset = offsets.Id ?? throw new InvalidOperationException("Profile has no club ID");

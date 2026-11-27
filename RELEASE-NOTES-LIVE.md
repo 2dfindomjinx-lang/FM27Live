@@ -1,7 +1,7 @@
-FM27 Live 0.1.14 Windows sürümü.
+FM27 Live 0.1.15 Windows sürümü.
 
-- FM 27.1.1 Steam için teknik, zihinsel, fiziksel ve kalecilik özelliklerinin yanı sıra mevcut ve potansiyel yetenek (CA/PA), mevkiler ve kişilik puanları düzenlenebilir.
-- Kulüp bilgileri, bütçeler, tesisler, taraftarlar, takım itibarı, formalar ve mevcut sponsorluk, borç ve kulüp vizyonu kayıtları için düzenleme açıldı.
-- Yeni sponsor veya vizyon hedefi oluşturma ve hedef çoğaltma bu profilde kapalıdır. Pas değişikliği önceki sürümde oyun ekranında doğrulandı. Diğer alanlar için bu sürümde yeni bir canlı kariyer testi yapılmadı.
+- Toplu düzenle → Kulüp → Lig seç… ile kayıt içindeki A takım ligini seçebilirsin. Lig seçimi ana listedeki filtrelerden bağımsızdır. Aynı adı taşıyan ligler ayrı gösterilir.
+- Mali durum → Tüm borçları sil, seçilen kulüplerin kredi ve borç kayıtlarını topluca temizler. Bakiye, bütçeler, tesisler ve itibar gibi alanlar da aynı kulüp seçimine uygulanabilir. Değişiklikleri incele ekranında etkilenen satırları görüp istediğini çıkarabilirsin.
+- Windows Steam 27.1.1+2511875 için turnuva, ülke ve stadyum listeleri ana projenin güncel profiliyle eşleştirildi. Aynı oyun sürümü için Game Pass profili eklendi. Yeni toplu işlemler otomatik testlerle kontrol edildi. Canlı kariyer doğrulaması yapılmadı.
 
 Güncellemeler → Şimdi kontrol et ile alınabilir.

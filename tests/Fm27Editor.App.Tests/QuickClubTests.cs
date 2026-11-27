@@ -24,6 +24,25 @@ public sealed class QuickClubTests
     }
 
     [Fact]
+    public void Batch_leagues_keep_namesakes_apart_and_include_each_identified_first_team_once()
+    {
+        ClubEntry First(ulong address, int id) => Club(address, id, $"Club {id}") with
+        {
+            Teams = [new TeamEntry(address + 1000, address, 0, 1, 1, true)]
+        };
+        var a = First(10, 1);
+        var b = First(20, 2);
+        var c = First(30, 3);
+        var youth = Club(40, 4, "Youth");
+        var divisions = new Dictionary<ulong, CompetitionInfo> { [10] = new(100, "Liga", "L"), [20] = new(100, "Liga", "L"),
+            [30] = new(200, "Liga", "L"), [40] = new(100, "Liga", "L") };
+        var batches = LeagueBatch.Build([a, b, a, c, youth, First(50, 5)], divisions, []);
+        Assert.Equal(2, batches.Count);
+        Assert.Equal(new[] { a, b }, batches.Single(x => x.League.Address == 100).Clubs);
+        Assert.Equal(new[] { c }, batches.Single(x => x.League.Address == 200).Clubs);
+    }
+
+    [Fact]
     public void League_selection_uses_first_team_competition_identity_not_ambiguous_names()
     {
         var clubs = new[] { Club(10, 1, "A"), Club(20, 2, "B"), Club(30, 3, "C"), Club(40, 4, "D") };

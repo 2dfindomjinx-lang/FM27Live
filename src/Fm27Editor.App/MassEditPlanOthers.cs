@@ -8,11 +8,11 @@ namespace Fm27Editor.App;
 
 internal sealed partial class MassEditWindow
 {
-    MassRow[] Guarded(string field, Func<IEnumerable<MassRow>> plan)
+    MassRow[] Guarded(string field, Func<IEnumerable<MassRow>> plan, string? name = null)
     {
         try { return plan().ToArray(); }
         catch (Exception ex) when (ex is ArgumentOutOfRangeException or InvalidOperationException or ArgumentException or StaleObjectException)
-        { return [MassRow.Refused(Loc.S("(every target)"), field, ex.Message)]; }
+        { return [MassRow.Refused(name ?? Loc.S("(every target)"), field, ex.Message)]; }
     }
 
     MassPlan CoachPlan()
@@ -60,6 +60,26 @@ internal sealed partial class MassEditWindow
         var clubs = ClubTargets();
         var rows = new List<MassRow>();
         IReadOnlyList<StadiumRecord>? stadiums = null;
+        if (planClearDebts)
+        {
+            var reader = new ClubListReader(session.Memory, session.Profile, session.ModuleBase);
+            foreach (var club in clubs)
+            {
+                var debts = reader.ReadDebtList(club.Address);
+                if (debts is null)
+                    rows.Add(MassRow.Refused(club.DisplayName, "Clear all debts", Loc.S("The debt list could not be fully read.")));
+                else if (debts.Count > 0)
+                    rows.Add(MassRow.Change(club.DisplayName, "Clear all debts", debts.Count, 0,
+                        () => { session.RemoveAllDebts(club, debts); return 1; }));
+            }
+        }
+        void AddClubRows(string label, Func<IReadOnlyList<ClubEntry>, IEnumerable<MassRow>> plan)
+        {
+            if (chosenLeague is null) { rows.AddRange(Guarded(label, () => plan(clubs))); return; }
+            // A club with a compact finance record may lack a budget that the rest of its league can edit.
+            foreach (var club in clubs)
+                rows.AddRange(Guarded(label, () => plan([club]), club.DisplayName));
+        }
         // Only this scope's rows: every scope's fields share one list, and an index means a different field in each.
         foreach (var row in planFields.Where(f => f.ModeIndex != ModeNone && f.Kind is Kind.ClubField or Kind.StadiumField))
         {
@@ -67,17 +87,17 @@ internal sealed partial class MassEditWindow
             if (row.Kind == Kind.StadiumField)
             {
                 stadiums ??= session.Stadiums.LoadAll();
-                rows.AddRange(Guarded(row.Label, () => StadiumMassEdit.Plan(clubs, stadiums, (StadiumField)row.Index, mode, row.Number, row.Min, row.Max,
+                AddClubRows(row.Label, batch => StadiumMassEdit.Plan(batch, stadiums, (StadiumField)row.Index, mode, row.Number, row.Min, row.Max,
                     session.Memory, session.Profile, session.ModuleBase)
-                    .Select(c => MassRow.Change(c.Club.DisplayName, row.Label, Money(row, c.Before), Money(row, c.After),
-                        () => { StadiumMassEdit.Apply(c, session.Memory, session.Profile, session.ModuleBase); return 1; }))));
+                    .Select(c => MassRow.Change(c.Club.DisplayName, row.Label, c.Before, c.After,
+                        () => { StadiumMassEdit.Apply(c, session.Memory, session.Profile, session.ModuleBase); return 1; })));
                 continue;
             }
-            rows.AddRange(Guarded(row.Label, () => ClubMassEdit.Plan(clubs, (ClubField)row.Index, mode, row.Number, row.Min, row.Max, session.Memory, session.Profile, session.ModuleBase)
-                .Select(c => MassRow.Change(c.Club.DisplayName, row.Label, c.Before, c.After,
-                    () => { ClubMassEdit.Apply(c, session.Memory, session.Profile, session.ModuleBase); return 1; }))));
+            AddClubRows(row.Label, batch => ClubMassEdit.Plan(batch, (ClubField)row.Index, mode, row.Number, row.Min, row.Max, session.Memory, session.Profile, session.ModuleBase)
+                .Select(c => MassRow.Change(c.Club.DisplayName, row.Label, Money(row, c.Before), Money(row, c.After),
+                    () => { ClubMassEdit.Apply(c, session.Memory, session.Profile, session.ModuleBase); return 1; })));
         }
-        return new MassPlan("Club", clubs.Count, rows);
+        return new MassPlan("Club", clubs.Count, rows, chosenLeague?.League.Name ?? chosenLeague?.League.DisplayName);
     }
 
     /// <summary>Club money in the review is written in the display currency, as on the club screen.</summary>

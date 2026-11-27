@@ -51,7 +51,7 @@
     "squadRulesContainerVtable": "0x4E4E018",
     "vtable": "0x4E41B88",
     "listRootRva": "0x586EBC0",
-    "listOffset": "0xA0"
+    "listOffset": "0x100"
   },
   "contract": {
     "vtable": "0x4C5DFB8"
@@ -70,7 +70,7 @@
     },
     "vtable": "0x4E41708",
     "listRootRva": "0x586EBC0",
-    "listOffset": "0x140"
+    "listOffset": "0x240"
   },
   "nationAppointmentVtable": "0x4C5E528",
   "player": {
@@ -127,7 +127,7 @@
   "stadium": {
     "vtable": "0x4F52B58",
     "listRootRva": "0x586EBC0",
-    "listOffset": "0x920"
+    "listOffset": "0x780"
   },
   "team": {
     "vtable": "0x4E42F38"

@@ -30,6 +30,10 @@ Tercihler kulüp/menajer kimlikleriyle saklanır; oyun belleği adresleri kayıt
 
 Oyun tarihi değişince listeler ve temiz editör sayfaları otomatik yenilenir. Tarih 3 saniyelik iki kontrolde sabit kalınca arka planda okuma başlar. Kaydedilmemiş sekmelerin kontrolleri, yarım yazılmış değerler dahil korunur; bu sayfalar kaydetme veya vazgeçme sonrasında yenilenir. Diğer listeler güncellenmeye devam eder. Otomatik yenileme oyuna yazmaz ve çakışma kontrollerini kaldırmaz. Yeni bir kayıt yüklenirse **Oyunu yükle** gerekir.
 
+## Lig genelinde düzenleme
+
+Ctrl+M ile **Toplu düzenle** penceresini aç. **Kulüp → Lig seç…** altında lig adıyla veya kimliğiyle ara. Seçim, ana kulüp listesindeki filtreden bağımsızdır. **Mali durum → Tüm borçları sil** ile her kulübün kredi ve borç kayıtları seçilir. Bakiye, bütçeler, tesisler ve itibar için de aynı lig seçimini kullanabilirsin. **Değişiklikleri incele** ekranında önceki ve yeni değerleri karşılaştır, istediğin satırları çıkar ve **Tümünü uygula** düğmesine bas. Lig kapsamı, yüklenen verilerde A takımı ve ligi belirlenebilen kulüplerdir.
+
 ## Otomatik güncelleme
 
 Program açılışta ve açıkken 30 dakikada bir `2dfindomjinx-lang/FM27Live` yayın kanalını kontrol eder.

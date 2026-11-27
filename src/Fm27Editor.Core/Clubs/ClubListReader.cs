@@ -176,12 +176,14 @@ public sealed class ClubListReader(IProcessMemory memory, OffsetProfile profile,
         return result.AsReadOnly();
     }
 
-    public IReadOnlyList<ClubDebtEntry> ReadDebts(ulong clubAddress)
+    public IReadOnlyList<ClubDebtEntry> ReadDebts(ulong clubAddress) => ReadDebtList(clubAddress, requireComplete: false) ?? [];
+
+    public IReadOnlyList<ClubDebtEntry>? ReadDebtList(ulong clubAddress, bool requireComplete = true)
     {
         if (profile.Club?.FinanceLists is not { } f || !ClubRoot(clubAddress)
-            || !Fits(f.DebtSize, (f.DebtOriginal, 4), (f.DebtEnd, 4), (f.DebtStart, 4), (f.DebtSource, 1))) return [];
+            || !Fits(f.DebtSize, (f.DebtOriginal, 4), (f.DebtEnd, 4), (f.DebtStart, 4), (f.DebtSource, 1))) return null;
         ulong holder = PointerAt(clubAddress, f.DebtsPointer);
-        if (holder == 0 || VectorSnapshot(Field(holder, f.DebtsVector)) is not { } vector) return [];
+        if (holder == 0 || VectorSnapshot(Field(holder, f.DebtsVector)) is not { } vector) return null;
         var result = new List<ClubDebtEntry>();
         for (int i = 0; i < vector.Pointers.Length; i++)
         {
@@ -193,7 +195,7 @@ public sealed class ClubListReader(IProcessMemory memory, OffsetProfile profile,
                     new(clubAddress, holder, vector.Begin, vector.End, vector.Capacity, vector.Begin + (ulong)i * 8, Convert.ToHexString(b)),
                     f.DebtInterestOnly is { } flag && Fits(f.DebtSize, (flag, 1)) ? b[flag] switch { 0 => false, 1 => true, _ => (bool?)null } : null));
         }
-        return result.AsReadOnly();
+        return requireComplete && result.Count != vector.Pointers.Length ? null : result.AsReadOnly();
     }
 
     bool ClubRoot(ulong address) => profile.Club is { } k && Vtable(address, k.ClubVtableRva);

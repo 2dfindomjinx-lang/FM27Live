@@ -65,6 +65,10 @@ internal sealed partial class MassEditWindow : Window
     readonly TextBlock target = new() { FontSize = 12.5, Foreground = UiKit.TextPrimary, VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap };
     readonly Button clear = new() { Content = Loc.S("Clear all") };
     readonly Button choose = new() { Content = Loc.S("Choose who to edit..."), IsEnabled = false };
+    readonly Button chooseLeague = new() { Content = Loc.S("Choose league…") };
+    readonly CheckBox clearClubDebts = new() { Content = Loc.S("Clear all debts") };
+    LeagueBatch? chosenLeague;
+    Fm27Editor.Core.Game.GameSession? leagueSession;
     IReadOnlyList<PlayerRecord>? chosenPlayers;
     bool chosenFromGrid;
     IReadOnlyList<StaffRecord>? chosenStaff;
@@ -111,7 +115,15 @@ internal sealed partial class MassEditWindow : Window
             try { await ChooseTargetsAsync(); }
             finally { choosingTargets = false; }
         };
-        var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center, Children = { label, target, choose } };
+        chooseLeague.Click += async (_, _) =>
+        {
+            if (choosingTargets) return;
+            choosingTargets = true;
+            try { await ChooseLeagueAsync(); }
+            catch (Exception ex) { status.Text = UserMessage.For(ex); }
+            finally { choosingTargets = false; }
+        };
+        var row = new WrapPanel { ItemSpacing = 8, LineSpacing = 4, Children = { label, target, chooseLeague, choose } };
         top.Children.Add(row);
 
         var bottom = new DockPanel { LastChildFill = true, Margin = new Thickness(12, 6, 12, 10) };
@@ -386,21 +398,28 @@ internal sealed partial class MassEditWindow : Window
     ];
     IReadOnlyList<(string, Control)> BuildClubSections()
     {
-        var panel = Panel();
         if (backend.State.Status != ConnectionStatus.Connected)
         {
+            var panel = Panel();
             panel.Children.Add(new TextBlock { Text = Loc.S("Load a save first."), Foreground = UiKit.TextMuted, Margin = new Thickness(4, 8) });
             return [("General", panel)];
         }
         var profile = backend.Session.Profile;
         var metas = ClubFieldInfo.All.Where(m => ClubMassEdit.IsSupported(profile, m.Field)).GroupBy(m => m.Field).ToDictionary(g => g.Key, g => g.First());
-        // FMRTE's Club tab is one list of groups: Overview, Stadium, Finances, then the editor's extra groups.
+        var sections = new List<(string, Control)>();
         foreach (var (group, layout) in ClubLayout)
         {
             var present = layout.Where(metas.ContainsKey).Select(f => metas[f]).Where(m => m.Options is not null || m.DisplayKind is ClubDisplayKind.PlainInt or ClubDisplayKind.FormattedInt or ClubDisplayKind.Money
                 or ClubDisplayKind.Rating20 or ClubDisplayKind.Percent or ClubDisplayKind.Rating100).ToArray();
-            if (present.Length == 0 && group != "Stadium") continue;
-            AddHeader(panel, group);
+            bool showDebts = group == "Finances" && profile.Club?.FinanceLists is not null && backend.Session.CanEditPlayerAttributes;
+            if (present.Length == 0 && group != "Stadium" && !showDebts) continue;
+            var panel = Panel();
+            sections.Add((group, panel));
+            if (showDebts)
+            {
+                clearClubDebts.IsCheckedChanged += (_, _) => MarkDirty();
+                panel.Children.Add(clearClubDebts);
+            }
             foreach (var meta in present)
             {
                 if (meta.Options is { Count: > 0 } options)
@@ -413,7 +432,7 @@ internal sealed partial class MassEditWindow : Window
                     if (StadiumMassEdit.IsSupported(profile, field))
                         Add(panel, Kind.StadiumField, (int)field, group, label, min, max);
         }
-        return [("General", panel)];
+        return sections.Count > 0 ? sections : [("General", Panel())];
     }
 
     IReadOnlyList<(string, Control)> BuildNationSections()
@@ -620,6 +639,7 @@ internal sealed partial class MassEditWindow : Window
 
     void SnapshotPlanInputs()
     {
+        planClearDebts = clearClubDebts.IsChecked == true;
         planFields = fields.Select(f => new FieldInput(f.Kind, f.Index, f.Label, f.Min, f.Max, f.ModeIndex, f.Number)).ToList();
         planInjuryClear = injuryClear?.IsChecked == true;
         planInjuryType = (injuryType?.SelectedItem as InjuryChoice)?.Type;
@@ -686,7 +706,7 @@ internal sealed partial class MassEditWindow : Window
             targets.Nations, targets.Clubs,
             initialScope: Scope,
             staffSource: () => StaffTargets(),
-            clubSource: () => ClubTargets(),
+            clubSource: () => chosenLeague is null ? ClubTargets() : targets.Clubs,
             clubAccess: new ClubFieldAccess(backend.Session.Memory, backend.Session.Profile, backend.Session.ModuleBase),
             today: backend.Session.ReadGameDate(),
             nationSource: () => targets.Nations,
@@ -704,6 +724,8 @@ internal sealed partial class MassEditWindow : Window
                 SelectScope("Coach");
                 break;
             case "Club":
+                chosenLeague = null;
+                leagueSession = null;
                 chosenClubs = dialog.MatchedClubs;
                 SelectScope("Club");
                 break;
@@ -802,6 +824,9 @@ internal sealed partial class MassEditWindow : Window
 
     void UpdateTarget()
     {
+        int version = ++targetVersion;
+        chooseLeague.IsVisible = Scope == "Club";
+        chooseLeague.IsEnabled = backend.Data is not null && backend.State.Status == ConnectionStatus.Connected;
         if (backend.State.Status != ConnectionStatus.Connected)
         {
             target.Text = Loc.S("Not connected - press Load Game first");
@@ -827,7 +852,7 @@ internal sealed partial class MassEditWindow : Window
         }
         if (Scope == "Club" && chosenClubs is not null)
         {
-            target.Text = Loc.F("{0:N0} clubs (Advanced Search)", chosenClubs.Count);
+            target.Text = chosenLeague?.SelectionLabel ?? Loc.F("{0:N0} clubs (Advanced Search)", chosenClubs.Count);
             MarkDirty();
             return;
         }
@@ -847,7 +872,6 @@ internal sealed partial class MassEditWindow : Window
         if (available) { ShowTargetCount(TargetCount()); MarkDirty(); return; }
         // Nothing is loaded yet: counting the targets reads the whole list from the game, so it runs in the
         // background and only the newest scope's count is shown.
-        int version = ++targetVersion;
         string loadingScope = Scope;
         target.Text = Loc.S("Counting…");
         snapShownPlayers = host.MassEditPlayers; snapShownStaff = host.MassEditStaff;
@@ -855,8 +879,8 @@ internal sealed partial class MassEditWindow : Window
         _ = Task.Run(TargetCount).ContinueWith(task =>
             Avalonia.Threading.Dispatcher.UIThread.Post(() =>
             {
-                ClearPlanSnapshot();
                 if (version != targetVersion || Scope != loadingScope || task.IsFaulted) return;
+                if (Content is not Control { IsEnabled: false }) ClearPlanSnapshot();
                 ShowTargetCount(task.Result);
                 MarkDirty();
             }));
@@ -898,6 +922,7 @@ internal sealed partial class MassEditWindow : Window
         if (contractType?.SelectedIndex > 0 || contractStatus?.SelectedIndex > 0) changed++;
         if (clauseType?.SelectedIndex > 0 || removeClause?.IsChecked == true) changed++;
         if (injuryClear?.IsChecked == true) changed++;
+        if (clearClubDebts.IsChecked == true) changed++;
         if (injuryType?.SelectedIndex > 0) changed++;
         status.Text = changed == 0 ? Loc.S("No changes set") : Loc.F("{0:N0} change(s) set", changed);
         apply.IsEnabled = changed > 0 && backend.State.Status == ConnectionStatus.Connected;
@@ -916,6 +941,7 @@ internal sealed partial class MassEditWindow : Window
         if (clauseFee is not null) clauseFee.Value = 0;
         if (removeClause is not null) removeClause.IsChecked = false;
         if (injuryClear is not null) injuryClear.IsChecked = false;
+        clearClubDebts.IsChecked = false;
         if (injuryType is not null) injuryType.SelectedIndex = 0;
         MarkDirty();
     }

@@ -1,4 +1,12 @@
 {
+  "Choose league…": "Lig seç…",
+  "{0:N0} standings teams unmatched": "Puan tablosundan {0:N0} takım eşleştirilemedi",
+  "No first-team leagues were found in this save.": "Bu kayıtta A takım ligi okunabilen kulüp bulunamadı.",
+  "The game data changed. Choose the league again.": "Oyun verileri yenilendi. Ligi tekrar seç.",
+  "The game data changed. Review the changes again.": "Oyun verileri yenilendi. Değişiklikleri tekrar incele.",
+  "League membership changed. Refresh and choose the league again.": "Ligdeki takımlar değişti. Verileri yenileyip ligi tekrar seç.",
+  "The debt list could not be fully read.": "Borç listesinin tamamı okunamadı.",
+  "The club's debts changed since review.": "Önizlemeden sonra kulübün borçları değişti.",
   "FM roles only": "Yalnızca FM rolleri",
   "Open current FM screen (Ctrl+Shift+F)": "FM’deki açık ekranı getir (Ctrl+Shift+F)",
   "Load the game first.": "Önce oyuna bağlan.",

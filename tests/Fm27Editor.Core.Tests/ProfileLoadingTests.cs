@@ -18,6 +18,24 @@ public class ProfileLoadingTests
     }
 
     [Fact]
+    public void Windows_2511875_catalogues_follow_the_store_specific_upstream_profiles()
+    {
+        var profiles = GameSession.LoadProfiles(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N")));
+        var windows = profiles.Where(p => p.MatchBuild == "27.1.1+2511875" || p.Build == "27.1.1+2511875").ToArray();
+        Assert.Equal(2, windows.Length);
+        foreach (var profile in windows)
+        {
+            Assert.Equal(0x100, profile.Competition!.ListOffset);
+            Assert.Equal(0x240, profile.Nation!.ListOffset);
+            Assert.Equal(0x780, profile.Stadium!.ListOffset);
+            Assert.True(profile.ReadOnly && profile.PlayerAndClubEditing);
+        }
+        var pass = Assert.Single(windows, p => p.Build.EndsWith("Game Pass"));
+        Assert.Equal(0x17624000u, pass.ImageSize);
+        Assert.Equal(0x6AFF583Bu, pass.PeTimestamp);
+    }
+
+    [Fact]
     public void Game_pass_and_steam_profiles_coexist_and_game_pass_requires_its_pe_fingerprint()
     {
         var profiles = GameSession.LoadProfiles(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N")));

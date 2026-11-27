@@ -54,6 +54,33 @@ public class ClubDebtClearTests
     }
 
     [Fact]
+    public void Review_rejects_a_changed_debt_even_when_the_count_is_the_same()
+    {
+        Build();
+        var before = Reader().ReadDebtList(Club)!;
+        Assert.True(memory.TryWrite(Records, BitConverter.GetBytes(123456)));
+        int writes = memory.Writes;
+        Assert.Throws<StaleObjectException>(() => Writer().RemoveAll(Club, before));
+        Assert.Equal(writes, memory.Writes);
+        var after = Reader().ReadDebtList(Club)!;
+        Assert.Equal(2, after.Count);
+        Writer().RemoveAll(Club, after);
+        Assert.Empty(Reader().ReadDebtList(Club)!);
+    }
+
+    [Fact]
+    public void Partially_readable_debts_are_never_cleared()
+    {
+        Build();
+        Assert.True(memory.TryWrite(List + 8, BitConverter.GetBytes(0UL)));
+        Assert.Single(Reader().ReadDebts(Club));
+        Assert.Null(Reader().ReadDebtList(Club));
+        int writes = memory.Writes;
+        Assert.Throws<StaleObjectException>(() => Writer().RemoveAll(Club));
+        Assert.Equal(writes, memory.Writes);
+    }
+
+    [Fact]
     public void Rejects_a_club_without_debts()
     {
         Build();

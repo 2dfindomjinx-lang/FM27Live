@@ -675,6 +675,12 @@ public sealed class GameSession : IDisposable
     /// <summary>Drops every debt of the club (Finances → Debt and Loans).</summary>
     public void RemoveAllDebts(ulong clubAddress) =>
         new Clubs.ClubDebtWriter(_memory, Profile, ModuleBase).RemoveAll(clubAddress);
+
+    public void RemoveAllDebts(Clubs.ClubEntry club, IReadOnlyList<Clubs.ClubDebtEntry> expected)
+    {
+        Clubs.ClubMassEdit.RequireClub(club, _memory, Profile, ModuleBase);
+        new Clubs.ClubDebtWriter(_memory, Profile, ModuleBase).RemoveAll(club.Address, expected);
+    }
     public void SetDebtSource(ulong clubAddress, Clubs.ClubDebtEntry entry, byte value) =>
         new Clubs.ClubDebtWriter(_memory, Profile, ModuleBase).SetSource(clubAddress, entry, value);
     public void SetOriginalDebt(ulong clubAddress, Clubs.ClubDebtEntry entry, int value) =>
